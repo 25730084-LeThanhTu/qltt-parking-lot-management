@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% from '_result_table.html' import render_result_set %}
+{% block content %}
+<div class="card">
+    <h2 style="margin-bottom: 1rem; color: var(--secondary);">{{ title }}</h2>
+    {% for rs in result_sets %}
+        {{ render_result_set(rs) }}
+    {% endfor %}
+</div>
+{% endblock %}

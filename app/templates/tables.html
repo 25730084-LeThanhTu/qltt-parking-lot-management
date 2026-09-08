@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <h2 class="card-title">📋 Danh Mục 9 Bảng Dữ Liệu Vật Lý (Database Schema)</h2>
+    </div>
+    <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+        Hệ thống được chuẩn hóa cao độ gồm 9 bảng dữ liệu. Bấm vào từng bảng để truy vấn trực tiếp 100 bản ghi đầu tiên.
+    </p>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem;">
+        {% for table in tables %}
+        <div style="border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; background: var(--bg-surface); display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <strong style="font-size: 1rem; color: var(--secondary);">{{ table }}</strong>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem;">dbo.{{ table }}</div>
+            </div>
+            <a href="{{ url_for('main.table_detail', table_name=table) }}" class="btn btn-outline" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+                Xem Dữ Liệu ➔
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

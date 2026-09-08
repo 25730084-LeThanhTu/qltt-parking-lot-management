@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% from '_result_table.html' import render_result_set %}
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <h2 class="card-title">💻 Trình Gõ & Thực Thi Câu Lệnh SQL Trực Tiếp (SQL Runner)</h2>
+    </div>
+    <p style="color: var(--text-muted); margin-bottom: 1rem;">
+        Gõ các câu lệnh T-SQL để kiểm tra database. Hệ thống sẽ kết nối trực tiếp đến SQL Server và hiển thị kết quả thời gian thực.
+    </p>
+
+    <form method="post">
+        <textarea name="sql" rows="6" style="width: 100%; padding: 1rem; border-radius: 8px; border: 1px solid var(--border); font-family: monospace; font-size: 0.9rem; background: #0f172a; color: #f8fafc;">{{ sql }}</textarea>
+        <div style="margin-top: 1rem;">
+            <button class="btn btn-primary" type="submit">▶️ Thực Thi SQL</button>
+        </div>
+    </form>
+</section>
+
+{% if error %}
+<section class="card error-box">
+    <h3>Lỗi thực thi SQL</h3>
+    <pre>{{ error }}</pre>
+</section>
+{% endif %}
+
+{% if result_sets %}
+<section>
+    <h2 style="font-size: 1.2rem; color: var(--secondary); margin-bottom: 0.75rem;">Kết Quả Truy Vấn ({{ result_sets|length }} tập kết quả)</h2>
+    {% for rs in result_sets %}
+        {{ render_result_set(rs) }}
+    {% endfor %}
+</section>
+{% endif %}
+
+{% endblock %}

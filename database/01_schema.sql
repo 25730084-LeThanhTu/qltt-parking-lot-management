@@ -1,1 +1,0 @@
--- Schema: tables, keys, constraints, and defaults.

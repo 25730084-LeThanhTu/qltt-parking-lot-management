@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% from '_result_table.html' import render_result_set %}
+{% block content %}
+
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem;">
+        <span class="badge badge-info">Kịch bản: {{ case_key }}</span>
+        <a href="{{ url_for('main.index') }}" class="btn btn-outline" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">← Quay lại trang chủ</a>
+    </div>
+    <h2 style="font-size: 1.35rem; color: var(--secondary); margin-bottom: 1rem;">{{ case.title }}</h2>
+
+    <div style="background: var(--bg-body); border-left: 4px solid var(--primary); padding: 1rem 1.25rem; border-radius: 4px;">
+        <h3 style="font-size: 1rem; color: var(--secondary); margin-bottom: 0.25rem;">📌 B1 - Phát Biểu Bài Toán Nghiệp Vụ</h3>
+        <p style="color: var(--text); font-size: 0.925rem; line-height: 1.6;">{{ case.problem }}</p>
+    </div>
+</div>
+
+<section class="card">
+    <h3 style="font-size: 1.05rem; color: var(--secondary); margin-bottom: 0.5rem;">💻 B2 - Câu Truy Vấn SQL Định Nghĩa Sẽ Thực Thi</h3>
+    <pre><code>{{ case.execute_sql }}</code></pre>
+    
+    <div style="margin-top: 1rem; display: flex; align-items: center; gap: 1rem;">
+        <form method="post">
+            <button class="btn btn-primary" type="submit">
+                ▶️ B4 - Kích Hoạt Thực Thi Câu Lệnh
+            </button>
+        </form>
+        <span style="font-size: 0.85rem; color: var(--text-muted); font-style: italic;">
+            (Nhấn nút để gửi câu lệnh trực tiếp xuống CSDL SQL Server và quan sát sự thay đổi dữ liệu)
+        </span>
+    </div>
+</section>
+
+<section>
+    <div style="margin-bottom: 0.75rem;">
+        <h2 style="font-size: 1.2rem; color: var(--secondary); display: flex; align-items: center; gap: 0.5rem;">
+            <span>🔍 B3 - Dữ Liệu Liên Quan Trước Khi Thực Thi (SSMS Snapshot)</span>
+        </h2>
+    </div>
+    {% for rs in before_sets %}
+        {{ render_result_set(rs) }}
+    {% endfor %}
+</section>
+
+<div id="execute-output"></div>
+
+{% if execution_error %}
+<section class="card error-box">
+    <h3 style="font-size: 1.05rem; margin-bottom: 0.5rem;">⚠️ Thông báo Lỗi / Bẫy Lỗi Nghiệp Vụ CSDL</h3>
+    <pre style="background: #450a0a; color: #fecaca;">{{ execution_error }}</pre>
+    <p style="margin-top: 0.5rem; font-size: 0.85rem; color: #991b1b; font-weight: 500;">
+        💡 <em>Ghi chú: Nếu kịch bản demo này kiểm tra Trigger chặn thẻ lỗi, vé hết hạn hoặc bãi xe đầy thì thông báo lỗi trên là KẾT QUẢ MONG ĐỢI của hệ thống nhằm bảo vệ toàn vẹn dữ liệu.</em>
+    </p>
+</section>
+{% endif %}
+
+{% if execute_sets %}
+<section>
+    <div style="margin-bottom: 0.75rem;">
+        <h2 style="font-size: 1.2rem; color: var(--success); display: flex; align-items: center; gap: 0.5rem;">
+            <span>✨ Output Kết Quả Trả Về Sau Khi Chạy Câu Lệnh</span>
+        </h2>
+    </div>
+    {% for rs in execute_sets %}
+        {{ render_result_set(rs) }}
+    {% endfor %}
+</section>
+{% endif %}
+
+{% if after_sets %}
+<section>
+    <div style="margin-bottom: 0.75rem;">
+        <h2 style="font-size: 1.2rem; color: var(--primary); display: flex; align-items: center; gap: 0.5rem;">
+            <span>📊 B5 - Dữ Liệu Liên Quan Sau Khi Thực Thi (Kiểm Chứng SSMS)</span>
+        </h2>
+    </div>
+    {% for rs in after_sets %}
+        {{ render_result_set(rs) }}
+    {% endfor %}
+</section>
+{% endif %}
+
+{% endblock %}

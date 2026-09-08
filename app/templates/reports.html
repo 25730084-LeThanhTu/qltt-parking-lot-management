@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <h2 class="card-title">📊 Danh Mục Báo Cáo Thống Kê & Bảng Điều Khiển (Views / Reports)</h2>
+    </div>
+    <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+        Dữ liệu được truy vấn trực tiếp từ các View trong SQL Server, hỗ trợ nhúng tự động ảnh chụp biểu đồ Dashboard xuất từ Tableau hoặc PowerBI nếu có.
+    </p>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.25rem;">
+        {% for item in report_items %}
+        <div style="border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; background: var(--bg-surface); display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+                <h3 style="font-size: 1.05rem; color: var(--secondary); margin-bottom: 0.5rem;">{{ item.view_name }}</h3>
+                <div style="margin-bottom: 1rem;">
+                    {% if item.screenshot_filename %}
+                        <span class="badge badge-success">✓ Đã có ảnh Dashboard</span>
+                    {% else %}
+                        <span class="badge badge-warning">Chưa có ảnh (đặt vào reports_screenshots/{{ item.expected_filename }})</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div>
+                <a href="{{ url_for('main.report_detail', view_name=item.view_name) }}" class="btn btn-primary" style="width: 100%; font-size: 0.875rem;">
+                    Mở Báo Cáo Chi Tiết ➔
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

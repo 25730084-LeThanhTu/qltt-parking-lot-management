@@ -1,7 +1,0 @@
-{
-  "name": "parking-frontend",
-  "private": true,
-  "scripts": {
-    "start": "ng serve"
-  }
-}

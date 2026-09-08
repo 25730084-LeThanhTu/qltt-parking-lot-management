@@ -3,9 +3,5 @@
 **/obj/
 *.user
 
-# Angular
-**/node_modules/
-**/dist/
-
 # Local configuration
 .env

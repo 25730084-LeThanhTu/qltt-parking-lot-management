@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="card">
+    <div class="map-controls">
+        <div>
+            <h2>🗺️ Sơ Đồ Mặt Bằng Ô Đỗ Xe Thời Gian Thực</h2>
+            <p style="color: var(--text-muted); font-size: 0.875rem;">
+                Trực quan hóa trạng thái từng ô đỗ (`VI_TRI_DO`) được cập nhật tự động thông qua Database Triggers khi có xe vào/ra.
+            </p>
+        </div>
+
+        <div class="filter-pills">
+            {% for b in bai_list %}
+            <a href="{{ url_for('main.parking_map', bai=b.MaBai) }}" 
+               class="filter-pill {% if b.MaBai == selected_bai %}active{% endif %}">
+               🏢 {{ b.TenBai }} ({{ b.SoLuongHienTai }}/{{ b.SucChua }})
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    {% if bai_info %}
+    <div style="background: var(--bg-body); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; border: 1px solid var(--border);">
+        <div>
+            <h3 style="font-size: 1.1rem; color: var(--secondary);">{{ bai_info.TenBai }} (Mã: {{ bai_info.MaBai }})</h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Sức chứa: <strong>{{ bai_info.SucChua }} slots</strong> | Đang gửi: <strong>{{ bai_info.SoLuongHienTai }} xe</strong> | Chỗ trống: <strong style="color: var(--success);">{{ bai_info.SoChoTrong }} chỗ</strong></p>
+        </div>
+        <div style="text-align: right;">
+            <div style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Tỷ lệ lấp đầy</div>
+            <div style="font-size: 1.5rem; font-weight: 700; color: {% if bai_info.TyLeLapDayPercent >= 80 %}var(--danger){% else %}var(--primary){% endif %};">
+                {{ bai_info.TyLeLapDayPercent }}%
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Chú thích -->
+    <div style="display: flex; gap: 1.5rem; margin-bottom: 1rem; font-size: 0.85rem; font-weight: 600;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="width: 14px; height: 14px; background: var(--success); border-radius: 3px; display: inline-block;"></span>
+            <span>Ô Trống (Sẵn sàng đỗ xe)</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="width: 14px; height: 14px; background: var(--danger); border-radius: 3px; display: inline-block;"></span>
+            <span>Đã Đỗ (Đang có phương tiện chiếm chỗ)</span>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="error-box">
+        <h3>Lỗi tải dữ liệu sơ đồ</h3>
+        <pre>{{ error }}</pre>
+    </div>
+    {% endif %}
+
+    <!-- Lưới hiển thị các ô đỗ xe -->
+    <div class="slots-grid">
+        {% for slot in slots %}
+        <div class="slot-item {% if slot.TrangThai == 'Đã đỗ' %}dado{% else %}trong{% endif %}">
+            <div class="slot-header">
+                <span class="slot-code">{{ slot.MaViTri }}</span>
+                <span class="badge {% if slot.TrangThai == 'Đã đỗ' %}badge-danger{% else %}badge-success{% endif %}">
+                    {{ slot.TrangThai }}
+                </span>
+            </div>
+            <div class="slot-zone">{{ slot.KhuVuc }}</div>
+            <div class="slot-vehicle">
+                {% if slot.MaLoaiXe == 'XM' %}🛵{% elif slot.MaLoaiXe == 'OT' %}🚗{% else %}🚲{% endif %}
+                {{ slot.TenLoai }}
+            </div>
+
+            {% if slot.TrangThai == 'Đã đỗ' and slot.BienSo %}
+            <div class="slot-occupied-info">
+                <div style="margin-bottom: 0.25rem;">
+                    <span class="plate-badge">{{ slot.BienSo }}</span>
+                </div>
+                <div style="color: var(--text-muted);">
+                    Thẻ: <strong>{{ slot.MaThe }}</strong>
+                </div>
+            </div>
+            {% else %}
+            <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--success); font-weight: 500;">
+                ✓ Slot khả dụng
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{% endblock %}

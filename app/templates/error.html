@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card error-box">
+    <h2>{{ title or 'Đã xảy ra lỗi' }}</h2>
+    <pre>{{ error }}</pre>
+    <div style="margin-top: 1rem;">
+        <a href="{{ url_for('main.index') }}" class="btn btn-outline">← Quay lại trang chủ</a>
+    </div>
+</div>
+{% endblock %}

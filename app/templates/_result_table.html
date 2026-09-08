@@ -1,0 +1,39 @@
+{% macro render_result_set(result_set) %}
+<section class="card">
+    <div class="card-header">
+        <h3 class="card-title">{{ result_set.name }}</h3>
+    </div>
+    {% if result_set.description %}
+        <p class="muted" style="margin-bottom: 1rem; color: var(--text-muted); font-size: 0.875rem;">{{ result_set.description }}</p>
+    {% endif %}
+    {% if result_set.rows and result_set.columns %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+            <tr>
+                {% for col in result_set.columns %}
+                    <th>{{ col }}</th>
+                {% endfor %}
+            </tr>
+            </thead>
+            <tbody>
+            {% for row in result_set.rows %}
+                <tr>
+                    {% for col in result_set.columns %}
+                        {% set val = row[col] %}
+                        {% if col|lower in ['trangthai', 'trangthaive', 'trangthaixuly', 'trangthaithe', 'loaithe'] %}
+                            <td><span class="badge {{ val|status_badge_class }}">{{ val }}</span></td>
+                        {% else %}
+                            <td class="{{ col|cell_class }}">{{ val|format_cell(col) }}</td>
+                        {% endif %}
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+        <p style="color: var(--text-muted); font-size: 0.9rem; font-style: italic;">Không có dữ liệu hoặc không có dòng nào được trả về.</p>
+    {% endif %}
+</section>
+{% endmacro %}

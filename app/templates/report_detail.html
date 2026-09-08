@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% from '_result_table.html' import render_result_set %}
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h2 style="font-size: 1.3rem; color: var(--secondary);">{{ title }}</h2>
+        <a href="{{ url_for('main.reports') }}" class="btn btn-outline" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">← Quay lại danh sách</a>
+    </div>
+
+    {% if screenshot_filename %}
+    <div style="margin-bottom: 2rem; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: #000;">
+        <div style="padding: 0.5rem 1rem; background: var(--secondary); color: #ffffff; font-size: 0.85rem; font-weight: 600;">
+            📊 Trực Quan Hóa Dashboard (Tableau / PowerBI)
+        </div>
+        <img src="{{ url_for('main.report_image', filename=screenshot_filename) }}" 
+             alt="{{ view_name }}" 
+             style="width: 100%; height: auto; display: block; max-height: 550px; object-fit: contain;">
+    </div>
+    {% else %}
+    <div style="background: var(--bg-body); border: 1px dashed var(--border); border-radius: var(--radius); padding: 1rem; margin-bottom: 1.5rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+        💡 Để hiển thị biểu đồ đồ họa cho báo cáo này, hãy lưu file ảnh vào thư mục <code>reports_screenshots/{{ expected_filename }}</code>.
+    </div>
+    {% endif %}
+
+    <h3 style="font-size: 1.1rem; margin-bottom: 0.75rem; color: var(--secondary);">Dữ Liệu Bảng Chi Tiết (Tối đa 200 dòng)</h3>
+    {% for rs in result_sets %}
+        {{ render_result_set(rs) }}
+    {% endfor %}
+</div>
+{% endblock %}

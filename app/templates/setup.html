@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="card">
+    <div class="card-header">
+        <h2 class="card-title">⚙️ Khởi Tạo & Nạp Lại Toàn Bộ CSDL (Setup Database)</h2>
+    </div>
+    <p style="color: var(--text-muted); margin-bottom: 1rem;">
+        Chức năng này sẽ tự động đọc file script tổng hợp <code>sql/QL_BaiDoXe_FullScript.sql</code> và thực thi từng batch phân tách bằng lệnh <code>GO</code> trên Microsoft SQL Server.
+    </p>
+
+    <div style="background: var(--warning-bg); border: 1px solid var(--warning-border); padding: 1rem 1.25rem; border-radius: var(--radius); margin-bottom: 1.5rem;">
+        <strong style="color: #92400e;">⚠️ Lưu ý quan trọng:</strong>
+        <p style="color: #92400e; font-size: 0.875rem; margin-top: 0.25rem;">
+            Thao tác này sẽ XÓA và TẠO MỚI database <code>QuanLyBaiDoXe</code>, đồng thời nạp lại toàn bộ 9 bảng, triggers, procedures, functions, cursors, views và dữ liệu mẫu ban đầu.
+        </p>
+    </div>
+
+    {% if allow %}
+    <form method="post">
+        <button class="btn btn-danger" type="submit" onclick="return confirm('Bạn có chắc chắn muốn nạp lại toàn bộ CSDL từ đầu không?');">
+            🔄 Bắt Đầu Nạp Lại Toàn Bộ CSDL
+        </button>
+    </form>
+    {% else %}
+    <div class="card error-box">
+        <h3>Chức năng Setup đang bị khóa</h3>
+        <p style="font-size: 0.875rem;">Để mở khóa nút nạp script tự động, hãy mở file <code>.env</code> và cấu hình <code>ALLOW_RUN_FULL_SCRIPT=1</code>, sau đó tải lại trang này.</p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

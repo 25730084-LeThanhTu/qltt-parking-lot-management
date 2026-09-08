@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% block content %}
+
+{% if overview and overview[0] %}
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon">🏢</div>
+        <div class="stat-info">
+            <h4>Bãi Đỗ Hoạt Động</h4>
+            <div class="stat-value">{{ overview[0]['TongSoBai'] }}</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">🅿️</div>
+        <div class="stat-info">
+            <h4>Tổng Sức Chứa</h4>
+            <div class="stat-value">{{ overview[0]['TongSucChua'] }} slots</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">🚗</div>
+        <div class="stat-info">
+            <h4>Xe Đang Đỗ Thực Tế</h4>
+            <div class="stat-value">{{ overview[0]['TongXeDangDo'] }} xe</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">🎫</div>
+        <div class="stat-info">
+            <h4>Vé Tháng Đang Hiệu Lực</h4>
+            <div class="stat-value">{{ overview[0]['TongVeThangHoatDong'] }} vé</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="card" style="background: linear-gradient(to right, #eff6ff, #f8fafc); border-left: 4px solid var(--primary);">
+    <h2>🌟 Giới Thiệu Đồ Án: Chuỗi Bãi Đỗ Xe Thông Minh (Multi-Site Parking)</h2>
+    <p style="margin-top: 0.5rem; color: var(--text);">
+        Hệ thống được thiết kế theo mô hình CSDL phân tách chi nhánh độc lập, hỗ trợ biểu phí linh hoạt theo từng vị trí địa lý, 
+        giám sát sức chứa theo thời gian thực và quản lý an ninh thẻ xe nghiêm ngặt.
+    </p>
+    <div style="margin-top: 1rem; display: flex; gap: 0.75rem; flex-wrap: wrap;">
+        <a href="{{ url_for('main.parking_map') }}" class="btn btn-primary">🗺️ Xem Sơ Đồ Mặt Bằng Bãi Xe</a>
+        <a href="{{ url_for('main.reports') }}" class="btn btn-outline">📊 Xem Báo Cáo Thống Kê</a>
+    </div>
+</div>
+
+<section class="card">
+    <div class="card-header">
+        <h2 class="card-title">🚀 Danh Mục Kịch Bản Demo Nghiệp Vụ CSDL 5 Bước</h2>
+    </div>
+    <p style="color: var(--text-muted); margin-bottom: 1.25rem;">
+        Mỗi kịch bản được chuẩn hóa theo quy trình 5 bước đối chiếu song hành giữa thao tác Web và câu truy vấn trực tiếp dưới SQL Server Management Studio (SSMS).
+    </p>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1rem;">
+        {% for key, case in demo_cases.items() %}
+        <div style="border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; background: var(--bg-surface); display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+                <span class="badge badge-info" style="margin-bottom: 0.5rem;">Kịch bản: {{ key }}</span>
+                <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--secondary);">{{ case.title }}</h3>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem; line-height: 1.5;">{{ case.problem }}</p>
+            </div>
+            <div>
+                <a href="{{ url_for('main.demo_case', case_key=key) }}" class="btn btn-outline" style="width: 100%; font-size: 0.85rem;">
+                    Bắt đầu Demo 5 Bước ➔
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="card">
+    <div class="card-header">
+        <h2 class="card-title">📈 Views Báo Cáo Thống Kê Sẵn Có</h2>
+    </div>
+    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+        {% for report in reports %}
+        <a href="{{ url_for('main.report_detail', view_name=report) }}" class="filter-pill active">
+            📋 {{ report }}
+        </a>
+        {% endfor %}
+    </div>
+</section>
+
+{% endblock %}
