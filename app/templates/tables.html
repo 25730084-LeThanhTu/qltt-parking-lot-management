@@ -1,25 +1,71 @@
 {% extends 'base.html' %}
 {% block content %}
-<section class="card">
-    <div class="card-header">
-        <h2 class="card-title">📋 Danh Mục 9 Bảng Dữ Liệu Vật Lý (Database Schema)</h2>
-    </div>
-    <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
-        Hệ thống được chuẩn hóa cao độ gồm 9 bảng dữ liệu. Bấm vào từng bảng để truy vấn trực tiếp 100 bản ghi đầu tiên.
-    </p>
-
-    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem;">
-        {% for table in tables %}
-        <div style="border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; background: var(--bg-surface); display: flex; justify-content: space-between; align-items: center;">
-            <div>
-                <strong style="font-size: 1rem; color: var(--secondary);">{{ table }}</strong>
-                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem;">dbo.{{ table }}</div>
+<div class="page-header" style="margin-bottom: 12px;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;">
+        <div>
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+                <span class="step-badge" style="background: var(--primary-light); color: var(--primary);">RELATIONAL SCHEMA</span>
+                <span style="font-size: 0.825rem; color: var(--text-tertiary);">Chuẩn Hóa Dữ Liệu 3NF</span>
             </div>
-            <a href="{{ url_for('main.table_detail', table_name=table) }}" class="btn btn-outline" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+            <h1 style="font-size: 1.6rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.02em;">
+                🗄️ Danh Mục 9 Bảng Dữ Liệu Vật Lý
+            </h1>
+            <p style="color: var(--text-secondary); margin-top: 4px; font-size: 0.9rem; max-width: 800px;">
+                Toàn bộ mô hình CSDL được phân rã thành 9 thực thể chuẩn, có ràng buộc toàn vẹn khóa chính - khóa ngoại (PK/FK). Bấm vào từng bảng để truy vấn trực tiếp 100 bản ghi dữ liệu thực tế từ SQL Server.
+            </p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <a href="{{ url_for('main.sql_query') }}" class="btn btn-outline" style="font-size: 0.85rem; padding: 6px 12px;">
+                💻 Mở SQL Runner
+            </a>
+            <a href="{{ url_for('main.index') }}" class="btn btn-outline" style="font-size: 0.85rem; padding: 6px 12px;">
+                ← Về Trang Chủ
+            </a>
+        </div>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px;">
+    {% set table_meta = {
+        'BAI_DO_XE': {'icon': '🏢', 'desc': 'Quản lý thông tin chuỗi chi nhánh bãi đỗ xe và sức chứa tối đa.', 'badge': 'Master Data'},
+        'LOAI_XE': {'icon': '🚗', 'desc': 'Phân loại phương tiện (Ô tô, Xe máy) và cấu hình đơn giá theo giờ/tháng.', 'badge': 'Master Data'},
+        'VI_TRI_DO': {'icon': '🅿️', 'desc': 'Danh mục các ô đỗ xe vật lý kèm trạng thái hiện tại (TRONG / CO_XE).', 'badge': 'IoT Inventory'},
+        'THE_XE': {'icon': '🪪', 'desc': 'Quản lý mã thẻ RFID, thẻ vãng lai hoặc thẻ tháng, trạng thái thẻ (HOAT_DONG/KHOA).', 'badge': 'Hardware / RFID'},
+        'KHACH_HANG': {'icon': '👤', 'desc': 'Hồ sơ chủ phương tiện đăng ký vé tháng định danh cá nhân/doanh nghiệp.', 'badge': 'Entity'},
+        'VE_THANG': {'icon': '🎫', 'desc': 'Hợp đồng đăng ký thuê ô đỗ theo tháng, ngày kích hoạt và ngày hết hạn.', 'badge': 'Subscription'},
+        'LUOT_GUI': {'icon': '⏱️', 'desc': 'Nhật ký Check-in/Check-out ra vào bãi, thời gian gửi và doanh thu vãng lai.', 'badge': 'High Volume Log'},
+        'HOA_DON_VE_THANG': {'icon': '🧾', 'desc': 'Hóa đơn thanh toán định kỳ khi mở mới hoặc gia hạn vé tháng.', 'badge': 'Transaction'},
+        'LICHSU_SU_CO': {'icon': '⚠️', 'desc': 'Ghi log tự động từ Trigger khi xảy ra vi phạm, mất thẻ hoặc thẻ quá hạn.', 'badge': 'Audit & Security'}
+    } %}
+
+    {% for table in tables %}
+    {% set meta = table_meta.get(table, {'icon': '📄', 'desc': 'Bảng dữ liệu trong CSDL QuanLyBaiDoXe.', 'badge': 'Table'}) %}
+    <div class="card" style="display: flex; flex-direction: column; justify-content: space-between; transition: all 0.25s ease; border: 1px solid var(--border); padding: 12px; margin-bottom: 0;">
+        <div>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 36px; height: 36px; border-radius: 8px; background: var(--primary-light); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
+                        {{ meta.icon }}
+                    </div>
+                    <div>
+                        <span style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-tertiary);">dbo.</span>
+                        <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--text-primary); line-height: 1.2;">{{ table }}</h3>
+                    </div>
+                </div>
+                <span class="badge badge-info" style="font-size: 0.7rem; padding: 2px 6px;">{{ meta.badge }}</span>
+            </div>
+            <p style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.4; margin-bottom: 10px;">
+                {{ meta.desc }}
+            </p>
+        </div>
+
+        <div style="padding-top: 8px; border-top: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.75rem; color: var(--text-tertiary); font-family: var(--font-mono);">SELECT TOP 100</span>
+            <a href="{{ url_for('main.table_detail', table_name=table) }}" class="btn btn-primary" style="padding: 4px 10px; font-size: 0.8rem;">
                 Xem Dữ Liệu ➔
             </a>
         </div>
-        {% endfor %}
     </div>
-</section>
+    {% endfor %}
+</div>
 {% endblock %}

@@ -1,10 +1,29 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="card error-box">
-    <h2>{{ title or 'Đã xảy ra lỗi' }}</h2>
-    <pre>{{ error }}</pre>
-    <div style="margin-top: 1rem;">
-        <a href="{{ url_for('main.index') }}" class="btn btn-outline">← Quay lại trang chủ</a>
+<div style="max-width: 800px; margin: 12px auto;">
+    <div class="card error-box" style="padding: 12px; box-shadow: var(--shadow-md); margin: 0;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+            <div style="width: 36px; height: 36px; border-radius: 8px; background: #fee2e2; color: #dc2626; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
+                ⚠️
+            </div>
+            <div>
+                <h2 style="font-size: 1.2rem; font-weight: 800; color: var(--danger); line-height: 1.2;">
+                    {{ title or 'Đã xảy ra lỗi hệ thống' }}
+                </h2>
+                <span style="font-size: 0.78rem; color: var(--text-tertiary);">Chi tiết ngoại lệ từ máy chủ hoặc SQL Server</span>
+            </div>
+        </div>
+
+        <pre style="background: #020617; color: #fca5a5; padding: 10px 12px; border-radius: 8px; font-family: var(--font-mono); font-size: 0.85rem; overflow-x: auto; line-height: 1.5; border: 1px solid #1e293b; margin-bottom: 12px;">{{ error }}</pre>
+
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <a href="javascript:history.back()" class="btn btn-outline" style="font-size: 0.85rem; padding: 6px 12px;">
+                ← Quay lại trang trước
+            </a>
+            <a href="{{ url_for('main.index') }}" class="btn btn-primary" style="font-size: 0.85rem; padding: 6px 12px;">
+                🏠 Về Trang Chủ
+            </a>
+        </div>
     </div>
 </div>
 {% endblock %}

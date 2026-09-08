@@ -1,31 +1,88 @@
 {% extends 'base.html' %}
 {% block content %}
-<section class="card">
-    <div class="card-header">
-        <h2 class="card-title">⚙️ Khởi Tạo & Nạp Lại Toàn Bộ CSDL (Setup Database)</h2>
+<div class="page-header" style="margin-bottom: 12px;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;">
+        <div>
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                <span class="step-badge" style="background: #fef2f2; color: #dc2626;">SYSTEM ADMINISTRATION</span>
+                <span style="font-size: 0.825rem; color: var(--text-tertiary);">Database Provisioning</span>
+            </div>
+            <h1 style="font-size: 1.6rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.02em;">
+                ⚙️ Khởi Tạo & Nạp Lại Toàn Bộ CSDL (Setup Database)
+            </h1>
+            <p style="color: var(--text-secondary); margin-top: 4px; font-size: 0.9rem; max-width: 800px;">
+                Thực thi script tổng hợp <code>sql/QL_BaiDoXe_FullScript.sql</code> theo từng batch phân tách bằng lệnh <code>GO</code> để tự động dựng lại toàn bộ kiến trúc CSDL và nạp dữ liệu mẫu ban đầu.
+            </p>
+        </div>
+        <div>
+            <a href="{{ url_for('main.index') }}" class="btn btn-outline" style="font-size: 0.85rem; padding: 6px 12px;">
+                ← Về Trang Chủ
+            </a>
+        </div>
     </div>
-    <p style="color: var(--text-muted); margin-bottom: 1rem;">
-        Chức năng này sẽ tự động đọc file script tổng hợp <code>sql/QL_BaiDoXe_FullScript.sql</code> và thực thi từng batch phân tách bằng lệnh <code>GO</code> trên Microsoft SQL Server.
-    </p>
+</div>
 
-    <div style="background: var(--warning-bg); border: 1px solid var(--warning-border); padding: 1rem 1.25rem; border-radius: var(--radius); margin-bottom: 1.5rem;">
-        <strong style="color: #92400e;">⚠️ Lưu ý quan trọng:</strong>
-        <p style="color: #92400e; font-size: 0.875rem; margin-top: 0.25rem;">
-            Thao tác này sẽ XÓA và TẠO MỚI database <code>QuanLyBaiDoXe</code>, đồng thời nạp lại toàn bộ 9 bảng, triggers, procedures, functions, cursors, views và dữ liệu mẫu ban đầu.
-        </p>
+<div class="card" style="padding: 12px; margin-bottom: 12px;">
+    <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--text-primary); margin-bottom: 8px;">
+        📦 Các Thành Phần CSDL Sẽ Được Tự Động Xây Dựng:
+    </h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 12px;">
+        <div style="background: var(--bg-main); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);">
+            <div style="font-size: 1.2rem;">🗄️</div>
+            <strong style="font-size: 0.9rem; color: var(--text-primary);">9 Bảng Dữ Liệu</strong>
+            <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 2px;">Chuẩn hóa 3NF, PK/FK</div>
+        </div>
+        <div style="background: var(--bg-main); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);">
+            <div style="font-size: 1.2rem;">⚡</div>
+            <strong style="font-size: 0.9rem; color: var(--text-primary);">5 Stored Procedures</strong>
+            <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 2px;">Check-in, Check-out, Gia hạn</div>
+        </div>
+        <div style="background: var(--bg-main); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);">
+            <div style="font-size: 1.2rem;">🛡️</div>
+            <strong style="font-size: 0.9rem; color: var(--text-primary);">5 Triggers Toàn Vẹn</strong>
+            <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 2px;">Chặn gian lận, Auto-sync ô</div>
+        </div>
+        <div style="background: var(--bg-main); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);">
+            <div style="font-size: 1.2rem;">📐</div>
+            <strong style="font-size: 0.9rem; color: var(--text-primary);">3 User Functions</strong>
+            <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 2px;">Tính tiền, Tìm ô trống</div>
+        </div>
+        <div style="background: var(--bg-main); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);">
+            <div style="font-size: 1.2rem;">🔄</div>
+            <strong style="font-size: 0.9rem; color: var(--text-primary);">2 Cursors Thống Kê</strong>
+            <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 2px;">Duyệt cảnh báo & doanh thu</div>
+        </div>
+        <div style="background: var(--bg-main); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);">
+            <div style="font-size: 1.2rem;">📊</div>
+            <strong style="font-size: 0.9rem; color: var(--text-primary);">5 SQL Views</strong>
+            <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 2px;">Báo cáo vận hành & BI</div>
+        </div>
+    </div>
+
+    <!-- Alert Box -->
+    <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; display: flex; gap: 8px; align-items: flex-start;">
+        <span style="font-size: 1.2rem;">⚠️</span>
+        <div>
+            <strong style="color: #92400e; font-size: 0.9rem;">Cảnh Báo Reset Dữ Liệu:</strong>
+            <p style="color: #b45309; font-size: 0.825rem; margin-top: 2px; line-height: 1.4;">
+                Thao tác này sẽ xóa toàn bộ database <code>QuanLyBaiDoXe</code> cũ (nếu có) và khởi tạo cấu trúc mới hoàn toàn kèm dữ liệu mẫu ban đầu.
+            </p>
+        </div>
     </div>
 
     {% if allow %}
     <form method="post">
-        <button class="btn btn-danger" type="submit" onclick="return confirm('Bạn có chắc chắn muốn nạp lại toàn bộ CSDL từ đầu không?');">
+        <button class="btn btn-danger" type="submit" onclick="return confirm('XÁC NHẬN: Bạn có chắc chắn muốn nạp lại toàn bộ CSDL QuanLyBaiDoXe từ đầu không? Toàn bộ dữ liệu hiện tại sẽ được thay bằng dữ liệu mẫu ban đầu.');" style="padding: 6px 12px; font-size: 0.875rem;">
             🔄 Bắt Đầu Nạp Lại Toàn Bộ CSDL
         </button>
     </form>
     {% else %}
-    <div class="card error-box">
-        <h3>Chức năng Setup đang bị khóa</h3>
-        <p style="font-size: 0.875rem;">Để mở khóa nút nạp script tự động, hãy mở file <code>.env</code> và cấu hình <code>ALLOW_RUN_FULL_SCRIPT=1</code>, sau đó tải lại trang này.</p>
+    <div class="card error-box" style="margin-bottom: 0; padding: 10px 12px;">
+        <h4 style="font-weight: 700; color: #b91c1c; margin-bottom: 4px; font-size: 0.95rem;">Chức Năng Setup Đang Bị Khóa An Toàn</h4>
+        <p style="font-size: 0.825rem; color: #7f1d1d;">
+            Để mở khóa nút nạp script tự động, hãy mở file <code>.env</code> và cấu hình <code>ALLOW_RUN_FULL_SCRIPT=1</code>, sau đó tải lại trang này.
+        </p>
     </div>
     {% endif %}
-</section>
+</div>
 {% endblock %}

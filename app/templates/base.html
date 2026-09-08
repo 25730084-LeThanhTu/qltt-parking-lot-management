@@ -3,40 +3,97 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ title or 'Hệ Thống Quản Lý Chuỗi Bãi Đỗ Xe' }}</title>
+    <title>{{ title or 'Smart Parking System - Hệ Thống Chuỗi Bãi Đỗ Xe Thông Minh' }}</title>
+    
+    <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
 
-<header class="topbar">
-    <div class="topbar-content">
-        <div>
-            <h1>🚗 Quản Lý Chuỗi Bãi Đỗ Xe (Multi-Site Parking)</h1>
-            <p>Hệ thống CSDL Chuyên Sâu: Stored Procedures, Database Triggers, Functions, Cursors & Views</p>
-        </div>
-        <div>
-            <span class="badge-system">Microsoft SQL Server • Realtime Interaction</span>
-        </div>
-    </div>
-</header>
+<!-- STICKY HEADER & NAVIGATION WRAPPER -->
+<div class="sticky-header-wrapper">
+    <!-- TOPBAR HEADER -->
+    <header class="topbar">
+        <div class="topbar-content">
+            <div class="brand-area">
+                <div class="brand-logo">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="5" width="20" height="14" rx="3"></rect>
+                        <path d="M9 16V8h4a2 2 0 0 1 0 4H9"></path>
+                    </svg>
+                </div>
+                <div>
+                    <div class="brand-title">
+                        <span>SmartPark</span> Control Center
+                    </div>
+                    <div class="brand-subtitle">Hệ thống Quản lý Chuỗi Bãi đỗ xe • IE103 Advanced Database</div>
+                </div>
+            </div>
 
-<nav class="nav">
-    <div class="nav-container">
-        <a href="{{ url_for('main.index') }}">🏠 Trang Chủ</a>
-        <a href="{{ url_for('main.parking_map') }}">🗺️ Sơ Đồ Bãi Xe</a>
-        <a href="{{ url_for('main.tables') }}">📋 9 Bảng CSDL</a>
-        <a href="{{ url_for('main.reports') }}">📊 Báo Cáo Thống Kê</a>
-        <a href="{{ url_for('main.sql_query') }}">💻 Chạy SQL Trực Tiếp</a>
-        <a href="{{ url_for('main.health') }}">⚡ Kiểm Tra Kết Nối</a>
-        <a href="{{ url_for('main.setup') }}">⚙️ Khởi Tạo CSDL</a>
-    </div>
-</nav>
+            <div class="system-status">
+                <span class="status-indicator">
+                    <span class="pulse-dot"></span>
+                    MS SQL Server Realtime
+                </span>
+                <span class="version-tag">T-SQL V5</span>
+            </div>
+        </div>
+    </header>
 
+    <!-- NAVIGATION BAR -->
+    <nav class="nav">
+        <div class="nav-container">
+            <a href="{{ url_for('main.index') }}" class="{% if request.endpoint == 'main.index' %}active{% endif %}">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                <span>Tổng Quan</span>
+            </a>
+            <a href="{{ url_for('main.parking_map') }}" class="{% if request.endpoint == 'main.parking_map' %}active{% endif %}">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M9 3v18"></path><path d="M15 3v18"></path><path d="M3 9h18"></path><path d="M3 15h18"></path></svg>
+                <span>Sơ Đồ Mặt Bằng</span>
+            </a>
+            <a href="{{ url_for('main.tables') }}" class="{% if request.endpoint in ['main.tables', 'main.table_detail'] %}active{% endif %}">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5V19A9 3 0 0 0 21 19V5"></path><path d="M3 12A9 3 0 0 0 21 12"></path></svg>
+                <span>9 Bảng CSDL</span>
+            </a>
+            <a href="{{ url_for('main.reports') }}" class="{% if request.endpoint in ['main.reports', 'main.report_detail'] %}active{% endif %}">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                <span>Báo Cáo & Analytics</span>
+            </a>
+            <a href="{{ url_for('main.sql_query') }}" class="{% if request.endpoint == 'main.sql_query' %}active{% endif %}">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+                <span>SQL Runner</span>
+            </a>
+            <a href="{{ url_for('main.health') }}" class="{% if request.endpoint == 'main.health' %}active{% endif %}">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+                <span>Kiểm Tra Kết Nối</span>
+            </a>
+            <a href="{{ url_for('main.setup') }}" class="{% if request.endpoint == 'main.setup' %}active{% endif %}">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path><path d="M16 21h5v-5"></path></svg>
+                <span>Khởi Tạo CSDL</span>
+            </a>
+        </div>
+    </nav>
+</div>
+
+<!-- MAIN CONTENT -->
 <main class="container">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         {% for category, message in messages %}
-          <div class="flash {{ category }}">{{ message }}</div>
+          <div class="flash {{ category }}">
+            <div class="flash-icon">
+                {% if category == 'success' %}
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                {% else %}
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                {% endif %}
+            </div>
+            <div class="flash-text">{{ message }}</div>
+          </div>
         {% endfor %}
       {% endif %}
     {% endwith %}
@@ -45,8 +102,16 @@
 </main>
 
 <footer class="footer">
-    <p>© 2026 Đồ Án Quản Lý Thông Tin (IE103) - Hệ Thống Quản Lý Chuỗi Nhiều Bãi Đỗ Xe. Demo tương tác CSDL thực tế.</p>
+    <div class="footer-content">
+        <p><strong>Smart Parking System</strong> • Đồ án môn Quản lý Thông tin (IE103) • Trường ĐH Công Nghệ Thông Tin</p>
+        <p style="margin-top: 0.25rem; font-size: 0.775rem; color: var(--text-tertiary);">
+            Kiến trúc CSDL chuyên sâu: Stored Procedures, Database Triggers, User-Defined Functions, Cursors & Realtime Views.
+        </p>
+    </div>
 </footer>
+
+<!-- Toast Container cho thông báo sao chép nhanh -->
+<div id="toast-container" class="toast-container"></div>
 
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>

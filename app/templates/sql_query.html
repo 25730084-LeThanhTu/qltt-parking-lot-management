@@ -1,36 +1,112 @@
 {% extends 'base.html' %}
 {% from '_result_table.html' import render_result_set %}
 {% block content %}
-<section class="card">
-    <div class="card-header">
-        <h2 class="card-title">💻 Trình Gõ & Thực Thi Câu Lệnh SQL Trực Tiếp (SQL Runner)</h2>
+<div class="page-header" style="margin-bottom: 12px;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;">
+        <div>
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                <span class="step-badge" style="background: #eef2ff; color: #4338ca;">DEVELOPER TOOLS</span>
+                <span style="font-size: 0.825rem; color: var(--text-tertiary);">Direct T-SQL Engine</span>
+            </div>
+            <h1 style="font-size: 1.6rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.02em;">
+                💻 Trình Thực Thi Câu Lệnh SQL Trực Tiếp
+            </h1>
+            <p style="color: var(--text-secondary); margin-top: 4px; font-size: 0.9rem; max-width: 800px;">
+                Thực thi các câu lệnh T-SQL tùy biến trực tiếp đến Microsoft SQL Server. Hỗ trợ câu lệnh SELECT, EXEC Stored Procedure và kiểm tra kết quả theo thời gian thực.
+            </p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <a href="{{ url_for('main.tables') }}" class="btn btn-outline" style="font-size: 0.85rem; padding: 6px 12px;">
+                🗄️ 9 Bảng Dữ Liệu
+            </a>
+            <a href="{{ url_for('main.index') }}" class="btn btn-outline" style="font-size: 0.85rem; padding: 6px 12px;">
+                ← Về Trang Chủ
+            </a>
+        </div>
     </div>
-    <p style="color: var(--text-muted); margin-bottom: 1rem;">
-        Gõ các câu lệnh T-SQL để kiểm tra database. Hệ thống sẽ kết nối trực tiếp đến SQL Server và hiển thị kết quả thời gian thực.
-    </p>
+</div>
 
-    <form method="post">
-        <textarea name="sql" rows="6" style="width: 100%; padding: 1rem; border-radius: 8px; border: 1px solid var(--border); font-family: monospace; font-size: 0.9rem; background: #0f172a; color: #f8fafc;">{{ sql }}</textarea>
-        <div style="margin-top: 1rem;">
-            <button class="btn btn-primary" type="submit">▶️ Thực Thi SQL</button>
+<div class="card" style="padding: 0; overflow: hidden; border: 1px solid var(--border); box-shadow: var(--shadow-md); margin-bottom: 12px;">
+    <!-- Editor Header Bar -->
+    <div style="background: #0f172a; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
+        <div style="display: flex; align-items: center; gap: 6px;">
+            <div style="display: flex; gap: 6px;">
+                <div style="width: 10px; height: 10px; border-radius: 50%; background: #ef4444;"></div>
+                <div style="width: 10px; height: 10px; border-radius: 50%; background: #f59e0b;"></div>
+                <div style="width: 10px; height: 10px; border-radius: 50%; background: #10b981;"></div>
+            </div>
+            <span style="font-family: var(--font-mono); font-size: 0.82rem; color: #94a3b8; margin-left: 6px;">query_runner.sql</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 0.75rem; color: #64748b; font-family: var(--font-mono);">SQL Server 2022</span>
+            <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-size: 0.7rem; padding: 2px 6px;">READY</span>
+        </div>
+    </div>
+
+    <!-- Quick Snippets Suggestion -->
+    <div style="background: #1e293b; padding: 6px 12px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+        <span style="font-size: 0.75rem; color: #94a3b8; font-weight: 600;">Gợi ý nhanh:</span>
+        <button type="button" class="btn btn-outline" style="padding: 3px 8px; font-size: 0.72rem; color: #cbd5e1; border-color: #475569;" onclick="setSql('SELECT * FROM BAI_DO_XE;')">
+            SELECT BAI_DO_XE
+        </button>
+        <button type="button" class="btn btn-outline" style="padding: 3px 8px; font-size: 0.72rem; color: #cbd5e1; border-color: #475569;" onclick="setSql('SELECT * FROM vw_Report_CongSuatBaiDo;')">
+            VIEW Công Suất
+        </button>
+        <button type="button" class="btn btn-outline" style="padding: 3px 8px; font-size: 0.72rem; color: #cbd5e1; border-color: #475569;" onclick="setSql('EXEC sp_DemoTongKetDoanhThuChuoi;')">
+            EXEC Cursor Doanh Thu
+        </button>
+        <button type="button" class="btn btn-outline" style="padding: 3px 8px; font-size: 0.72rem; color: #cbd5e1; border-color: #475569;" onclick="setSql('SELECT TOP 10 * FROM LICHSU_SU_CO ORDER BY ThoiGianLog DESC;')">
+            SELECT Lịch Sử Sự Cố
+        </button>
+    </div>
+
+    <form method="post" style="padding: 10px 12px; background: #0b1120;">
+        <textarea id="sql-input" name="sql" rows="6" 
+                  style="width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid #334155; font-family: var(--font-mono); font-size: 0.9rem; background: #020617; color: #38bdf8; resize: vertical; line-height: 1.5; outline: none;"
+                  placeholder="-- Nhập câu lệnh T-SQL vào đây... (Ví dụ: SELECT * FROM BAI_DO_XE;)">{{ sql }}</textarea>
+        
+        <div style="margin-top: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <span style="font-size: 0.78rem; color: #64748b;">
+                Nhấn <strong>Thực Thi SQL</strong> để gửi lệnh tới SQL Server.
+            </span>
+            <button class="btn btn-primary" type="submit" style="padding: 6px 12px; font-size: 0.875rem;">
+                ▶️ Thực Thi T-SQL
+            </button>
         </div>
     </form>
-</section>
+</div>
+
+<script>
+function setSql(cmd) {
+    document.getElementById('sql-input').value = cmd;
+    document.getElementById('sql-input').focus();
+}
+</script>
 
 {% if error %}
-<section class="card error-box">
-    <h3>Lỗi thực thi SQL</h3>
-    <pre>{{ error }}</pre>
-</section>
+<div class="card error-box" style="margin-bottom: 12px; padding: 12px;">
+    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+        <span style="font-size: 1.1rem;">❌</span>
+        <h3 style="font-size: 1rem; font-weight: 700; color: var(--danger);">Lỗi Thực Thi SQL Server</h3>
+    </div>
+    <pre style="background: #000; color: #f87171; padding: 10px 12px; border-radius: 8px; font-family: var(--font-mono); font-size: 0.85rem; overflow-x: auto; white-space: pre-wrap;">{{ error }}</pre>
+</div>
 {% endif %}
 
 {% if result_sets %}
-<section>
-    <h2 style="font-size: 1.2rem; color: var(--secondary); margin-bottom: 0.75rem;">Kết Quả Truy Vấn ({{ result_sets|length }} tập kết quả)</h2>
+<div class="card" style="padding: 12px; margin-bottom: 12px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light);">
+        <div style="display: flex; align-items: center; gap: 6px;">
+            <h2 style="font-size: 1.05rem; font-weight: 700; color: var(--text-primary);">Kết Quả Truy Vấn</h2>
+            <span class="badge badge-info" style="padding: 2px 6px;">{{ result_sets|length }} tập kết quả</span>
+        </div>
+        <span class="badge badge-success" style="padding: 3px 8px;">✓ Thực thi thành công</span>
+    </div>
+
     {% for rs in result_sets %}
         {{ render_result_set(rs) }}
     {% endfor %}
-</section>
+</div>
 {% endif %}
 
 {% endblock %}

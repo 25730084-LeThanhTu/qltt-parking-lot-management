@@ -2,39 +2,64 @@
 {% from '_result_table.html' import render_result_set %}
 {% block content %}
 
-<div class="card">
-    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem;">
-        <span class="badge badge-info">Kịch bản: {{ case_key }}</span>
-        <a href="{{ url_for('main.index') }}" class="btn btn-outline" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">← Quay lại trang chủ</a>
+<!-- Header Kịch Bản -->
+<!-- Header Kịch Bản -->
+<div class="card" style="padding: 12px; margin-bottom: 12px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+        <span class="badge badge-info" style="font-family: var(--font-mono); font-size: 0.75rem; padding: 3px 8px;">
+            ID: {{ case_key }}
+        </span>
+        <a href="{{ url_for('main.index') }}" class="btn btn-outline btn-sm" style="padding: 4px 8px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            <span>Quay lại trang chủ</span>
+        </a>
     </div>
-    <h2 style="font-size: 1.35rem; color: var(--secondary); margin-bottom: 1rem;">{{ case.title }}</h2>
+    
+    <h2 style="font-size: 1.35rem; font-weight: 800; color: var(--text-primary); margin-bottom: 8px; line-height: 1.3;">
+        {{ case.title }}
+    </h2>
 
-    <div style="background: var(--bg-body); border-left: 4px solid var(--primary); padding: 1rem 1.25rem; border-radius: 4px;">
-        <h3 style="font-size: 1rem; color: var(--secondary); margin-bottom: 0.25rem;">📌 B1 - Phát Biểu Bài Toán Nghiệp Vụ</h3>
-        <p style="color: var(--text); font-size: 0.925rem; line-height: 1.6;">{{ case.problem }}</p>
+    <!-- B1: Bài toán nghiệp vụ -->
+    <div class="callout-box" style="padding: 8px 12px; margin-bottom: 0;">
+        <h3>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color: var(--primary);"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+            <span>B1 • Phát Biểu Bài Toán Nghiệp Vụ</span>
+        </h3>
+        <p style="font-size: 0.85rem; line-height: 1.4;">{{ case.problem }}</p>
     </div>
 </div>
 
-<section class="card">
-    <h3 style="font-size: 1.05rem; color: var(--secondary); margin-bottom: 0.5rem;">💻 B2 - Câu Truy Vấn SQL Định Nghĩa Sẽ Thực Thi</h3>
-    <pre><code>{{ case.execute_sql }}</code></pre>
+<!-- B2 & B4: Câu lệnh SQL & Nút Thực Thi -->
+<section class="card" style="padding: 12px; margin-bottom: 12px;">
+    <div class="card-header" style="margin-bottom: 8px; padding-bottom: 6px;">
+        <h3 class="card-title" style="font-size: 1.05rem;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color: var(--primary);"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+            <span>B2 • Câu Truy Vấn T-SQL Sẽ Thực Thi</span>
+        </h3>
+    </div>
     
-    <div style="margin-top: 1rem; display: flex; align-items: center; gap: 1rem;">
+    <pre style="padding: 10px 12px; border-radius: 8px;"><code>{{ case.execute_sql }}</code></pre>
+    
+    <div style="margin-top: 8px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding-top: 8px; border-top: 1px solid var(--border-light);">
         <form method="post">
-            <button class="btn btn-primary" type="submit">
-                ▶️ B4 - Kích Hoạt Thực Thi Câu Lệnh
+            <button class="btn btn-primary" type="submit" style="padding: 6px 12px; font-size: 0.875rem;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                <span>B4 • Kích Hoạt Thực Thi Câu Lệnh</span>
             </button>
         </form>
-        <span style="font-size: 0.85rem; color: var(--text-muted); font-style: italic;">
-            (Nhấn nút để gửi câu lệnh trực tiếp xuống CSDL SQL Server và quan sát sự thay đổi dữ liệu)
-        </span>
+        <div style="font-size: 0.8rem; color: var(--text-tertiary); display: flex; align-items: center; gap: 6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            <span>Gửi câu lệnh trực tiếp xuống SQL Server và nhận snapshot đối chiếu tức thời</span>
+        </div>
     </div>
 </section>
 
-<section>
-    <div style="margin-bottom: 0.75rem;">
-        <h2 style="font-size: 1.2rem; color: var(--secondary); display: flex; align-items: center; gap: 0.5rem;">
-            <span>🔍 B3 - Dữ Liệu Liên Quan Trước Khi Thực Thi (SSMS Snapshot)</span>
+<!-- B3: Dữ liệu trước khi thực thi -->
+<section style="margin-bottom: 12px;">
+    <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+        <span class="badge badge-warning" style="font-size: 0.75rem; padding: 2px 6px;">Snapshot Ban Đầu</span>
+        <h2 style="font-size: 1.15rem; font-weight: 700; color: var(--text-primary);">
+            B3 • Dữ Liệu Liên Quan Trước Khi Thực Thi (SSMS Snapshot)
         </h2>
     </div>
     {% for rs in before_sets %}
@@ -42,23 +67,31 @@
     {% endfor %}
 </section>
 
+<!-- Neo cuộn tới kết quả -->
 <div id="execute-output"></div>
 
+<!-- Thông Báo Lỗi / Bẫy Lỗi Trigger Có Chủ Đích -->
 {% if execution_error %}
-<section class="card error-box">
-    <h3 style="font-size: 1.05rem; margin-bottom: 0.5rem;">⚠️ Thông báo Lỗi / Bẫy Lỗi Nghiệp Vụ CSDL</h3>
-    <pre style="background: #450a0a; color: #fecaca;">{{ execution_error }}</pre>
-    <p style="margin-top: 0.5rem; font-size: 0.85rem; color: #991b1b; font-weight: 500;">
-        💡 <em>Ghi chú: Nếu kịch bản demo này kiểm tra Trigger chặn thẻ lỗi, vé hết hạn hoặc bãi xe đầy thì thông báo lỗi trên là KẾT QUẢ MONG ĐỢI của hệ thống nhằm bảo vệ toàn vẹn dữ liệu.</em>
-    </p>
+<section class="card error-box" style="padding: 12px; margin-bottom: 12px;">
+    <h3>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        <span>Bẫy Lỗi Toàn Vẹn CSDL Kích Hoạt (Database Exception)</span>
+    </h3>
+    <pre style="background: #2a0808; color: #fecaca; border: 1px solid #7f1d1d; padding: 10px 12px; border-radius: 8px;">{{ execution_error }}</pre>
+    <div style="margin-top: 6px; background: rgba(254, 202, 202, 0.4); padding: 6px 10px; border-radius: 6px; font-size: 0.825rem; color: #7f1d1d; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+        <span>💡 Giải thích nghiệp vụ:</span>
+        <span>Nếu đây là demo Trigger chặn thẻ lỗi, vé hết hạn hoặc bãi xe đầy, lỗi này là <strong>KẾT QUẢ MONG ĐỢI</strong> chứng minh tính toàn vẹn CSDL!</span>
+    </div>
 </section>
 {% endif %}
 
+<!-- Output Kết Quả Trực Tiếp Từ Lệnh SQL -->
 {% if execute_sets %}
-<section>
-    <div style="margin-bottom: 0.75rem;">
-        <h2 style="font-size: 1.2rem; color: var(--success); display: flex; align-items: center; gap: 0.5rem;">
-            <span>✨ Output Kết Quả Trả Về Sau Khi Chạy Câu Lệnh</span>
+<section style="margin-bottom: 12px;">
+    <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+        <span class="badge badge-success" style="font-size: 0.75rem; padding: 2px 6px;">Output Thực Thi</span>
+        <h2 style="font-size: 1.15rem; font-weight: 700; color: var(--success);">
+            Output Kết Quả Trả Về Sau Khi Chạy Câu Lệnh
         </h2>
     </div>
     {% for rs in execute_sets %}
@@ -67,11 +100,13 @@
 </section>
 {% endif %}
 
+<!-- B5: Dữ liệu sau khi thực thi -->
 {% if after_sets %}
-<section>
-    <div style="margin-bottom: 0.75rem;">
-        <h2 style="font-size: 1.2rem; color: var(--primary); display: flex; align-items: center; gap: 0.5rem;">
-            <span>📊 B5 - Dữ Liệu Liên Quan Sau Khi Thực Thi (Kiểm Chứng SSMS)</span>
+<section style="margin-bottom: 12px;">
+    <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+        <span class="badge badge-info" style="font-size: 0.75rem; padding: 2px 6px;">Snapshot Đối Chiếu</span>
+        <h2 style="font-size: 1.15rem; font-weight: 700; color: var(--primary);">
+            B5 • Dữ Liệu Liên Quan Sau Khi Thực Thi (Kiểm Chứng SSMS)
         </h2>
     </div>
     {% for rs in after_sets %}

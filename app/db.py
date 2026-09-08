@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def get_connection(database: str | None = None):
+def get_connection(database: str | None = None, autocommit: bool = False):
     driver = os.getenv("SQLSERVER_DRIVER", "ODBC Driver 17 for SQL Server")
     server = os.getenv("SQLSERVER_SERVER", "localhost")
     db_name = database or os.getenv("SQLSERVER_DATABASE", "QuanLyBaiDoXe")
@@ -26,7 +26,7 @@ def get_connection(database: str | None = None):
         parts.append("TrustServerCertificate=yes")
 
     conn_str = ";".join(parts) + ";"
-    return pyodbc.connect(conn_str, autocommit=False)
+    return pyodbc.connect(conn_str, autocommit=autocommit)
 
 
 def rows_to_dicts(cursor) -> List[Dict[str, Any]]:
@@ -77,19 +77,14 @@ def split_sql_by_go(sql_text: str) -> List[str]:
 
 
 def run_sql_file(path: str):
-    """Chạy file SQL lớn có phân tách GO. Kết nối tới database master ban đầu."""
+    """Chạy file SQL lớn có phân tách GO. Kết nối tới database master ban đầu với autocommit=True để cho phép CREATE DATABASE."""
     with open(path, "r", encoding="utf-8-sig") as f:
         content = f.read()
     batches = split_sql_by_go(content)
-    with get_connection(database="master") as conn:
+    with get_connection(database="master", autocommit=True) as conn:
         cursor = conn.cursor()
-        try:
-            for batch in batches:
-                cursor.execute(batch)
-                while cursor.nextset():
-                    pass
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
+        for batch in batches:
+            cursor.execute(batch)
+            while cursor.nextset():
+                pass
     return len(batches)

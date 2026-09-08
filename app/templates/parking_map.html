@@ -1,19 +1,22 @@
 {% extends 'base.html' %}
 {% block content %}
 
-<div class="card">
+<div class="card" style="padding: 12px; margin-bottom: 12px;">
     <div class="map-controls">
         <div>
-            <h2>🗺️ Sơ Đồ Mặt Bằng Ô Đỗ Xe Thời Gian Thực</h2>
-            <p style="color: var(--text-muted); font-size: 0.875rem;">
-                Trực quan hóa trạng thái từng ô đỗ (`VI_TRI_DO`) được cập nhật tự động thông qua Database Triggers khi có xe vào/ra.
+            <h2 style="font-size: 1.25rem; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color: var(--primary);"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M9 3v18"></path><path d="M15 3v18"></path><path d="M3 9h18"></path><path d="M3 15h18"></path></svg>
+                <span>Sơ Đồ Mặt Bằng Bãi Đỗ Xe Thời Gian Thực</span>
+            </h2>
+            <p style="color: var(--text-secondary); font-size: 0.825rem; margin-top: 2px;">
+                Trực quan hóa trạng thái từng ô đỗ (`VI_TRI_DO`) được cập nhật tự động qua <strong>Database Trigger</strong> khi có xe check-in / check-out.
             </p>
         </div>
 
-        <div class="filter-pills">
+        <div class="segmented-control">
             {% for b in bai_list %}
             <a href="{{ url_for('main.parking_map', bai=b.MaBai) }}" 
-               class="filter-pill {% if b.MaBai == selected_bai %}active{% endif %}">
+               class="segmented-btn {% if b.MaBai == selected_bai %}active{% endif %}">
                🏢 {{ b.TenBai }} ({{ b.SoLuongHienTai }}/{{ b.SucChua }})
             </a>
             {% endfor %}
@@ -21,29 +24,44 @@
     </div>
 
     {% if bai_info %}
-    <div style="background: var(--bg-body); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; border: 1px solid var(--border);">
-        <div>
-            <h3 style="font-size: 1.1rem; color: var(--secondary);">{{ bai_info.TenBai }} (Mã: {{ bai_info.MaBai }})</h3>
-            <p style="font-size: 0.85rem; color: var(--text-muted);">Sức chứa: <strong>{{ bai_info.SucChua }} slots</strong> | Đang gửi: <strong>{{ bai_info.SoLuongHienTai }} xe</strong> | Chỗ trống: <strong style="color: var(--success);">{{ bai_info.SoChoTrong }} chỗ</strong></p>
-        </div>
-        <div style="text-align: right;">
-            <div style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">Tỷ lệ lấp đầy</div>
-            <div style="font-size: 1.5rem; font-weight: 700; color: {% if bai_info.TyLeLapDayPercent >= 80 %}var(--danger){% else %}var(--primary){% endif %};">
-                {{ bai_info.TyLeLapDayPercent }}%
+    <!-- Capacity Progress Card -->
+    <div class="capacity-bar-container">
+        <div class="capacity-stats">
+            <div>
+                <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--text-primary);">
+                    {{ bai_info.TenBai }} 
+                    <span style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-tertiary); font-weight: 500;">({{ bai_info.MaBai }})</span>
+                </h3>
+                <div style="font-size: 0.825rem; color: var(--text-secondary); margin-top: 2px; display: flex; gap: 12px; flex-wrap: wrap;">
+                    <span>Sức chứa: <strong>{{ bai_info.SucChua }} slots</strong></span>
+                    <span>Đang gửi: <strong style="color: var(--primary);">{{ bai_info.SoLuongHienTai }} xe</strong></span>
+                    <span>Chỗ trống: <strong style="color: var(--success);">{{ bai_info.SoChoTrong }} chỗ</strong></span>
+                </div>
             </div>
+            <div style="text-align: right;">
+                <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-tertiary); font-weight: 700; letter-spacing: 0.05em;">Tỷ lệ lấp đầy</div>
+                <div style="font-size: 1.4rem; font-weight: 800; font-family: var(--font-sans); color: {% if bai_info.TyLeLapDayPercent >= 80 %}var(--danger){% else %}var(--primary){% endif %};">
+                    {{ bai_info.TyLeLapDayPercent }}%
+                </div>
+            </div>
+        </div>
+
+        <div class="capacity-progress-track">
+            <div class="capacity-progress-fill {% if bai_info.TyLeLapDayPercent >= 80 %}high{% endif %}" 
+                 style="width: {{ bai_info.TyLeLapDayPercent }}%;"></div>
         </div>
     </div>
     {% endif %}
 
-    <!-- Chú thích -->
-    <div style="display: flex; gap: 1.5rem; margin-bottom: 1rem; font-size: 0.85rem; font-weight: 600;">
-        <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <span style="width: 14px; height: 14px; background: var(--success); border-radius: 3px; display: inline-block;"></span>
+    <!-- Chú thích Legend -->
+    <div style="display: flex; gap: 12px; margin-bottom: 10px; font-size: 0.825rem; font-weight: 600; background: #ffffff; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="width: 12px; height: 12px; background: var(--success); border-radius: 4px; display: inline-block;"></span>
             <span>Ô Trống (Sẵn sàng đỗ xe)</span>
         </div>
-        <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <span style="width: 14px; height: 14px; background: var(--danger); border-radius: 3px; display: inline-block;"></span>
-            <span>Đã Đỗ (Đang có phương tiện chiếm chỗ)</span>
+        <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="width: 12px; height: 12px; background: var(--danger); border-radius: 4px; display: inline-block;"></span>
+            <span>Đã Đỗ (Phương tiện đang chiếm chỗ)</span>
         </div>
     </div>
 
@@ -54,34 +72,39 @@
     </div>
     {% endif %}
 
-    <!-- Lưới hiển thị các ô đỗ xe -->
+    <!-- Lưới hiển thị các ô đỗ xe thông minh -->
     <div class="slots-grid">
         {% for slot in slots %}
         <div class="slot-item {% if slot.TrangThai == 'Đã đỗ' %}dado{% else %}trong{% endif %}">
-            <div class="slot-header">
-                <span class="slot-code">{{ slot.MaViTri }}</span>
-                <span class="badge {% if slot.TrangThai == 'Đã đỗ' %}badge-danger{% else %}badge-success{% endif %}">
-                    {{ slot.TrangThai }}
-                </span>
-            </div>
-            <div class="slot-zone">{{ slot.KhuVuc }}</div>
-            <div class="slot-vehicle">
-                {% if slot.MaLoaiXe == 'XM' %}🛵{% elif slot.MaLoaiXe == 'OT' %}🚗{% else %}🚲{% endif %}
-                {{ slot.TenLoai }}
+            <div>
+                <div class="slot-header">
+                    <span class="slot-code">{{ slot.MaViTri }}</span>
+                    <span class="badge {% if slot.TrangThai == 'Đã đỗ' %}badge-danger{% else %}badge-success{% endif %}" style="padding: 2px 6px;">
+                        <span class="badge-dot"></span>
+                        {{ slot.TrangThai }}
+                    </span>
+                </div>
+                <div class="slot-zone">{{ slot.KhuVuc }}</div>
+                <div class="slot-vehicle">
+                    {% if slot.MaLoaiXe == 'XM' %}🛵{% elif slot.MaLoaiXe == 'OT' %}🚗{% else %}🚲{% endif %}
+                    {{ slot.TenLoai }}
+                </div>
             </div>
 
             {% if slot.TrangThai == 'Đã đỗ' and slot.BienSo %}
-            <div class="slot-occupied-info">
-                <div style="margin-bottom: 0.25rem;">
-                    <span class="plate-badge">{{ slot.BienSo }}</span>
+            <div class="plate-badge-container">
+                <div>
+                    <span class="license-plate">{{ slot.BienSo }}</span>
                 </div>
-                <div style="color: var(--text-muted);">
-                    Thẻ: <strong>{{ slot.MaThe }}</strong>
+                <div class="slot-card-meta">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    <span>Thẻ: <strong>{{ slot.MaThe }}</strong></span>
                 </div>
             </div>
             {% else %}
-            <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--success); font-weight: 500;">
-                ✓ Slot khả dụng
+            <div style="margin-top: 8px; font-size: 0.78rem; color: var(--success); font-weight: 600; display: flex; align-items: center; gap: 4px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                <span>Slot khả dụng</span>
             </div>
             {% endif %}
         </div>

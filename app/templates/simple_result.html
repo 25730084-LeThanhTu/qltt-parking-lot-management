@@ -1,8 +1,39 @@
 {% extends 'base.html' %}
 {% from '_result_table.html' import render_result_set %}
 {% block content %}
-<div class="card">
-    <h2 style="margin-bottom: 1rem; color: var(--secondary);">{{ title }}</h2>
+<div class="page-header" style="margin-bottom: 12px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+        <div>
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                <span class="step-badge" style="background: var(--accent-light); color: var(--accent);">TABLE VIEWER</span>
+                <span style="font-size: 0.825rem; color: var(--text-tertiary);">Truy Vấn Bảng Vật Lý</span>
+            </div>
+            <h1 style="font-size: 1.5rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.02em;">
+                {{ title }}
+            </h1>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <a href="{{ url_for('main.tables') }}" class="btn btn-outline" style="font-size: 0.85rem; padding: 6px 12px;">
+                ← Danh Mục 9 Bảng
+            </a>
+            <a href="{{ url_for('main.sql_query') }}" class="btn btn-outline" style="font-size: 0.85rem; padding: 6px 12px;">
+                💻 Chạy SQL Tùy Chỉnh
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="card" style="padding: 12px; margin-bottom: 12px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light);">
+        <div style="display: flex; align-items: center; gap: 6px;">
+            <span class="badge badge-success" style="padding: 3px 8px;">✓ Dữ Liệu Thời Gian Thực (Live)</span>
+            <span style="font-size: 0.8rem; color: var(--text-tertiary);">Giới hạn 100 dòng mới nhất</span>
+        </div>
+        <button class="btn btn-outline" onclick="window.location.reload();" style="padding: 4px 8px; font-size: 0.8rem;">
+            🔄 Tải Lại Dữ Liệu
+        </button>
+    </div>
+
     {% for rs in result_sets %}
         {{ render_result_set(rs) }}
     {% endfor %}

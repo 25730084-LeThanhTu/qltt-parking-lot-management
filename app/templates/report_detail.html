@@ -1,28 +1,72 @@
 {% extends 'base.html' %}
 {% from '_result_table.html' import render_result_set %}
 {% block content %}
-<div class="card">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-        <h2 style="font-size: 1.3rem; color: var(--secondary);">{{ title }}</h2>
-        <a href="{{ url_for('main.reports') }}" class="btn btn-outline" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">← Quay lại danh sách</a>
-    </div>
-
-    {% if screenshot_filename %}
-    <div style="margin-bottom: 2rem; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: #000;">
-        <div style="padding: 0.5rem 1rem; background: var(--secondary); color: #ffffff; font-size: 0.85rem; font-weight: 600;">
-            📊 Trực Quan Hóa Dashboard (Tableau / PowerBI)
+<div class="page-header" style="margin-bottom: 12px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+        <div>
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                <span class="step-badge" style="background: #ecfdf5; color: #059669;">ANALYTIC VIEW</span>
+                <span style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-tertiary);">dbo.{{ view_name }}</span>
+            </div>
+            <h1 style="font-size: 1.5rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.02em;">
+                {{ title }}
+            </h1>
         </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <a href="{{ url_for('main.reports') }}" class="btn btn-outline" style="font-size: 0.85rem; padding: 6px 12px;">
+                ← Danh Sách 5 Báo Cáo
+            </a>
+            <button class="btn btn-outline" onclick="window.location.reload();" style="font-size: 0.85rem; padding: 6px 12px;">
+                🔄 Tải Lại
+            </button>
+        </div>
+    </div>
+</div>
+
+{% if screenshot_filename %}
+<div class="card" style="margin-bottom: 12px; padding: 0; overflow: hidden; border: 1px solid var(--border); box-shadow: var(--shadow-md);">
+    <div style="padding: 8px 12px; background: #0f172a; color: #ffffff; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 1.1rem;">📊</span>
+            <div>
+                <strong style="font-size: 0.85rem; letter-spacing: -0.01em;">Biểu Đồ Trực Quan Hóa (Tableau / PowerBI Interactive Dashboard)</strong>
+                <div style="font-size: 0.72rem; color: #94a3b8;">Xuất bản trực tiếp từ dữ liệu View thời gian thực</div>
+            </div>
+        </div>
+        <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); padding: 2px 6px;">
+            Full HD
+        </span>
+    </div>
+    <div style="background: #090d16; padding: 10px 12px; text-align: center;">
         <img src="{{ url_for('main.report_image', filename=screenshot_filename) }}" 
              alt="{{ view_name }}" 
-             style="width: 100%; height: auto; display: block; max-height: 550px; object-fit: contain;">
+             style="width: 100%; height: auto; display: block; max-height: 550px; object-fit: contain; margin: 0 auto; border-radius: 6px;">
     </div>
-    {% else %}
-    <div style="background: var(--bg-body); border: 1px dashed var(--border); border-radius: var(--radius); padding: 1rem; margin-bottom: 1.5rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
-        💡 Để hiển thị biểu đồ đồ họa cho báo cáo này, hãy lưu file ảnh vào thư mục <code>reports_screenshots/{{ expected_filename }}</code>.
-    </div>
-    {% endif %}
+</div>
+{% else %}
+<div class="card" style="margin-bottom: 12px; border: 1px dashed var(--border); background: var(--bg-main); text-align: center; padding: 12px;">
+    <div style="font-size: 1.6rem; margin-bottom: 4px;">🎨</div>
+    <h3 style="font-size: 1rem; font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">Chưa có biểu đồ Dashboard cho View này</h3>
+    <p style="color: var(--text-secondary); font-size: 0.85rem; max-width: 600px; margin: 0 auto 8px auto;">
+        Bạn có thể xuất ảnh dashboard từ PowerBI hoặc Tableau và lưu vào thư mục bên dưới để hệ thống tự động nhận diện:
+    </p>
+    <code style="background: var(--surface-solid); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); font-size: 0.78rem; color: var(--primary);">
+        reports_screenshots/{{ expected_filename }}
+    </code>
+</div>
+{% endif %}
 
-    <h3 style="font-size: 1.1rem; margin-bottom: 0.75rem; color: var(--secondary);">Dữ Liệu Bảng Chi Tiết (Tối đa 200 dòng)</h3>
+<div class="card" style="padding: 12px; margin-bottom: 12px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light);">
+        <div>
+            <h2 style="font-size: 1.05rem; font-weight: 700; color: var(--text-primary);">Dữ Liệu Truy Vấn Trực Tiếp Từ SQL Server</h2>
+            <div style="font-size: 0.78rem; color: var(--text-tertiary); margin-top: 2px;">
+                Khối dữ liệu trả về từ câu lệnh <code>SELECT * FROM dbo.{{ view_name }}</code>
+            </div>
+        </div>
+        <span class="badge badge-success" style="padding: 3px 8px;">✓ Dữ Liệu Đồng Bộ</span>
+    </div>
+
     {% for rs in result_sets %}
         {{ render_result_set(rs) }}
     {% endfor %}
