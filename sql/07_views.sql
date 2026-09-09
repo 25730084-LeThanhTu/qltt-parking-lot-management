@@ -1,9 +1,72 @@
 -- ====================================================================================
 -- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
--- BƯỚC 7: DATABASE VIEWS (5 VIEWS BÁO CÁO THỐNG KÊ QUẢN TRỊ)
+-- BƯỚC 7: DATABASE VIEWS (8 VIEWS: 3 VIEWS VẬN HÀNH BLUEPRINT V6 + 5 VIEWS BÁO CÁO BI)
 -- ====================================================================================
 
--- 1. View vw_Report_CongSuatBaiDo: Giám sát tỷ lệ lấp đầy và chỗ trống theo từng bãi
+-- ====================================================================================
+-- PHẦN A: 3 VIEWS VẬN HÀNH THỜI GIAN THỰC (THEO THIẾT KẾ BLUEPRINT V6)
+-- ====================================================================================
+
+-- 1. View v_SodoOdoRealtime: Sơ đồ ô đỗ xe thời gian thực kèm thông tin xe đang chiếm chỗ
+CREATE OR ALTER VIEW dbo.v_SodoOdoRealtime
+AS
+SELECT 
+    v.MaBai,
+    b.TenBai,
+    v.MaViTri,
+    v.KhuVuc,
+    v.TrangThai,
+    l.TenLoai,
+    lg.BienSo,
+    lg.ThoiGianVao
+FROM dbo.VI_TRI_DO v
+INNER JOIN dbo.BAI_DO_XE b ON v.MaBai = b.MaBai
+INNER JOIN dbo.LOAI_XE l ON v.MaLoaiXe = l.MaLoaiXe AND v.MaBai = l.MaBai
+LEFT JOIN dbo.LUOT_GUI lg ON v.MaViTri = lg.MaViTri AND lg.ThoiGianRa IS NULL;
+GO
+
+-- 2. View v_Xedangtrongbai: Danh sách các xe hiện diện trong bãi chưa làm thủ tục Check-Out
+CREATE OR ALTER VIEW dbo.v_Xedangtrongbai
+AS
+SELECT 
+    lg.MaLuot,
+    lg.MaBai,
+    b.TenBai,
+    lg.MaThe,
+    lg.BienSo,
+    lg.MaViTri,
+    lg.ThoiGianVao,
+    t.LoaiThe
+FROM dbo.LUOT_GUI lg
+INNER JOIN dbo.BAI_DO_XE b ON lg.MaBai = b.MaBai
+INNER JOIN dbo.THE_XE t ON lg.MaThe = t.MaThe
+WHERE lg.ThoiGianRa IS NULL;
+GO
+
+-- 3. View v_DanhsachveThangsaphethan: Danh sách vé tháng còn dưới hoặc bằng 3 ngày sử dụng
+CREATE OR ALTER VIEW dbo.v_DanhsachveThangsaphethan
+AS
+SELECT 
+    vt.MaVe,
+    vt.MaThe,
+    kh.HoTen,
+    kh.SDT,
+    vt.BienSo,
+    vt.NgayHetHan,
+    DATEDIFF(DAY, CAST(GETDATE() AS DATE), vt.NgayHetHan) AS SongayConLai,
+    vt.MaBaiApDung
+FROM dbo.VE_THANG vt
+INNER JOIN dbo.KHACH_HANG kh ON vt.MaKH = kh.MaKH
+WHERE DATEDIFF(DAY, CAST(GETDATE() AS DATE), vt.NgayHetHan) BETWEEN 0 AND 3
+  AND vt.TrangThai = N'Hoạt động';
+GO
+
+
+-- ====================================================================================
+-- PHẦN B: 5 VIEWS BÁO CÁO THỐNG KÊ QUẢN TRỊ & KINH DOANH (BI ANALYTICS)
+-- ====================================================================================
+
+-- 4. View vw_Report_CongSuatBaiDo: Giám sát tỷ lệ lấp đầy và chỗ trống theo từng bãi
 CREATE OR ALTER VIEW dbo.vw_Report_CongSuatBaiDo
 AS
 SELECT 
@@ -16,7 +79,7 @@ SELECT
 FROM dbo.BAI_DO_XE bd;
 GO
 
--- 2. View vw_Report_DoanhThuTheoBai: Báo cáo tài chính tổng hợp phân bổ theo bãi
+-- 5. View vw_Report_DoanhThuTheoBai: Báo cáo tài chính tổng hợp phân bổ theo bãi
 CREATE OR ALTER VIEW dbo.vw_Report_DoanhThuTheoBai
 AS
 SELECT 
@@ -38,7 +101,7 @@ LEFT JOIN (
 ) sub_thang ON bd.MaBai = sub_thang.MaBai;
 GO
 
--- 3. View vw_Report_XeDangDoHienTai: Danh sách phương tiện đang hiện diện trong toàn chuỗi
+-- 6. View vw_Report_XeDangDoHienTai: Danh sách phương tiện đang hiện diện trong toàn chuỗi
 CREATE OR ALTER VIEW dbo.vw_Report_XeDangDoHienTai
 AS
 SELECT 
@@ -60,7 +123,7 @@ INNER JOIN dbo.BAI_DO_XE bd ON lg.MaBai = bd.MaBai
 WHERE lg.ThoiGianRa IS NULL;
 GO
 
--- 4. View vw_Report_VeThangSapHetHan: Danh sách vé tháng sắp hoặc đã hết hạn
+-- 7. View vw_Report_VeThangSapHetHan: Danh sách vé tháng sắp hoặc đã hết hạn
 CREATE OR ALTER VIEW dbo.vw_Report_VeThangSapHetHan
 AS
 SELECT 
@@ -78,7 +141,7 @@ INNER JOIN dbo.KHACH_HANG kh ON vt.MaKH = kh.MaKH
 WHERE DATEDIFF(DAY, CAST(GETDATE() AS DATE), vt.NgayHetHan) <= 7;
 GO
 
--- 5. View vw_Report_NhatKySuCo: Thống kê các sự cố an ninh và tiền phạt
+-- 8. View vw_Report_NhatKySuCo: Thống kê các sự cố an ninh và tiền phạt
 CREATE OR ALTER VIEW dbo.vw_Report_NhatKySuCo
 AS
 SELECT 

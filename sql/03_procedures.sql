@@ -1,6 +1,6 @@
 -- ====================================================================================
 -- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
--- BƯỚC 5: STORED PROCEDURES (5 PROCEDURES NGHIỆP VỤ CỐT LÕI)
+-- BƯỚC 5: STORED PROCEDURES (6 PROCEDURES NGHIỆP VỤ CỐT LÕI)
 -- ====================================================================================
 
 -- 1. Procedure sp_XeVaoBai: Quản lý Check-In xe vào cổng bãi
@@ -312,5 +312,67 @@ BEGIN
         N'Mất' AS TrangThaiTheMoi,
         50000 AS TienPhatDenBu,
         N'Đã khóa thẻ và tự động ghi nhận biên bản sự cố' AS KetQua;
+END;
+GO
+
+-- 6. Procedure sp_DangNhap: Kiểm tra tài khoản, đối chiếu mật khẩu băm SHA-256 và phân quyền
+CREATE OR ALTER PROCEDURE dbo.sp_DangNhap
+(
+    @TenDangNhap VARCHAR(50),
+    @MatKhauPlain VARCHAR(100)
+)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Kiểm tra sự tồn tại của tên đăng nhập
+    IF NOT EXISTS (SELECT 1 FROM dbo.TAI_KHOAN WHERE TenDangNhap = @TenDangNhap)
+    BEGIN
+        THROW 50020, N'Lỗi: Tên đăng nhập không tồn tại trên hệ thống!', 1;
+        RETURN;
+    END;
+
+    -- Kiểm tra trạng thái tài khoản
+    DECLARE @TrangThai NVARCHAR(20);
+    DECLARE @MatKhauHashTrongDB VARCHAR(255);
+    DECLARE @MaNV VARCHAR(10);
+
+    SELECT 
+        @TrangThai = TrangThai,
+        @MatKhauHashTrongDB = MatKhauHash,
+        @MaNV = MaNV
+    FROM dbo.TAI_KHOAN
+    WHERE TenDangNhap = @TenDangNhap;
+
+    IF @TrangThai = N'Bị khóa'
+    BEGIN
+        THROW 50021, N'Lỗi: Tài khoản hiện đang bị khóa! Vui lòng liên hệ Quản trị viên.', 1;
+        RETURN;
+    END;
+
+    -- Băm mật khẩu người dùng nhập bằng SHA-256
+    DECLARE @InputHash VARCHAR(64) = CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', @MatKhauPlain), 2);
+
+    -- Đối chiếu chuỗi Hash
+    IF @InputHash <> @MatKhauHashTrongDB
+    BEGIN
+        THROW 50022, N'Lỗi: Mật khẩu không chính xác! Vui lòng kiểm tra lại.', 1;
+        RETURN;
+    END;
+
+    -- Trả về thông tin hồ sơ nhân viên và phạm vi quyền hạn
+    SELECT 
+        tk.TenDangNhap,
+        nv.MaNV,
+        nv.HoTen,
+        nv.ChucVu,
+        ISNULL(nv.MaBai, 'ALL') AS MaBaiPhuTrach,
+        ISNULL(b.TenBai, N'Toàn bộ chuỗi hệ thống') AS TenBaiPhuTrach,
+        tk.TrangThai AS TrangThaiTaiKhoan,
+        N'Xác thực đăng nhập thành công' AS KetQua
+    FROM dbo.TAI_KHOAN tk
+    INNER JOIN dbo.NHAN_VIEN nv ON tk.MaNV = nv.MaNV
+    LEFT JOIN dbo.BAI_DO_XE b ON nv.MaBai = b.MaBai
+    WHERE tk.TenDangNhap = @TenDangNhap;
 END;
 GO

@@ -1,10 +1,23 @@
 -- ====================================================================================
 -- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
--- BƯỚC 1: TẠO CẤU TRÚC BẢNG CƠ SỞ DỮ LIỆU VẬT LÝ (9 BẢNG)
+-- BƯỚC 1: TẠO CẤU TRÚC BẢNG CƠ SỞ DỮ LIỆU VẬT LÝ (11 BẢNG CHUẨN HÓA V6)
 -- ====================================================================================
 
--- 1. Bảng BAI_DO_XE: Quản lý danh sách các bãi xe trong chuỗi
+-- Hủy bảng cũ theo thứ tự ngược phụ thuộc khóa ngoại
+IF OBJECT_ID('dbo.LICHSU_SU_CO', 'U') IS NOT NULL DROP TABLE dbo.LICHSU_SU_CO;
+IF OBJECT_ID('dbo.HOA_DON_VE_THANG', 'U') IS NOT NULL DROP TABLE dbo.HOA_DON_VE_THANG;
+IF OBJECT_ID('dbo.LUOT_GUI', 'U') IS NOT NULL DROP TABLE dbo.LUOT_GUI;
+IF OBJECT_ID('dbo.VE_THANG', 'U') IS NOT NULL DROP TABLE dbo.VE_THANG;
+IF OBJECT_ID('dbo.KHACH_HANG', 'U') IS NOT NULL DROP TABLE dbo.KHACH_HANG;
+IF OBJECT_ID('dbo.THE_XE', 'U') IS NOT NULL DROP TABLE dbo.THE_XE;
+IF OBJECT_ID('dbo.VI_TRI_DO', 'U') IS NOT NULL DROP TABLE dbo.VI_TRI_DO;
+IF OBJECT_ID('dbo.LOAI_XE', 'U') IS NOT NULL DROP TABLE dbo.LOAI_XE;
+IF OBJECT_ID('dbo.TAI_KHOAN', 'U') IS NOT NULL DROP TABLE dbo.TAI_KHOAN;
+IF OBJECT_ID('dbo.NHAN_VIEN', 'U') IS NOT NULL DROP TABLE dbo.NHAN_VIEN;
 IF OBJECT_ID('dbo.BAI_DO_XE', 'U') IS NOT NULL DROP TABLE dbo.BAI_DO_XE;
+GO
+
+-- 1. Bảng BAI_DO_XE: Quản lý danh sách các chi nhánh bãi xe trong chuỗi
 CREATE TABLE dbo.BAI_DO_XE (
     MaBai VARCHAR(10) NOT NULL,
     TenBai NVARCHAR(100) NOT NULL,
@@ -18,8 +31,34 @@ CREATE TABLE dbo.BAI_DO_XE (
 );
 GO
 
--- 2. Bảng LOAI_XE: Biểu phí gửi lượt và gửi tháng theo từng bãi đỗ (Khóa chính hỗn hợp)
-IF OBJECT_ID('dbo.LOAI_XE', 'U') IS NOT NULL DROP TABLE dbo.LOAI_XE;
+-- 2. Bảng NHAN_VIEN: Hồ sơ nhân sự bãi đỗ xe (Phân hệ Bảo mật & Nhân sự)
+CREATE TABLE dbo.NHAN_VIEN (
+    MaNV VARCHAR(10) NOT NULL,
+    HoTen NVARCHAR(100) NOT NULL,
+    ChucVu NVARCHAR(50) NOT NULL,
+    SDT VARCHAR(15) NOT NULL,
+    Email VARCHAR(100) NULL,
+    MaBai VARCHAR(10) NULL,
+    CONSTRAINT PK_NHAN_VIEN PRIMARY KEY (MaNV),
+    CONSTRAINT UQ_NhanVien_SDT UNIQUE (SDT),
+    CONSTRAINT UQ_NhanVien_Email UNIQUE (Email),
+    CONSTRAINT FK_NhanVien_BaiDoXe FOREIGN KEY (MaBai) REFERENCES dbo.BAI_DO_XE(MaBai)
+);
+GO
+
+-- 3. Bảng TAI_KHOAN: Tài khoản truy cập & Xác thực nhân viên (Phân hệ An toàn thông tin)
+CREATE TABLE dbo.TAI_KHOAN (
+    TenDangNhap VARCHAR(50) NOT NULL,
+    MatKhauHash VARCHAR(255) NOT NULL,
+    MaNV VARCHAR(10) NOT NULL,
+    TrangThai NVARCHAR(20) NOT NULL DEFAULT N'Hoạt động',
+    CONSTRAINT PK_TAI_KHOAN PRIMARY KEY (TenDangNhap),
+    CONSTRAINT FK_TaiKhoan_NhanVien FOREIGN KEY (MaNV) REFERENCES dbo.NHAN_VIEN(MaNV),
+    CONSTRAINT CK_TaiKhoan_TrangThai CHECK (TrangThai IN (N'Hoạt động', N'Bị khóa'))
+);
+GO
+
+-- 4. Bảng LOAI_XE: Biểu phí gửi lượt và gửi tháng theo từng bãi đỗ (Khóa chính hỗn hợp)
 CREATE TABLE dbo.LOAI_XE (
     MaLoaiXe VARCHAR(10) NOT NULL,
     MaBai VARCHAR(10) NOT NULL,
@@ -33,8 +72,7 @@ CREATE TABLE dbo.LOAI_XE (
 );
 GO
 
--- 3. Bảng VI_TRI_DO: Danh mục các ô đỗ xe vật lý theo từng bãi
-IF OBJECT_ID('dbo.VI_TRI_DO', 'U') IS NOT NULL DROP TABLE dbo.VI_TRI_DO;
+-- 5. Bảng VI_TRI_DO: Danh mục các ô đỗ xe vật lý theo từng bãi
 CREATE TABLE dbo.VI_TRI_DO (
     MaViTri VARCHAR(20) NOT NULL,
     KhuVuc NVARCHAR(20) NOT NULL,
@@ -48,8 +86,7 @@ CREATE TABLE dbo.VI_TRI_DO (
 );
 GO
 
--- 4. Bảng THE_XE: Kho thẻ chip gửi xe phân chia theo từng bãi sở hữu
-IF OBJECT_ID('dbo.THE_XE', 'U') IS NOT NULL DROP TABLE dbo.THE_XE;
+-- 6. Bảng THE_XE: Kho thẻ chip gửi xe phân chia theo từng bãi sở hữu
 CREATE TABLE dbo.THE_XE (
     MaThe VARCHAR(10) NOT NULL,
     MaBai VARCHAR(10) NOT NULL,
@@ -63,8 +100,7 @@ CREATE TABLE dbo.THE_XE (
 );
 GO
 
--- 5. Bảng KHACH_HANG: Hồ sơ khách hàng đăng ký vé tháng
-IF OBJECT_ID('dbo.KHACH_HANG', 'U') IS NOT NULL DROP TABLE dbo.KHACH_HANG;
+-- 7. Bảng KHACH_HANG: Hồ sơ khách hàng đăng ký vé tháng
 CREATE TABLE dbo.KHACH_HANG (
     MaKH VARCHAR(10) NOT NULL,
     HoTen NVARCHAR(100) NOT NULL,
@@ -78,8 +114,7 @@ CREATE TABLE dbo.KHACH_HANG (
 );
 GO
 
--- 6. Bảng VE_THANG: Quản lý vé gửi xe định kỳ hàng tháng
-IF OBJECT_ID('dbo.VE_THANG', 'U') IS NOT NULL DROP TABLE dbo.VE_THANG;
+-- 8. Bảng VE_THANG: Quản lý vé gửi xe định kỳ hàng tháng
 CREATE TABLE dbo.VE_THANG (
     MaVe VARCHAR(10) NOT NULL,
     MaThe VARCHAR(10) NOT NULL,
@@ -99,8 +134,7 @@ CREATE TABLE dbo.VE_THANG (
 );
 GO
 
--- 7. Bảng LUOT_GUI: Nhật ký xe ra vào bãi xe (Check-In / Check-Out)
-IF OBJECT_ID('dbo.LUOT_GUI', 'U') IS NOT NULL DROP TABLE dbo.LUOT_GUI;
+-- 9. Bảng LUOT_GUI: Nhật ký xe ra vào bãi xe (Check-In / Check-Out)
 CREATE TABLE dbo.LUOT_GUI (
     MaLuot INT IDENTITY(1,1) NOT NULL,
     MaThe VARCHAR(10) NOT NULL,
@@ -118,8 +152,7 @@ CREATE TABLE dbo.LUOT_GUI (
 );
 GO
 
--- 8. Bảng HOA_DON_VE_THANG: Lịch sử nộp tiền đăng ký và gia hạn vé tháng
-IF OBJECT_ID('dbo.HOA_DON_VE_THANG', 'U') IS NOT NULL DROP TABLE dbo.HOA_DON_VE_THANG;
+-- 10. Bảng HOA_DON_VE_THANG: Lịch sử nộp tiền đăng ký và gia hạn vé tháng
 CREATE TABLE dbo.HOA_DON_VE_THANG (
     MaHD VARCHAR(15) NOT NULL,
     MaVe VARCHAR(10) NOT NULL,
@@ -135,8 +168,7 @@ CREATE TABLE dbo.HOA_DON_VE_THANG (
 );
 GO
 
--- 9. Bảng LICHSU_SU_CO: Biên bản xử lý sự cố (mất thẻ, hư hại) tại các bãi xe
-IF OBJECT_ID('dbo.LICHSU_SU_CO', 'U') IS NOT NULL DROP TABLE dbo.LICHSU_SU_CO;
+-- 11. Bảng LICHSU_SU_CO: Biên bản xử lý sự cố (mất thẻ, hư hại) tại các bãi xe
 CREATE TABLE dbo.LICHSU_SU_CO (
     MaSuCo INT IDENTITY(1,1) NOT NULL,
     MaThe VARCHAR(10) NULL,

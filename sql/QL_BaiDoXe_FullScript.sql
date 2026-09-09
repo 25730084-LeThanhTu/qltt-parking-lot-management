@@ -1,6 +1,6 @@
 -- ====================================================================================
 -- DỰ ÁN HỆ THỐNG QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
--- BẢN SCRIPT ĐỒNG BỘ TOÀN DIỆN (FULL AUTOMATED SCRIPT)
+-- BẢN SCRIPT ĐỒNG BỘ TOÀN DIỆN V6 (FULL AUTOMATED SCRIPT: 11 BẢNG, PROCEDURES, RBAC)
 -- ====================================================================================
 
 USE master;
@@ -19,14 +19,28 @@ GO
 USE QuanLyBaiDoXe;
 GO
 
--- ==================== BẮT ĐẦU: 01_schema.sql ====================
+
+-- ==================== BẮT ĐẦU: 01_schema.sql (11 BẢNG VẬT LÝ) ====================
 -- ====================================================================================
 -- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
--- BƯỚC 1: TẠO CẤU TRÚC BẢNG CƠ SỞ DỮ LIỆU VẬT LÝ (9 BẢNG)
+-- BƯỚC 1: TẠO CẤU TRÚC BẢNG CƠ SỞ DỮ LIỆU VẬT LÝ (11 BẢNG CHUẨN HÓA V6)
 -- ====================================================================================
 
--- 1. Bảng BAI_DO_XE: Quản lý danh sách các bãi xe trong chuỗi
+-- Hủy bảng cũ theo thứ tự ngược phụ thuộc khóa ngoại
+IF OBJECT_ID('dbo.LICHSU_SU_CO', 'U') IS NOT NULL DROP TABLE dbo.LICHSU_SU_CO;
+IF OBJECT_ID('dbo.HOA_DON_VE_THANG', 'U') IS NOT NULL DROP TABLE dbo.HOA_DON_VE_THANG;
+IF OBJECT_ID('dbo.LUOT_GUI', 'U') IS NOT NULL DROP TABLE dbo.LUOT_GUI;
+IF OBJECT_ID('dbo.VE_THANG', 'U') IS NOT NULL DROP TABLE dbo.VE_THANG;
+IF OBJECT_ID('dbo.KHACH_HANG', 'U') IS NOT NULL DROP TABLE dbo.KHACH_HANG;
+IF OBJECT_ID('dbo.THE_XE', 'U') IS NOT NULL DROP TABLE dbo.THE_XE;
+IF OBJECT_ID('dbo.VI_TRI_DO', 'U') IS NOT NULL DROP TABLE dbo.VI_TRI_DO;
+IF OBJECT_ID('dbo.LOAI_XE', 'U') IS NOT NULL DROP TABLE dbo.LOAI_XE;
+IF OBJECT_ID('dbo.TAI_KHOAN', 'U') IS NOT NULL DROP TABLE dbo.TAI_KHOAN;
+IF OBJECT_ID('dbo.NHAN_VIEN', 'U') IS NOT NULL DROP TABLE dbo.NHAN_VIEN;
 IF OBJECT_ID('dbo.BAI_DO_XE', 'U') IS NOT NULL DROP TABLE dbo.BAI_DO_XE;
+GO
+
+-- 1. Bảng BAI_DO_XE: Quản lý danh sách các chi nhánh bãi xe trong chuỗi
 CREATE TABLE dbo.BAI_DO_XE (
     MaBai VARCHAR(10) NOT NULL,
     TenBai NVARCHAR(100) NOT NULL,
@@ -40,8 +54,34 @@ CREATE TABLE dbo.BAI_DO_XE (
 );
 GO
 
--- 2. Bảng LOAI_XE: Biểu phí gửi lượt và gửi tháng theo từng bãi đỗ (Khóa chính hỗn hợp)
-IF OBJECT_ID('dbo.LOAI_XE', 'U') IS NOT NULL DROP TABLE dbo.LOAI_XE;
+-- 2. Bảng NHAN_VIEN: Hồ sơ nhân sự bãi đỗ xe (Phân hệ Bảo mật & Nhân sự)
+CREATE TABLE dbo.NHAN_VIEN (
+    MaNV VARCHAR(10) NOT NULL,
+    HoTen NVARCHAR(100) NOT NULL,
+    ChucVu NVARCHAR(50) NOT NULL,
+    SDT VARCHAR(15) NOT NULL,
+    Email VARCHAR(100) NULL,
+    MaBai VARCHAR(10) NULL,
+    CONSTRAINT PK_NHAN_VIEN PRIMARY KEY (MaNV),
+    CONSTRAINT UQ_NhanVien_SDT UNIQUE (SDT),
+    CONSTRAINT UQ_NhanVien_Email UNIQUE (Email),
+    CONSTRAINT FK_NhanVien_BaiDoXe FOREIGN KEY (MaBai) REFERENCES dbo.BAI_DO_XE(MaBai)
+);
+GO
+
+-- 3. Bảng TAI_KHOAN: Tài khoản truy cập & Xác thực nhân viên (Phân hệ An toàn thông tin)
+CREATE TABLE dbo.TAI_KHOAN (
+    TenDangNhap VARCHAR(50) NOT NULL,
+    MatKhauHash VARCHAR(255) NOT NULL,
+    MaNV VARCHAR(10) NOT NULL,
+    TrangThai NVARCHAR(20) NOT NULL DEFAULT N'Hoạt động',
+    CONSTRAINT PK_TAI_KHOAN PRIMARY KEY (TenDangNhap),
+    CONSTRAINT FK_TaiKhoan_NhanVien FOREIGN KEY (MaNV) REFERENCES dbo.NHAN_VIEN(MaNV),
+    CONSTRAINT CK_TaiKhoan_TrangThai CHECK (TrangThai IN (N'Hoạt động', N'Bị khóa'))
+);
+GO
+
+-- 4. Bảng LOAI_XE: Biểu phí gửi lượt và gửi tháng theo từng bãi đỗ (Khóa chính hỗn hợp)
 CREATE TABLE dbo.LOAI_XE (
     MaLoaiXe VARCHAR(10) NOT NULL,
     MaBai VARCHAR(10) NOT NULL,
@@ -55,8 +95,7 @@ CREATE TABLE dbo.LOAI_XE (
 );
 GO
 
--- 3. Bảng VI_TRI_DO: Danh mục các ô đỗ xe vật lý theo từng bãi
-IF OBJECT_ID('dbo.VI_TRI_DO', 'U') IS NOT NULL DROP TABLE dbo.VI_TRI_DO;
+-- 5. Bảng VI_TRI_DO: Danh mục các ô đỗ xe vật lý theo từng bãi
 CREATE TABLE dbo.VI_TRI_DO (
     MaViTri VARCHAR(20) NOT NULL,
     KhuVuc NVARCHAR(20) NOT NULL,
@@ -70,8 +109,7 @@ CREATE TABLE dbo.VI_TRI_DO (
 );
 GO
 
--- 4. Bảng THE_XE: Kho thẻ chip gửi xe phân chia theo từng bãi sở hữu
-IF OBJECT_ID('dbo.THE_XE', 'U') IS NOT NULL DROP TABLE dbo.THE_XE;
+-- 6. Bảng THE_XE: Kho thẻ chip gửi xe phân chia theo từng bãi sở hữu
 CREATE TABLE dbo.THE_XE (
     MaThe VARCHAR(10) NOT NULL,
     MaBai VARCHAR(10) NOT NULL,
@@ -85,8 +123,7 @@ CREATE TABLE dbo.THE_XE (
 );
 GO
 
--- 5. Bảng KHACH_HANG: Hồ sơ khách hàng đăng ký vé tháng
-IF OBJECT_ID('dbo.KHACH_HANG', 'U') IS NOT NULL DROP TABLE dbo.KHACH_HANG;
+-- 7. Bảng KHACH_HANG: Hồ sơ khách hàng đăng ký vé tháng
 CREATE TABLE dbo.KHACH_HANG (
     MaKH VARCHAR(10) NOT NULL,
     HoTen NVARCHAR(100) NOT NULL,
@@ -100,8 +137,7 @@ CREATE TABLE dbo.KHACH_HANG (
 );
 GO
 
--- 6. Bảng VE_THANG: Quản lý vé gửi xe định kỳ hàng tháng
-IF OBJECT_ID('dbo.VE_THANG', 'U') IS NOT NULL DROP TABLE dbo.VE_THANG;
+-- 8. Bảng VE_THANG: Quản lý vé gửi xe định kỳ hàng tháng
 CREATE TABLE dbo.VE_THANG (
     MaVe VARCHAR(10) NOT NULL,
     MaThe VARCHAR(10) NOT NULL,
@@ -121,8 +157,7 @@ CREATE TABLE dbo.VE_THANG (
 );
 GO
 
--- 7. Bảng LUOT_GUI: Nhật ký xe ra vào bãi xe (Check-In / Check-Out)
-IF OBJECT_ID('dbo.LUOT_GUI', 'U') IS NOT NULL DROP TABLE dbo.LUOT_GUI;
+-- 9. Bảng LUOT_GUI: Nhật ký xe ra vào bãi xe (Check-In / Check-Out)
 CREATE TABLE dbo.LUOT_GUI (
     MaLuot INT IDENTITY(1,1) NOT NULL,
     MaThe VARCHAR(10) NOT NULL,
@@ -140,8 +175,7 @@ CREATE TABLE dbo.LUOT_GUI (
 );
 GO
 
--- 8. Bảng HOA_DON_VE_THANG: Lịch sử nộp tiền đăng ký và gia hạn vé tháng
-IF OBJECT_ID('dbo.HOA_DON_VE_THANG', 'U') IS NOT NULL DROP TABLE dbo.HOA_DON_VE_THANG;
+-- 10. Bảng HOA_DON_VE_THANG: Lịch sử nộp tiền đăng ký và gia hạn vé tháng
 CREATE TABLE dbo.HOA_DON_VE_THANG (
     MaHD VARCHAR(15) NOT NULL,
     MaVe VARCHAR(10) NOT NULL,
@@ -157,8 +191,7 @@ CREATE TABLE dbo.HOA_DON_VE_THANG (
 );
 GO
 
--- 9. Bảng LICHSU_SU_CO: Biên bản xử lý sự cố (mất thẻ, hư hại) tại các bãi xe
-IF OBJECT_ID('dbo.LICHSU_SU_CO', 'U') IS NOT NULL DROP TABLE dbo.LICHSU_SU_CO;
+-- 11. Bảng LICHSU_SU_CO: Biên bản xử lý sự cố (mất thẻ, hư hại) tại các bãi xe
 CREATE TABLE dbo.LICHSU_SU_CO (
     MaSuCo INT IDENTITY(1,1) NOT NULL,
     MaThe VARCHAR(10) NULL,
@@ -175,12 +208,12 @@ CREATE TABLE dbo.LICHSU_SU_CO (
     CONSTRAINT CK_SuCo_TrangThai CHECK (TrangThaiXuLy IN (N'Chờ xử lý', N'Đang giải quyết', N'Đã giải quyết'))
 );
 GO
-GO
 
--- ==================== BẮT ĐẦU: 02_sample_data.sql ====================
+
+-- ==================== BẮT ĐẦU: 02_sample_data.sql (DỮ LIỆU MẪU KHỞI TẠO 11 BẢNG) ====================
 -- ====================================================================================
 -- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
--- BƯỚC 2: NẠP DỮ LIỆU KHỞI TẠO MẪU (SAMPLE DATA)
+-- BƯỚC 2: NẠP DỮ LIỆU KHỞI TẠO MẪU (SAMPLE DATA CHO 11 BẢNG CHUẨN HÓA V6)
 -- ====================================================================================
 
 -- 1. Nạp danh sách Bãi Đỗ Xe (3 chi nhánh)
@@ -190,7 +223,33 @@ INSERT INTO dbo.BAI_DO_XE (MaBai, TenBai, DiaChi, SucChua, SoLuongHienTai) VALUE
 ('BAI_BT', N'Bãi xe Landmark 81', N'Số 208 Nguyễn Hữu Cảnh, Phường 22, Bình Thạnh, TP.HCM', 20, 0);
 GO
 
--- 2. Nạp Phân Loại Phương Tiện & Biểu Phí theo từng Bãi Đỗ
+-- 2. Nạp Hồ sơ Nhân Viên (NHAN_VIEN: Ban giám đốc, Quản lý bãi, Bảo vệ ca trực)
+INSERT INTO dbo.NHAN_VIEN (MaNV, HoTen, ChucVu, SDT, Email, MaBai) VALUES
+('NV001', N'Nguyễn Hữu Trí', N'Giám đốc điều hành', '0901000001', 'tri.nguyen@smartparking.vn', NULL),
+('NV002', N'Trần Văn Hùng', N'Quản lý bãi', '0901000002', 'hung.tran@smartparking.vn', 'BAI_Q1'),
+('NV003', N'Lê Thị Bích Ngọc', N'Quản lý bãi', '0901000003', 'ngoc.le@smartparking.vn', 'BAI_Q3'),
+('NV004', N'Hoàng Đình Nam', N'Quản lý bãi', '0901000004', 'nam.hoang@smartparking.vn', 'BAI_BT'),
+('NV005', N'Phạm Văn Cường', N'Bảo vệ', '0901000005', 'cuong.pham@smartparking.vn', 'BAI_Q1'),
+('NV006', N'Đặng Minh Tuấn', N'Bảo vệ', '0901000006', 'tuan.dang@smartparking.vn', 'BAI_Q3'),
+('NV007', N'Vũ Đức Thắng', N'Bảo vệ', '0901000007', 'thang.vu@smartparking.vn', 'BAI_BT');
+GO
+
+-- 3. Nạp Tài Khoản Truy Cập & Mật khẩu mã hóa HASH SHA-256 (TAI_KHOAN)
+-- Mật khẩu mặc định:
+-- 'Admin@2026' cho admin -> HASH: CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', 'Admin@2026'), 2)
+-- '123456' cho các tài khoản còn lại -> HASH: CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2)
+INSERT INTO dbo.TAI_KHOAN (TenDangNhap, MatKhauHash, MaNV, TrangThai) VALUES
+('admin', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', 'Admin@2026'), 2), 'NV001', N'Hoạt động'),
+('quanly_q1', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV002', N'Hoạt động'),
+('quanly_q3', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV003', N'Hoạt động'),
+('quanly_bt', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV004', N'Hoạt động'),
+('baove_q1', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV005', N'Hoạt động'),
+('baove_q3', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV006', N'Hoạt động'),
+('baove_bt', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV007', N'Hoạt động'),
+('baove_khoa', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV005', N'Bị khóa');
+GO
+
+-- 4. Nạp Phân Loại Phương Tiện & Biểu Phí theo từng Bãi Đỗ
 INSERT INTO dbo.LOAI_XE (MaLoaiXe, MaBai, TenLoai, DonGiaGio, GiaVeThang) VALUES
 ('XM', 'BAI_Q1', N'Xe máy', 6000, 180000),
 ('OT', 'BAI_Q1', N'Ô tô 4-7 chỗ', 25000, 1800000),
@@ -205,7 +264,7 @@ INSERT INTO dbo.LOAI_XE (MaLoaiXe, MaBai, TenLoai, DonGiaGio, GiaVeThang) VALUES
 ('XD', 'BAI_BT', N'Xe đạp / Xe điện', 4000, 90000);
 GO
 
--- 3. Nạp danh mục Vị Trí Ô Đỗ Xe Vật Lý (34 vị trí trên 3 bãi)
+-- 5. Nạp danh mục Vị Trí Ô Đỗ Xe Vật Lý (34 vị trí trên 3 bãi)
 INSERT INTO dbo.VI_TRI_DO (MaViTri, KhuVuc, TrangThai, MaLoaiXe, MaBai) VALUES
 -- Bãi Quận 1 (12 vị trí)
 ('Q1_XM_01', N'Khu A - Tầng 1', N'Trống', 'XM', 'BAI_Q1'),
@@ -248,7 +307,7 @@ INSERT INTO dbo.VI_TRI_DO (MaViTri, KhuVuc, TrangThai, MaLoaiXe, MaBai) VALUES
 ('BT_XD_02', N'Hầm B1 - Zone E', N'Trống', 'XD', 'BAI_BT');
 GO
 
--- 4. Nạp Kho Thẻ Xe (THE_XE)
+-- 6. Nạp Kho Thẻ Xe (THE_XE)
 INSERT INTO dbo.THE_XE (MaThe, MaBai, LoaiThe, TrangThai, NgayCap) VALUES
 -- Thẻ Quận 1
 ('THE0001', 'BAI_Q1', N'Lượt', N'Hoạt động', '2026-01-01'),
@@ -272,7 +331,7 @@ INSERT INTO dbo.THE_XE (MaThe, MaBai, LoaiThe, TrangThai, NgayCap) VALUES
 ('THE0015', 'BAI_BT', N'Lượt', N'Hoạt động', '2026-01-10');
 GO
 
--- 5. Nạp Hồ sơ Khách Hàng (KHACH_HANG)
+-- 7. Nạp Hồ sơ Khách Hàng (KHACH_HANG)
 INSERT INTO dbo.KHACH_HANG (MaKH, HoTen, SDT, Email, CMND_CCCD) VALUES
 ('KH0001', N'Nguyễn Văn An', '0903112233', 'nguyenvanan@gmail.com', '079090001111'),
 ('KH0002', N'Trần Thị Mai', '0912445566', 'tranmai.hcm@gmail.com', '079090002222'),
@@ -281,7 +340,7 @@ INSERT INTO dbo.KHACH_HANG (MaKH, HoTen, SDT, Email, CMND_CCCD) VALUES
 ('KH0005', N'Võ Minh Quân', '0977112244', 'quan.vominh@gmail.com', '079090005555');
 GO
 
--- 6. Nạp Đăng Ký Vé Tháng (VE_THANG)
+-- 8. Nạp Đăng Ký Vé Tháng (VE_THANG)
 INSERT INTO dbo.VE_THANG (MaVe, MaThe, MaKH, BienSo, MaLoaiXe, NgayDangKy, NgayHetHan, TrangThai, MaBaiApDung) VALUES
 ('V0001', 'THE0002', 'KH0001', '59A-123.45', 'XM', '2026-01-01', '2026-12-31', N'Hoạt động', 'BAI_Q1'),
 ('V0002', 'THE0004', 'KH0002', '51G-888.99', 'OT', '2026-01-10', '2026-10-10', N'Hoạt động', 'BAI_Q1'),
@@ -290,7 +349,7 @@ INSERT INTO dbo.VE_THANG (MaVe, MaThe, MaKH, BienSo, MaLoaiXe, NgayDangKy, NgayH
 ('V0005', 'THE0012', 'KH0005', '59C-678.90', 'XM', '2026-01-02', '2026-12-31', N'Hoạt động', 'BAI_BT');
 GO
 
--- 7. Nạp Lịch Sử Thu Tiền Vé Tháng (HOA_DON_VE_THANG)
+-- 9. Nạp Lịch Sử Thu Tiền Vé Tháng (HOA_DON_VE_THANG)
 INSERT INTO dbo.HOA_DON_VE_THANG (MaHD, MaVe, NgayThanhToan, SoThangGiaHan, SoTien, MaBai) VALUES
 ('HD20260101001', 'V0001', '2026-01-01 08:30:00', 12, 2160000, 'BAI_Q1'),
 ('HD20260110002', 'V0002', '2026-01-10 09:15:00', 9, 16200000, 'BAI_Q1'),
@@ -299,7 +358,7 @@ INSERT INTO dbo.HOA_DON_VE_THANG (MaHD, MaVe, NgayThanhToan, SoThangGiaHan, SoTi
 ('HD20260102005', 'V0005', '2026-01-02 16:45:00', 12, 2400000, 'BAI_BT');
 GO
 
--- 8. Nạp Nhật Ký Lượt Gửi Xe (LUOT_GUI)
+-- 10. Nạp Nhật Ký Lượt Gửi Xe (LUOT_GUI)
 -- Một số lượt đã check-out
 INSERT INTO dbo.LUOT_GUI (MaThe, BienSo, ThoiGianVao, ThoiGianRa, MaViTri, TienGui, MaBai) VALUES
 ('THE0001', '59A-111.22', '2026-09-07 07:15:00', '2026-09-07 11:15:00', 'Q1_XM_01', 24000, 'BAI_Q1'),
@@ -321,14 +380,14 @@ UPDATE dbo.BAI_DO_XE SET SoLuongHienTai = 1 WHERE MaBai = 'BAI_Q3';
 UPDATE dbo.BAI_DO_XE SET SoLuongHienTai = 1 WHERE MaBai = 'BAI_BT';
 GO
 
--- 9. Nạp Nhật Ký Sự Cố (LICHSU_SU_CO)
+-- 11. Nạp Nhật Ký Sự Cố (LICHSU_SU_CO)
 INSERT INTO dbo.LICHSU_SU_CO (MaThe, BienSo, ThoiGianSuCo, MoTa, TienPhat, TrangThaiXuLy, MaBai) VALUES
 ('THE0006', '59X-999.01', '2026-01-15 11:00:00', N'Khách hàng làm rơi thẻ xe tại quầy nước, lập biên bản báo mất thẻ chip', 50000, N'Đã giải quyết', 'BAI_Q1'),
 (NULL, '51B-123.45', '2026-02-10 18:30:00', N'Va quẹt nhẹ gương chiếu hậu khi lùi xe vào ô đỗ Q3_OT_01', 200000, N'Đã giải quyết', 'BAI_Q3');
 GO
-GO
 
--- ==================== BẮT ĐẦU: 05_functions.sql ====================
+
+-- ==================== BẮT ĐẦU: 05_functions.sql (3 DATABASE FUNCTIONS) ====================
 -- ====================================================================================
 -- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
 -- BƯỚC 3: DATABASE FUNCTIONS (3 FUNCTIONS)
@@ -422,9 +481,9 @@ RETURN
     WHERE lg.MaBai = @MaBai AND lg.ThoiGianRa IS NULL
 );
 GO
-GO
 
--- ==================== BẮT ĐẦU: 04_triggers.sql ====================
+
+-- ==================== BẮT ĐẦU: 04_triggers.sql (5 DATABASE TRIGGERS) ====================
 -- ====================================================================================
 -- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
 -- BƯỚC 4: DATABASE TRIGGERS (5 TRIGGERS NGHIỆP VỤ TỰ ĐỘNG)
@@ -624,12 +683,12 @@ BEGIN
     DELETE FROM dbo.THE_XE WHERE MaThe IN (SELECT MaThe FROM deleted);
 END;
 GO
-GO
 
--- ==================== BẮT ĐẦU: 03_procedures.sql ====================
+
+-- ==================== BẮT ĐẦU: 03_procedures.sql (6 STORED PROCEDURES) ====================
 -- ====================================================================================
 -- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
--- BƯỚC 5: STORED PROCEDURES (5 PROCEDURES NGHIỆP VỤ CỐT LÕI)
+-- BƯỚC 5: STORED PROCEDURES (6 PROCEDURES NGHIỆP VỤ CỐT LÕI)
 -- ====================================================================================
 
 -- 1. Procedure sp_XeVaoBai: Quản lý Check-In xe vào cổng bãi
@@ -943,9 +1002,71 @@ BEGIN
         N'Đã khóa thẻ và tự động ghi nhận biên bản sự cố' AS KetQua;
 END;
 GO
+
+-- 6. Procedure sp_DangNhap: Kiểm tra tài khoản, đối chiếu mật khẩu băm SHA-256 và phân quyền
+CREATE OR ALTER PROCEDURE dbo.sp_DangNhap
+(
+    @TenDangNhap VARCHAR(50),
+    @MatKhauPlain VARCHAR(100)
+)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Kiểm tra sự tồn tại của tên đăng nhập
+    IF NOT EXISTS (SELECT 1 FROM dbo.TAI_KHOAN WHERE TenDangNhap = @TenDangNhap)
+    BEGIN
+        THROW 50020, N'Lỗi: Tên đăng nhập không tồn tại trên hệ thống!', 1;
+        RETURN;
+    END;
+
+    -- Kiểm tra trạng thái tài khoản
+    DECLARE @TrangThai NVARCHAR(20);
+    DECLARE @MatKhauHashTrongDB VARCHAR(255);
+    DECLARE @MaNV VARCHAR(10);
+
+    SELECT 
+        @TrangThai = TrangThai,
+        @MatKhauHashTrongDB = MatKhauHash,
+        @MaNV = MaNV
+    FROM dbo.TAI_KHOAN
+    WHERE TenDangNhap = @TenDangNhap;
+
+    IF @TrangThai = N'Bị khóa'
+    BEGIN
+        THROW 50021, N'Lỗi: Tài khoản hiện đang bị khóa! Vui lòng liên hệ Quản trị viên.', 1;
+        RETURN;
+    END;
+
+    -- Băm mật khẩu người dùng nhập bằng SHA-256
+    DECLARE @InputHash VARCHAR(64) = CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', @MatKhauPlain), 2);
+
+    -- Đối chiếu chuỗi Hash
+    IF @InputHash <> @MatKhauHashTrongDB
+    BEGIN
+        THROW 50022, N'Lỗi: Mật khẩu không chính xác! Vui lòng kiểm tra lại.', 1;
+        RETURN;
+    END;
+
+    -- Trả về thông tin hồ sơ nhân viên và phạm vi quyền hạn
+    SELECT 
+        tk.TenDangNhap,
+        nv.MaNV,
+        nv.HoTen,
+        nv.ChucVu,
+        ISNULL(nv.MaBai, 'ALL') AS MaBaiPhuTrach,
+        ISNULL(b.TenBai, N'Toàn bộ chuỗi hệ thống') AS TenBaiPhuTrach,
+        tk.TrangThai AS TrangThaiTaiKhoan,
+        N'Xác thực đăng nhập thành công' AS KetQua
+    FROM dbo.TAI_KHOAN tk
+    INNER JOIN dbo.NHAN_VIEN nv ON tk.MaNV = nv.MaNV
+    LEFT JOIN dbo.BAI_DO_XE b ON nv.MaBai = b.MaBai
+    WHERE tk.TenDangNhap = @TenDangNhap;
+END;
 GO
 
--- ==================== BẮT ĐẦU: 06_cursors.sql ====================
+
+-- ==================== BẮT ĐẦU: 06_cursors.sql (2 DATABASE CURSORS) ====================
 -- ====================================================================================
 -- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
 -- BƯỚC 6: DATABASE CURSORS (2 CURSORS BỌC TRONG PROCEDURES ĐỂ DEMO)
@@ -1082,15 +1203,78 @@ BEGIN
     DROP TABLE #BaoCaoDoanhThu;
 END;
 GO
-GO
 
--- ==================== BẮT ĐẦU: 07_views.sql ====================
+
+-- ==================== BẮT ĐẦU: 07_views.sql (8 DATABASE VIEWS) ====================
 -- ====================================================================================
 -- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
--- BƯỚC 7: DATABASE VIEWS (5 VIEWS BÁO CÁO THỐNG KÊ QUẢN TRỊ)
+-- BƯỚC 7: DATABASE VIEWS (8 VIEWS: 3 VIEWS VẬN HÀNH BLUEPRINT V6 + 5 VIEWS BÁO CÁO BI)
 -- ====================================================================================
 
--- 1. View vw_Report_CongSuatBaiDo: Giám sát tỷ lệ lấp đầy và chỗ trống theo từng bãi
+-- ====================================================================================
+-- PHẦN A: 3 VIEWS VẬN HÀNH THỜI GIAN THỰC (THEO THIẾT KẾ BLUEPRINT V6)
+-- ====================================================================================
+
+-- 1. View v_SodoOdoRealtime: Sơ đồ ô đỗ xe thời gian thực kèm thông tin xe đang chiếm chỗ
+CREATE OR ALTER VIEW dbo.v_SodoOdoRealtime
+AS
+SELECT 
+    v.MaBai,
+    b.TenBai,
+    v.MaViTri,
+    v.KhuVuc,
+    v.TrangThai,
+    l.TenLoai,
+    lg.BienSo,
+    lg.ThoiGianVao
+FROM dbo.VI_TRI_DO v
+INNER JOIN dbo.BAI_DO_XE b ON v.MaBai = b.MaBai
+INNER JOIN dbo.LOAI_XE l ON v.MaLoaiXe = l.MaLoaiXe AND v.MaBai = l.MaBai
+LEFT JOIN dbo.LUOT_GUI lg ON v.MaViTri = lg.MaViTri AND lg.ThoiGianRa IS NULL;
+GO
+
+-- 2. View v_Xedangtrongbai: Danh sách các xe hiện diện trong bãi chưa làm thủ tục Check-Out
+CREATE OR ALTER VIEW dbo.v_Xedangtrongbai
+AS
+SELECT 
+    lg.MaLuot,
+    lg.MaBai,
+    b.TenBai,
+    lg.MaThe,
+    lg.BienSo,
+    lg.MaViTri,
+    lg.ThoiGianVao,
+    t.LoaiThe
+FROM dbo.LUOT_GUI lg
+INNER JOIN dbo.BAI_DO_XE b ON lg.MaBai = b.MaBai
+INNER JOIN dbo.THE_XE t ON lg.MaThe = t.MaThe
+WHERE lg.ThoiGianRa IS NULL;
+GO
+
+-- 3. View v_DanhsachveThangsaphethan: Danh sách vé tháng còn dưới hoặc bằng 3 ngày sử dụng
+CREATE OR ALTER VIEW dbo.v_DanhsachveThangsaphethan
+AS
+SELECT 
+    vt.MaVe,
+    vt.MaThe,
+    kh.HoTen,
+    kh.SDT,
+    vt.BienSo,
+    vt.NgayHetHan,
+    DATEDIFF(DAY, CAST(GETDATE() AS DATE), vt.NgayHetHan) AS SongayConLai,
+    vt.MaBaiApDung
+FROM dbo.VE_THANG vt
+INNER JOIN dbo.KHACH_HANG kh ON vt.MaKH = kh.MaKH
+WHERE DATEDIFF(DAY, CAST(GETDATE() AS DATE), vt.NgayHetHan) BETWEEN 0 AND 3
+  AND vt.TrangThai = N'Hoạt động';
+GO
+
+
+-- ====================================================================================
+-- PHẦN B: 5 VIEWS BÁO CÁO THỐNG KÊ QUẢN TRỊ & KINH DOANH (BI ANALYTICS)
+-- ====================================================================================
+
+-- 4. View vw_Report_CongSuatBaiDo: Giám sát tỷ lệ lấp đầy và chỗ trống theo từng bãi
 CREATE OR ALTER VIEW dbo.vw_Report_CongSuatBaiDo
 AS
 SELECT 
@@ -1103,7 +1287,7 @@ SELECT
 FROM dbo.BAI_DO_XE bd;
 GO
 
--- 2. View vw_Report_DoanhThuTheoBai: Báo cáo tài chính tổng hợp phân bổ theo bãi
+-- 5. View vw_Report_DoanhThuTheoBai: Báo cáo tài chính tổng hợp phân bổ theo bãi
 CREATE OR ALTER VIEW dbo.vw_Report_DoanhThuTheoBai
 AS
 SELECT 
@@ -1125,7 +1309,7 @@ LEFT JOIN (
 ) sub_thang ON bd.MaBai = sub_thang.MaBai;
 GO
 
--- 3. View vw_Report_XeDangDoHienTai: Danh sách phương tiện đang hiện diện trong toàn chuỗi
+-- 6. View vw_Report_XeDangDoHienTai: Danh sách phương tiện đang hiện diện trong toàn chuỗi
 CREATE OR ALTER VIEW dbo.vw_Report_XeDangDoHienTai
 AS
 SELECT 
@@ -1147,7 +1331,7 @@ INNER JOIN dbo.BAI_DO_XE bd ON lg.MaBai = bd.MaBai
 WHERE lg.ThoiGianRa IS NULL;
 GO
 
--- 4. View vw_Report_VeThangSapHetHan: Danh sách vé tháng sắp hoặc đã hết hạn
+-- 7. View vw_Report_VeThangSapHetHan: Danh sách vé tháng sắp hoặc đã hết hạn
 CREATE OR ALTER VIEW dbo.vw_Report_VeThangSapHetHan
 AS
 SELECT 
@@ -1165,7 +1349,7 @@ INNER JOIN dbo.KHACH_HANG kh ON vt.MaKH = kh.MaKH
 WHERE DATEDIFF(DAY, CAST(GETDATE() AS DATE), vt.NgayHetHan) <= 7;
 GO
 
--- 5. View vw_Report_NhatKySuCo: Thống kê các sự cố an ninh và tiền phạt
+-- 8. View vw_Report_NhatKySuCo: Thống kê các sự cố an ninh và tiền phạt
 CREATE OR ALTER VIEW dbo.vw_Report_NhatKySuCo
 AS
 SELECT 
@@ -1180,4 +1364,81 @@ SELECT
 FROM dbo.LICHSU_SU_CO sc
 INNER JOIN dbo.BAI_DO_XE bd ON sc.MaBai = bd.MaBai;
 GO
+
+
+-- ==================== BẮT ĐẦU: 08_security_rbac.sql (PHÂN QUYỀN RBAC 3 ROLES) ====================
+-- ====================================================================================
+-- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
+-- BƯỚC 8: AN TOÀN THÔNG TIN & PHÂN QUYỀN TRUY CẬP (ROLE-BASED ACCESS CONTROL - RBAC)
+-- ====================================================================================
+
+-- 1. Khởi tạo 3 Nhóm quyền (Database Roles)
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'r_Admin' AND type = 'R')
+    CREATE ROLE r_Admin;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'r_QuanLyBai' AND type = 'R')
+    CREATE ROLE r_QuanLyBai;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'r_BaoVe' AND type = 'R')
+    CREATE ROLE r_BaoVe;
+GO
+
+-- ====================================================================================
+-- 2. CẤP QUYỀN CHI TIẾT THEO TỪNG VAI TRÒ
+-- ====================================================================================
+
+-- A. Quyền r_Admin: Quản trị viên tối cao (Full Control trên toàn bộ cơ sở dữ liệu)
+GRANT CONTROL TO r_Admin;
+GO
+
+-- B. Quyền r_QuanLyBai: Quản lý chi nhánh bãi đỗ xe
+-- Được xem, thêm, sửa trên các danh mục quản trị và dữ liệu nghiệp vụ
+GRANT SELECT, INSERT, UPDATE ON dbo.BAI_DO_XE TO r_QuanLyBai;
+GRANT SELECT, INSERT, UPDATE ON dbo.LOAI_XE TO r_QuanLyBai;
+GRANT SELECT, INSERT, UPDATE ON dbo.VI_TRI_DO TO r_QuanLyBai;
+GRANT SELECT, INSERT, UPDATE ON dbo.THE_XE TO r_QuanLyBai;
+GRANT SELECT, INSERT, UPDATE ON dbo.KHACH_HANG TO r_QuanLyBai;
+GRANT SELECT, INSERT, UPDATE ON dbo.VE_THANG TO r_QuanLyBai;
+GRANT SELECT, INSERT, UPDATE ON dbo.NHAN_VIEN TO r_QuanLyBai;
+GRANT SELECT ON dbo.TAI_KHOAN TO r_QuanLyBai;
+GRANT SELECT ON dbo.LUOT_GUI TO r_QuanLyBai;
+GRANT SELECT ON dbo.HOA_DON_VE_THANG TO r_QuanLyBai;
+GRANT SELECT, INSERT, UPDATE ON dbo.LICHSU_SU_CO TO r_QuanLyBai;
+
+-- Được thực thi các Stored Procedures quản trị vé và nhân sự
+GRANT EXECUTE ON dbo.sp_DangKyThanhVien TO r_QuanLyBai;
+GRANT EXECUTE ON dbo.sp_GiaHanTheThang TO r_QuanLyBai;
+GRANT EXECUTE ON dbo.sp_BaoMatThe TO r_QuanLyBai;
+GRANT EXECUTE ON dbo.sp_DemoCanhBaoHanTheThang TO r_QuanLyBai;
+GRANT EXECUTE ON dbo.sp_DemoTongKetDoanhThuChuoi TO r_QuanLyBai;
+GRANT EXECUTE ON dbo.sp_DangNhap TO r_QuanLyBai;
+
+-- Được xem tất cả các Views báo cáo
+GRANT SELECT ON dbo.v_SodoOdoRealtime TO r_QuanLyBai;
+GRANT SELECT ON dbo.v_Xedangtrongbai TO r_QuanLyBai;
+GRANT SELECT ON dbo.v_DanhsachveThangsaphethan TO r_QuanLyBai;
+GRANT SELECT ON dbo.vw_Report_CongSuatBaiDo TO r_QuanLyBai;
+GRANT SELECT ON dbo.vw_Report_DoanhThuTheoBai TO r_QuanLyBai;
+GRANT SELECT ON dbo.vw_Report_XeDangDoHienTai TO r_QuanLyBai;
+GRANT SELECT ON dbo.vw_Report_VeThangSapHetHan TO r_QuanLyBai;
+GRANT SELECT ON dbo.vw_Report_NhatKySuCo TO r_QuanLyBai;
+GO
+
+-- C. Quyền r_BaoVe: Nhân viên bảo vệ trực cổng bãi xe
+-- Chỉ có quyền quét xe vào/ra qua Procedure và tra cứu sơ đồ ô đỗ
+GRANT EXECUTE ON dbo.sp_XeVaoBai TO r_BaoVe;
+GRANT EXECUTE ON dbo.sp_XeRaBai TO r_BaoVe;
+GRANT EXECUTE ON dbo.sp_BaoMatThe TO r_BaoVe;
+GRANT EXECUTE ON dbo.sp_DangNhap TO r_BaoVe;
+
+-- Cho phép xem sơ đồ ô đỗ thời gian thực để hướng dẫn khách
+GRANT SELECT ON dbo.v_SodoOdoRealtime TO r_BaoVe;
+GRANT SELECT ON dbo.v_Xedangtrongbai TO r_BaoVe;
+
+-- Chặn nghiêm ngặt: Nhân viên bảo vệ tuyệt đối KHÔNG ĐƯỢC sửa hoặc xóa dữ liệu tài chính/lượt xe
+DENY UPDATE, DELETE ON dbo.LUOT_GUI TO r_BaoVe;
+DENY UPDATE, DELETE ON dbo.HOA_DON_VE_THANG TO r_BaoVe;
+DENY SELECT, INSERT, UPDATE, DELETE ON dbo.TAI_KHOAN TO r_BaoVe;
 GO

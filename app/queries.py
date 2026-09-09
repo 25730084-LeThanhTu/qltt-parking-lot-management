@@ -5,6 +5,8 @@
 
 TABLES_TO_SHOW = [
     "BAI_DO_XE",
+    "NHAN_VIEN",
+    "TAI_KHOAN",
     "LOAI_XE",
     "VI_TRI_DO",
     "THE_XE",

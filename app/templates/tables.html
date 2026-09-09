@@ -8,10 +8,10 @@
                 <span style="font-size: 0.825rem; color: var(--text-tertiary);">Chuẩn Hóa Dữ Liệu 3NF</span>
             </div>
             <h1 style="font-size: 1.6rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.02em;">
-                🗄️ Danh Mục 9 Bảng Dữ Liệu Vật Lý
+                🗄️ Danh Mục 11 Bảng Dữ Liệu Vật Lý
             </h1>
             <p style="color: var(--text-secondary); margin-top: 4px; font-size: 0.9rem; max-width: 800px;">
-                Toàn bộ mô hình CSDL được phân rã thành 9 thực thể chuẩn, có ràng buộc toàn vẹn khóa chính - khóa ngoại (PK/FK). Bấm vào từng bảng để truy vấn trực tiếp 100 bản ghi dữ liệu thực tế từ SQL Server.
+                Toàn bộ mô hình CSDL được phân rã thành 11 thực thể chuẩn (bao gồm phân hệ Quản trị Nhân sự & An toàn thông tin), có đầy đủ ràng buộc toàn vẹn PK/FK/CHECK. Bấm vào từng bảng để truy vấn 100 bản ghi dữ liệu thực tế từ SQL Server.
             </p>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
@@ -28,6 +28,8 @@
 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px;">
     {% set table_meta = {
         'BAI_DO_XE': {'icon': '🏢', 'desc': 'Quản lý thông tin chuỗi chi nhánh bãi đỗ xe và sức chứa tối đa.', 'badge': 'Master Data'},
+        'NHAN_VIEN': {'icon': '👔', 'desc': 'Hồ sơ nhân sự, ban giám đốc, quản lý bãi và nhân viên bảo vệ ca trực.', 'badge': 'Human Resources'},
+        'TAI_KHOAN': {'icon': '🔐', 'desc': 'Tài khoản truy cập, phân quyền và mật khẩu mã hóa HASH SHA-256 an toàn.', 'badge': 'Security & Auth'},
         'LOAI_XE': {'icon': '🚗', 'desc': 'Phân loại phương tiện (Ô tô, Xe máy) và cấu hình đơn giá theo giờ/tháng.', 'badge': 'Master Data'},
         'VI_TRI_DO': {'icon': '🅿️', 'desc': 'Danh mục các ô đỗ xe vật lý kèm trạng thái hiện tại (TRONG / CO_XE).', 'badge': 'IoT Inventory'},
         'THE_XE': {'icon': '🪪', 'desc': 'Quản lý mã thẻ RFID, thẻ vãng lai hoặc thẻ tháng, trạng thái thẻ (HOAT_DONG/KHOA).', 'badge': 'Hardware / RFID'},
