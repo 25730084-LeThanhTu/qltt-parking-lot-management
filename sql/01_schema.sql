@@ -148,7 +148,8 @@ CREATE TABLE dbo.LUOT_GUI (
     CONSTRAINT FK_LuotGui_TheXe FOREIGN KEY (MaThe) REFERENCES dbo.THE_XE(MaThe),
     CONSTRAINT FK_LuotGui_ViTriDo FOREIGN KEY (MaViTri) REFERENCES dbo.VI_TRI_DO(MaViTri),
     CONSTRAINT FK_LuotGui_BaiDoXe FOREIGN KEY (MaBai) REFERENCES dbo.BAI_DO_XE(MaBai),
-    CONSTRAINT CK_LuotGui_TienGui CHECK (TienGui >= 0)
+    CONSTRAINT CK_LuotGui_TienGui CHECK (TienGui >= 0),
+    CONSTRAINT CK_LuotGui_ThoiGianRa CHECK (ThoiGianRa IS NULL OR ThoiGianRa >= ThoiGianVao)
 );
 GO
 
@@ -184,4 +185,17 @@ CREATE TABLE dbo.LICHSU_SU_CO (
     CONSTRAINT CK_SuCo_TienPhat CHECK (TienPhat >= 0),
     CONSTRAINT CK_SuCo_TrangThai CHECK (TrangThaiXuLy IN (N'Chờ xử lý', N'Đang giải quyết', N'Đã giải quyết'))
 );
+GO
+
+-- Tối ưu tra cứu xe đang đỗ theo bãi và vị trí cho sơ đồ bãi xe thời gian thực
+CREATE INDEX IX_LuotGui_DangDo
+ON dbo.LUOT_GUI (MaBai, MaViTri)
+INCLUDE (MaThe, BienSo, ThoiGianVao)
+WHERE ThoiGianRa IS NULL;
+GO
+
+-- Tối ưu báo cáo và tác vụ quét hạn vé tháng
+CREATE INDEX IX_VeThang_TrangThai_NgayHetHan
+ON dbo.VE_THANG (TrangThai, NgayHetHan)
+INCLUDE (MaThe, MaKH, BienSo, MaBaiApDung);
 GO
