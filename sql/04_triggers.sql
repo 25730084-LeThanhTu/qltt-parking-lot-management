@@ -1,6 +1,6 @@
 -- ====================================================================================
 -- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
--- BƯỚC 4: DATABASE TRIGGERS (5 TRIGGERS NGHIỆP VỤ TỰ ĐỘNG)
+-- BƯỚC 4: DATABASE TRIGGERS (6 TRIGGERS NGHIỆP VỤ TỰ ĐỘNG)
 -- ====================================================================================
 
 -- 1. Trigger trg_KiemTraCheckIn: Chặn xe vào nếu thẻ bị khóa/mất hoặc bãi xe đầy
@@ -13,7 +13,7 @@ BEGIN
 
     -- Kiểm tra thẻ xe có đang bị khóa hoặc mất không
     IF EXISTS (
-        SELECT 1 
+        SELECT 1
         FROM inserted i
         INNER JOIN dbo.THE_XE tx ON i.MaThe = tx.MaThe
         WHERE tx.TrangThai IN (N'Bị khóa', N'Mất')
@@ -26,7 +26,7 @@ BEGIN
 
     -- Kiểm tra bãi đỗ xe đã đầy công suất chưa
     IF EXISTS (
-        SELECT 1 
+        SELECT 1
         FROM inserted i
         INNER JOIN dbo.BAI_DO_XE b ON i.MaBai = b.MaBai
         WHERE b.SoLuongHienTai >= b.SucChua
@@ -48,7 +48,7 @@ BEGIN
     SET NOCOUNT ON;
 
     IF EXISTS (
-        SELECT 1 
+        SELECT 1
         FROM inserted i
         INNER JOIN dbo.THE_XE tx ON i.MaThe = tx.MaThe
         INNER JOIN dbo.VE_THANG vt ON tx.MaThe = vt.MaThe
@@ -96,7 +96,7 @@ BEGIN
 
     -- Trường hợp 2: Xe check-out ra bãi (ThoiGianRa chuyển từ NULL sang có thời gian)
     IF EXISTS (
-        SELECT 1 
+        SELECT 1
         FROM inserted i
         INNER JOIN deleted d ON i.MaLuot = d.MaLuot
         WHERE d.ThoiGianRa IS NULL AND i.ThoiGianRa IS NOT NULL
@@ -112,9 +112,9 @@ BEGIN
 
         -- Giảm số lượng xe hiện tại của bãi
         UPDATE bd
-        SET bd.SoLuongHienTai = CASE 
-            WHEN bd.SoLuongHienTai >= sub.CountXe THEN bd.SoLuongHienTai - sub.CountXe 
-            ELSE 0 
+        SET bd.SoLuongHienTai = CASE
+            WHEN bd.SoLuongHienTai >= sub.CountXe THEN bd.SoLuongHienTai - sub.CountXe
+            ELSE 0
         END
         FROM dbo.BAI_DO_XE bd
         INNER JOIN (
@@ -138,7 +138,7 @@ BEGIN
     IF NOT UPDATE(TrangThai) RETURN;
 
     INSERT INTO dbo.LICHSU_SU_CO (MaThe, BienSo, ThoiGianSuCo, MoTa, TienPhat, TrangThaiXuLy, MaBai)
-    SELECT 
+    SELECT
         i.MaThe,
         ISNULL(vt.BienSo, N'Chưa rõ biển số'),
         GETDATE(),
@@ -162,7 +162,7 @@ BEGIN
     SET NOCOUNT ON;
 
     IF EXISTS (
-        SELECT 1 
+        SELECT 1
         FROM deleted d
         WHERE d.SoLuongHienTai > 0
            OR EXISTS (SELECT 1 FROM dbo.VI_TRI_DO vt WHERE vt.MaBai = d.MaBai)
@@ -184,7 +184,7 @@ BEGIN
     SET NOCOUNT ON;
 
     IF EXISTS (
-        SELECT 1 
+        SELECT 1
         FROM deleted d
         INNER JOIN dbo.LUOT_GUI lg ON d.MaThe = lg.MaThe
         WHERE lg.ThoiGianRa IS NULL
@@ -195,5 +195,33 @@ BEGIN
     END;
 
     DELETE FROM dbo.THE_XE WHERE MaThe IN (SELECT MaThe FROM deleted);
+END;
+GO
+
+-- 6. Trigger trg_KiemTraLoaiXe_VeThang: Đảm bảo toàn vẹn tham chiếu (MaLoaiXe, MaBaiApDung) -> LOAI_XE
+-- Không dùng FOREIGN KEY thuần vì MaBaiApDung = 'ALL' là giá trị đặc biệt hợp lệ (vé áp dụng
+-- toàn chuỗi, xem sp_DangKyThanhVien) không tồn tại trong LOAI_XE/BAI_DO_XE. Trigger bỏ qua
+-- kiểm tra khi 'ALL', và chặn khi mã bãi cụ thể không khớp loại xe/bãi thực tế.
+CREATE OR ALTER TRIGGER dbo.trg_KiemTraLoaiXe_VeThang
+ON dbo.VE_THANG
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF EXISTS (
+        SELECT 1
+        FROM inserted i
+        WHERE i.MaBaiApDung <> 'ALL'
+          AND NOT EXISTS (
+              SELECT 1 FROM dbo.LOAI_XE lx
+              WHERE lx.MaLoaiXe = i.MaLoaiXe AND lx.MaBai = i.MaBaiApDung
+          )
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50007, N'Lỗi: Loại xe không tồn tại tại bãi áp dụng của vé tháng (hoặc mã bãi không hợp lệ)!', 1;
+        RETURN;
+    END;
 END;
 GO
