@@ -42,7 +42,8 @@ CREATE TABLE dbo.NHAN_VIEN (
     CONSTRAINT PK_NHAN_VIEN PRIMARY KEY (MaNV),
     CONSTRAINT UQ_NhanVien_SDT UNIQUE (SDT),
     CONSTRAINT UQ_NhanVien_Email UNIQUE (Email),
-    CONSTRAINT FK_NhanVien_BaiDoXe FOREIGN KEY (MaBai) REFERENCES dbo.BAI_DO_XE(MaBai)
+    CONSTRAINT FK_NhanVien_BaiDoXe FOREIGN KEY (MaBai) REFERENCES dbo.BAI_DO_XE(MaBai),
+    CONSTRAINT CK_NhanVien_ChucVu CHECK (ChucVu IN (N'Giám đốc điều hành', N'Quản lý bãi', N'Bảo vệ'))
 );
 GO
 

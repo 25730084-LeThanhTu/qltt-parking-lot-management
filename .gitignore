@@ -5,3 +5,5 @@
 
 # Local configuration
 .env
+
+.idea/*
