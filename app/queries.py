@@ -371,3 +371,63 @@ SELECT * FROM dbo.vw_Report_DoanhThuTheoBai;
         ],
     },
 }
+
+# ====================================================================================
+# PHÂN NHÓM 9 KỊCH BẢN DEMO CSDL (PROCEDURE | TRIGGER | FUNCTION | CURSOR)
+# ====================================================================================
+DEMO_GROUPS = [
+    {
+        "id": "procedure",
+        "category": "Procedure",
+        "title": "Nhóm Stored Procedures (Thủ Tục Lưu Trữ)",
+        "badge_class": "badge-success",
+        "color": "#10b981",
+        "icon": "⚙️",
+        "desc": "Xử lý các quy trình nghiệp vụ gồm nhiều bước: Check-In, Check-Out tính phí, Đăng ký vé tháng trong Transaction, Gia hạn vé và Báo mất thẻ phạt đền bù.",
+        "case_keys": [
+            "sp-xe-vao-bai",
+            "sp-xe-ra-bai",
+            "sp-dang-ky-thanh-vien",
+            "sp-gia-han-ve-thang",
+            "sp-bao-mat-the",
+        ],
+    },
+    {
+        "id": "trigger",
+        "category": "Trigger",
+        "title": "Nhóm Database Triggers (Bẫy Lỗi Tự Động)",
+        "badge_class": "badge-danger",
+        "color": "#ef4444",
+        "icon": "⚡",
+        "desc": "Tự động kích hoạt khi có sự kiện ghi dữ liệu để bảo vệ toàn vẹn: Chặn check-in thẻ lỗi/báo mất hoặc bãi đầy, Chặn xe tháng hết hạn nộp tiền.",
+        "case_keys": [
+            "trigger-chan-checkin-loi",
+            "trigger-chan-ve-het-han",
+        ],
+    },
+    {
+        "id": "function",
+        "category": "Function",
+        "title": "Nhóm Database Functions (Hàm Nghiệp Vụ)",
+        "badge_class": "badge-warning",
+        "color": "#f59e0b",
+        "icon": "📐",
+        "desc": "Hàm tính toán và trích xuất dữ liệu: Tính phí gửi theo block giờ lũy tiến, Tìm ô đỗ trống đầu tiên phù hợp loại xe, Bảng danh sách xe đang trong bãi.",
+        "case_keys": [
+            "function-tinh-tien-slot",
+        ],
+    },
+    {
+        "id": "cursor",
+        "category": "Cursor",
+        "title": "Nhóm Database Cursors (Con Trỏ Duyệt Dữ Liệu)",
+        "badge_class": "badge-info",
+        "color": "#06b6d4",
+        "icon": "🔄",
+        "desc": "Duyệt tuần tự từng dòng bản ghi chuyên sâu: Quét kiểm tra hạn vé tháng tự động khóa thẻ quá hạn và Tổng kết báo cáo doanh thu toàn chuỗi.",
+        "case_keys": [
+            "cursor-canh-bao-doanh-thu",
+        ],
+    },
+]
+

@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def get_connection(database: str | None = None, autocommit: bool = False):
+def get_connection(database: str | None = None, autocommit: bool = False, timeout: int = 5):
     driver = os.getenv("SQLSERVER_DRIVER", "ODBC Driver 17 for SQL Server")
     server = os.getenv("SQLSERVER_SERVER", "localhost")
     db_name = database or os.getenv("SQLSERVER_DATABASE", "QuanLyBaiDoXe")
@@ -26,7 +26,7 @@ def get_connection(database: str | None = None, autocommit: bool = False):
         parts.append("TrustServerCertificate=yes")
 
     conn_str = ";".join(parts) + ";"
-    return pyodbc.connect(conn_str, autocommit=autocommit)
+    return pyodbc.connect(conn_str, autocommit=autocommit, timeout=timeout)
 
 
 def rows_to_dicts(cursor) -> List[Dict[str, Any]]:
