@@ -1,14 +1,14 @@
-# THIẾT KẾ KỸ THUẬT & KẾ HOẠCH BÀI BẢN: HỆ THỐNG QUẢN LÝ CHUỖI BÃI ĐỖ XE (VERSION 6)
+# THIẾT KẾ KỸ THUẬT & TÀI LIỆU KIẾN TRÚC TOÀN DIỆN: HỆ THỐNG QUẢN LÝ CHUỖI BÃI ĐỖ XE THÔNG MINH (VERSION 6)
 
 > **Dành cho:** Đồ án môn Quản lý Thông tin / Quản trị Cơ sở Dữ liệu (IE103)  
-> **Kiến trúc Hệ thống:** SQL Server (Docker Azure SQL Edge trên Mac M1 / Windows Local) + Python Backend (FastAPI/pyodbc) + Angular 22 (Signals, Zoneless) + Tailwind CSS  
-> **Quy mô Nhóm:** 10 Thành viên (Chia thành 5 nhóm nhỏ, mỗi nhóm 2 người)
+> **Kiến trúc Hệ thống:** Microsoft SQL Server 2022 (Docker Container / Windows Local port 1433) + Python 3.10+ Backend (Flask + pyodbc port 5001) + Modern Web Dashboard UI (HTML5, Vanilla CSS Design Tokens, Jinja2) có khả năng tích hợp mở rộng REST API / Angular Frontend  
+> **Quy mô Nhóm:** 10 Thành viên (Chia thành 5 nhóm chuyên trách, mỗi nhóm 2 người)
 
 ---
 
-## 🗄️ PHẦN I: THIẾT KẾ CƠ SỞ DỮ LIỆU VẬT LÝ HÒAN CHỈNH (11 BẢNG)
+## 🗄️ PHẦN I: THIẾT KẾ CƠ SỞ DỮ LIỆU VẬT LÝ HOÀN CHỈNH (11 BẢNG)
 
-Cơ sở dữ liệu được thiết kế chuẩn hóa, phân tách triệt để dữ liệu theo từng chi nhánh bãi đỗ xe (`MaBai`), đồng thời tích hợp đầy đủ phân hệ **Quản trị Tài khoản - Phân quyền** và **Quản lý An toàn Thông tin**.
+Cơ sở dữ liệu **`QuanLyBaiDoXe`** được thiết kế chuẩn hóa đạt dạng chuẩn 3 (3NF), phân tách dữ liệu theo từng chi nhánh bãi đỗ xe thông qua định danh `MaBai`, đồng thời tích hợp đầy đủ phân hệ **Quản trị Tài khoản - Phân quyền (RBAC)** và **Quản lý An toàn Thông tin - Sự cố**.
 
 ```
                          ┌──────────────┐
@@ -30,259 +30,352 @@ Cơ sở dữ liệu được thiết kế chuẩn hóa, phân tách triệt đ�
      │ HOA_DON_VT  │
      └─────────────┘
 
- [PHÂN HỆ BẢO MẬT]: NHAN_VIEN (1) <---> (1) TAI_KHOAN
+ [PHÂN HỆ BẢO MẬT & NHÂN SỰ]:
+ ┌──────────────┐ 1       1 ┌──────────────┐
+ │  NHAN_VIEN   │───────────│  TAI_KHOAN   │ (Mật khẩu băm SHA-256)
+ └──────────────┘           └──────────────┘
 ```
 
-### 1. Bảng `BAI_DO_XE` (Thông tin các bãi đỗ xe trong chuỗi)
-Quản lý danh sách các chi nhánh bãi đỗ thuộc hệ thống chuỗi.
-- **`MaBai`** `VARCHAR(10)` **[PK]**: Mã bãi đỗ xe (`BAI_Q1`, `BAI_Q3`, `BAI_BT`).
-- **`TenBai`** `NVARCHAR(100)` `NOT NULL` `UNIQUE`: Tên bãi đỗ xe (*Bãi xe Lê Lai, Bãi xe Landmark 81*).
-- **`DiaChi`** `NVARCHAR(255)` `NOT NULL`: Địa chỉ vật lý của bãi đỗ xe.
-- **`SucChua`** `INT` `NOT NULL`: Số lượng vị trí đỗ (slot) tối đa thiết kế. **CHECK**: `SucChua > 0`.
-- **`SoLuongHienTai`** `INT` `NOT NULL` `DEFAULT 0`: Số xe thực tế đang gửi. **CHECK**: `SoLuongHienTai >= 0 AND SoLuongHienTai <= SucChua`.
+---
 
-### 2. Bảng `NHAN_VIEN` (Hồ sơ nhân sự bãi đỗ xe)
-Lưu trữ thông tin nhân viên bảo vệ, quản lý chi nhánh và ban giám đốc.
+### Chi Tiết Cấu Trúc 11 Bảng Dữ Liệu
+
+#### 1. Bảng `BAI_DO_XE` (Danh mục chi nhánh bãi đỗ xe)
+Quản lý các chi nhánh bãi đỗ thuộc hệ thống chuỗi.
+- **`MaBai`** `VARCHAR(10)` **[PK]**: Mã định danh bãi xe (`BAI_Q1`, `BAI_Q3`, `BAI_BT`).
+- **`TenBai`** `NVARCHAR(100)` `NOT NULL` `UNIQUE`: Tên bãi đỗ xe (*Bãi xe Quận 1 - Lê Lai*, *Bãi xe Landmark 81*).
+- **`DiaChi`** `NVARCHAR(255)` `NOT NULL`: Địa chỉ thực tế của bãi đỗ.
+- **`SucChua`** `INT` `NOT NULL`: Sức chứa tối đa (tổng số ô đỗ vật lý). **CHECK**: `SucChua > 0`.
+- **`SoLuongHienTai`** `INT` `NOT NULL` `DEFAULT 0`: Số xe đang gửi thực tế. **CHECK**: `SoLuongHienTai >= 0 AND SoLuongHienTai <= SucChua`.
+
+#### 2. Bảng `NHAN_VIEN` (Hồ sơ nhân sự)
+Lưu trữ thông tin nhân viên bảo vệ, quản lý chi nhánh và ban quản trị.
 - **`MaNV`** `VARCHAR(10)` **[PK]**: Mã định danh nhân viên (`NV001`, `NV002`).
-- **`HoTen`** `NVARCHAR(100)` `NOT NULL`: Họ và tên nhân viên.
+- **`HoTen`** `NVARCHAR(100)` `NOT NULL`: Họ và tên đầy đủ của nhân viên.
 - **`ChucVu`** `NVARCHAR(50)` `NOT NULL`: Chức vụ (*Giám đốc*, *Quản lý bãi*, *Bảo vệ*).
-- **`SDT`** `VARCHAR(15)` `NOT NULL` `UNIQUE`: Số điện thoại liên hệ.
-- **`Email`** `VARCHAR(100)` `NULL` `UNIQUE`: Email công vụ.
-- **`MaBai`** `VARCHAR(10)` **[FK Nullable]**: Liên kết `BAI_DO_XE(MaBai)`. Nếu là Bảo vệ/Quản lý bãi thì chỉ định bãi cụ thể; nếu là Admin/Giám đốc thì gán `NULL` (quản lý toàn chuỗi).
+- **`SDT`** `VARCHAR(15)` `NOT NULL` `UNIQUE`: Số điện thoại liên lạc.
+- **`Email`** `VARCHAR(100)` `NULL` `UNIQUE`: Hòm thư điện tử nội bộ.
+- **`MaBai`** `VARCHAR(10)` `NULL` **[FK]**: Liên kết `BAI_DO_XE(MaBai)`. Nhân viên quản lý chi nhánh/bảo vệ được gắn với bãi cụ thể; Admin/Giám đốc để `NULL` (quản trị toàn hệ thống).
 
-### 3. Bảng `TAI_KHOAN` (Tài khoản truy cập & Xác thực)
-Quản lý thông tin đăng nhập và mật khẩu mã hóa cho nhân viên.
-- **`TenDangNhap`** `VARCHAR(50)` **[PK]**: Tên tài khoản truy cập hệ thống.
-- **`MatKhauHash`** `VARCHAR(255)` `NOT NULL`: Chuỗi mật khẩu đã qua mã hóa HASH (SHA-256 / BCrypt).
-- **`MaNV`** `VARCHAR(10)` **[FK]**: Liên kết `NHAN_VIEN(MaNV)`.
+#### 3. Bảng `TAI_KHOAN` (Tài khoản truy cập & Xác thực)
+Quản lý tên đăng nhập và mật khẩu mã hóa cho nhân sự vận hành hệ thống.
+- **`TenDangNhap`** `VARCHAR(50)` **[PK]**: Tên tài khoản truy cập (`admin`, `quanly_q1`, `baove_q1`).
+- **`MatKhauHash`** `VARCHAR(255)` `NOT NULL`: Chuỗi mật khẩu đã qua băm an toàn (SHA-256 kết hợp salt).
+- **`MaNV`** `VARCHAR(10)` `NOT NULL` **[FK]**: Liên kết trực tiếp `NHAN_VIEN(MaNV)`.
 - **`TrangThai`** `NVARCHAR(20)` `NOT NULL` `DEFAULT N'Hoạt động'`: **CHECK**: `TrangThai IN (N'Hoạt động', N'Bị khóa')`.
 
-### 4. Bảng `LOAI_XE` (Phân loại phương tiện & Biểu phí theo từng bãi)
-Sử dụng **Khóa chính hỗn hợp (Composite PK)** gồm `MaLoaiXe` và `MaBai` để định nghĩa mức giá theo vị trí địa lý.
-- **`MaLoaiXe`** `VARCHAR(10)` **[Composite PK]**: Mã loại xe (`XM` - Xe máy, `OT` - Ô tô, `XD` - Xe đạp).
+#### 4. Bảng `LOAI_XE` (Phân loại phương tiện & Biểu phí chi nhánh)
+Sử dụng **Khóa chính hỗn hợp (Composite PK)** gồm `(MaLoaiXe, MaBai)` cho phép mỗi bãi có biểu phí riêng.
+- **`MaLoaiXe`** `VARCHAR(10)` **[Composite PK]**: Mã loại phương tiện (`XM` - Xe máy, `OT` - Ô tô, `XD` - Xe đạp).
 - **`MaBai`** `VARCHAR(10)` **[Composite PK, FK]**: Liên kết `BAI_DO_XE(MaBai)`.
-- **`TenLoai`** `NVARCHAR(50)` `NOT NULL`: Tên hiển thị loại xe (*Xe máy, Ô tô 4 chỗ*).
-- **`DonGiaGio`** `DECIMAL(18,2)` `NOT NULL`: Đơn giá đỗ xe lượt trên 1 giờ (VND). **CHECK**: `DonGiaGio > 0`.
-- **`GiaVeThang`** `DECIMAL(18,2)` `NOT NULL`: Đơn giá vé tháng 30 ngày (VND). **CHECK**: `GiaVeThang > 0`.
+- **`TenLoai`** `NVARCHAR(50)` `NOT NULL`: Tên hiển thị loại phương tiện (*Xe máy*, *Ô tô 4-7 chỗ*).
+- **`DonGiaGio`** `DECIMAL(18,2)` `NOT NULL`: Giá vé lượt trên mỗi giờ gửi (VND). **CHECK**: `DonGiaGio > 0`.
+- **`GiaVeThang`** `DECIMAL(18,2)` `NOT NULL`: Giá vé tháng 30 ngày (VND). **CHECK**: `GiaVeThang > 0`.
 
-### 5. Bảng `VI_TRI_DO` (Sơ đồ mặt bằng các slot đỗ xe vật lý)
-- **`MaViTri`** `VARCHAR(20)` **[PK]**: Định dạng duy nhất `MABAI_SLOT` (`Q1_A101`, `Q3_B202`).
-- **`KhuVuc`** `NVARCHAR(20)` `NOT NULL`: Phân khu (*Khu A, Tầng hầm 1*).
+#### 5. Bảng `VI_TRI_DO` (Sơ đồ mặt bằng vị trí đỗ xe)
+Quản lý các slot đỗ xe vật lý theo từng phân khu và bãi.
+- **`MaViTri`** `VARCHAR(20)` **[PK]**: Định dạng `MABAI_SLOT` (`Q1_A101`, `Q3_B202`).
+- **`KhuVuc`** `NVARCHAR(20)` `NOT NULL`: Phân khu (*Khu A*, *Khu B*, *Tầng hầm 1*).
 - **`TrangThai`** `NVARCHAR(20)` `NOT NULL` `DEFAULT N'Trống'`: **CHECK**: `TrangThai IN (N'Trống', N'Đã đỗ')`.
-- **`MaLoaiXe`** `VARCHAR(10)` **[FK]**: Khóa ngoại kết hợp `(MaLoaiXe, MaBai)` tham chiếu sang `LOAI_XE(MaLoaiXe, MaBai)`.
-- **`MaBai`** `VARCHAR(10)` **[FK]**: Liên kết `BAI_DO_XE(MaBai)`.
+- **`MaLoaiXe`** `VARCHAR(10)` `NOT NULL` **[FK]**: Tham chiếu khóa ngoại kết hợp `(MaLoaiXe, MaBai)` sang `LOAI_XE`.
+- **`MaBai`** `VARCHAR(10)` `NOT NULL` **[FK]**: Liên kết `BAI_DO_XE(MaBai)`.
 
-### 6. Bảng `THE_XE` (Quản lý kho thẻ chip gửi xe theo bãi)
-- **`MaThe`** `VARCHAR(10)` **[PK]**: Mã số thẻ quét vật lý (`THE0001`, `THE0002`).
-- **`MaBai`** `VARCHAR(10)` **[FK]**: Liên kết `BAI_DO_XE(MaBai)`. Xác định thẻ thuộc bãi đỗ nào quản lý.
+#### 6. Bảng `THE_XE` (Quản lý kho thẻ từ/chip RFID)
+Quản lý vòng đời thẻ quét vào/ra phân bổ theo chi nhánh.
+- **`MaThe`** `VARCHAR(10)` **[PK]**: Mã số thẻ RFID quét vật lý (`THE0001`, `THE0002`).
+- **`MaBai`** `VARCHAR(10)` `NOT NULL` **[FK]**: Liên kết `BAI_DO_XE(MaBai)`. Xác định thẻ thuộc bãi đỗ nào.
 - **`LoaiThe`** `NVARCHAR(10)` `NOT NULL`: **CHECK**: `LoaiThe IN (N'Lượt', N'Tháng')`.
 - **`TrangThai`** `NVARCHAR(20)` `NOT NULL` `DEFAULT N'Hoạt động'`: **CHECK**: `TrangThai IN (N'Hoạt động', N'Bị khóa', N'Mất')`.
-- **`NgayCap`** `DATE` `NOT NULL` `DEFAULT GETDATE()`: Ngày nạp thẻ chip vào bãi.
+- **`NgayCap`** `DATE` `NOT NULL` `DEFAULT GETDATE()`: Ngày phát hành thẻ vào kho bãi.
 
-### 7. Bảng `KHACH_HANG` (Hồ sơ chủ xe đăng ký vé tháng)
-- **`MaKH`** `VARCHAR(10)` **[PK]**: Mã khách hàng thành viên (`KH0001`).
-- **`HoTen`** `NVARCHAR(100)` `NOT NULL`: Họ và tên chủ xe.
-- **`SDT`** `VARCHAR(15)` `NOT NULL` `UNIQUE`: Số điện thoại liên hệ.
-- **`Email`** `VARCHAR(100)` `NULL` `UNIQUE`: Địa chỉ email nhận cảnh báo gia hạn.
-- **`CMND_CCCD`** `VARCHAR(12)` `NOT NULL` `UNIQUE`: Số CCCD phục vụ an ninh.
+#### 7. Bảng `KHACH_HANG` (Hồ sơ chủ xe đăng ký vé tháng)
+Lưu trữ thông tin khách hàng mua thuê bao đỗ xe định kỳ.
+- **`MaKH`** `VARCHAR(10)` **[PK]**: Mã số khách hàng (`KH0001`, `KH0002`).
+- **`HoTen`** `NVARCHAR(100)` `NOT NULL`: Họ tên chủ phương tiện.
+- **`SDT`** `VARCHAR(15)` `NOT NULL` `UNIQUE`: Số điện thoại nhận tin thông báo gia hạn.
+- **`Email`** `VARCHAR(100)` `NULL` `UNIQUE`: Địa chỉ email nhận hóa đơn điện tử.
+- **`CMND_CCCD`** `VARCHAR(12)` `NOT NULL` `UNIQUE`: Số định danh cá nhân phục vụ công tác an ninh.
 
-### 8. Bảng `VE_THANG` (Bản đăng ký vé xe tháng)
-- **`MaVe`** `VARCHAR(10)` **[PK]**: Mã vé tháng (`V0001`).
-- **`MaThe`** `VARCHAR(10)` **[FK, UNIQUE]**: Liên kết `THE_XE(MaThe)`. 1 thẻ chỉ gán cho 1 vé đang hoạt động.
-- **`MaKH`** `VARCHAR(10)` **[FK]**: Liên kết `KHACH_HANG(MaKH)`.
-- **`BienSo`** `VARCHAR(15)` `NOT NULL`: Biển số xe đăng ký.
-- **`MaLoaiXe`** `VARCHAR(10)` **[FK]**: Loại xe đăng ký.
-- **`NgayDangKy`** `DATE` `NOT NULL` `DEFAULT GETDATE()`: Ngày kích hoạt.
-- **`NgayHetHan`** `DATE` `NOT NULL`: Ngày hết hạn vé.
+#### 8. Bảng `VE_THANG` (Bản đăng ký vé tháng)
+Hợp đồng vé gửi xe định kỳ theo biển số và thẻ được cấp.
+- **`MaVe`** `VARCHAR(10)` **[PK]**: Mã đăng ký vé tháng (`V0001`, `V0002`).
+- **`MaThe`** `VARCHAR(10)` `NOT NULL` `UNIQUE` **[FK]**: Liên kết `THE_XE(MaThe)` (1 thẻ kích hoạt duy nhất 1 vé tháng).
+- **`MaKH`** `VARCHAR(10)` `NOT NULL` **[FK]**: Liên kết `KHACH_HANG(MaKH)`.
+- **`BienSo`** `VARCHAR(15)` `NOT NULL`: Biển kiểm soát đăng ký cố định.
+- **`MaLoaiXe`** `VARCHAR(10)` `NOT NULL` **[FK]**: Loại phương tiện đăng ký.
+- **`NgayDangKy`** `DATE` `NOT NULL` `DEFAULT GETDATE()`: Ngày bắt đầu kích hoạt gói thuê bao.
+- **`NgayHetHan`** `DATE` `NOT NULL`: Thời điểm hết hạn của vé.
 - **`TrangThai`** `NVARCHAR(20)` `NOT NULL` `DEFAULT N'Hoạt động'`: **CHECK**: `TrangThai IN (N'Hoạt động', N'Tạm khóa', N'Hết hạn')`.
-- **`MaBaiApDung`** `VARCHAR(10)` `NOT NULL`: Mã bãi cụ thể (`BAI_Q1`) hoặc `'ALL'` (đỗ toàn hệ thống).
+- **`MaBaiApDung`** `VARCHAR(10)` `NOT NULL`: Bãi đỗ được phép gửi (`BAI_Q1`, `BAI_Q3` hoặc `'ALL'` gửi toàn chuỗi).
 
-### 9. Bảng `LUOT_GUI` (Nhật ký xe vào/ra chi tiết theo bãi)
-- **`MaLuot`** `INT` **[PK IDENTITY]**: Mã lượt gửi tự tăng.
-- **`MaThe`** `VARCHAR(10)` **[FK]**: Thẻ quét vào/ra.
-- **`BienSo`** `VARCHAR(15)` `NOT NULL`: Biển số xe nhận diện.
-- **`ThoiGianVao`** `DATETIME` `NOT NULL` `DEFAULT GETDATE()`: Thời điểm vào bãi.
-- **`ThoiGianRa`** `DATETIME` `NULL`: Thời điểm ra bãi (`NULL` nếu đang đỗ).
-- **`MaViTri`** `VARCHAR(20)` **[FK]**: Ô đỗ cấp cho xe.
-- **`TienGui`** `DECIMAL(18,2)` `NOT NULL` `DEFAULT 0`: Phí thu thực tế.
-- **`MaBai`** `VARCHAR(10)` **[FK]**: Liên kết `BAI_DO_XE(MaBai)`.
+#### 9. Bảng `LUOT_GUI` (Nhật ký check-in / check-out phương tiện)
+Ghi nhận toàn bộ lưu vết xe vào/ra bãi đỗ phục vụ kiểm soát an ninh và tính tiền.
+- **`MaLuot`** `INT` **[PK IDENTITY]**: Định danh lượt gửi tự động tăng.
+- **`MaThe`** `VARCHAR(10)` `NOT NULL` **[FK]**: Thẻ quẹt tại trụ barrier.
+- **`BienSo`** `VARCHAR(15)` `NOT NULL`: Biển số xe nhận dạng qua camera OCR.
+- **`ThoiGianVao`** `DATETIME` `NOT NULL` `DEFAULT GETDATE()`: Thời điểm quét thẻ vào.
+- **`ThoiGianRa`** `DATETIME` `NULL`: Thời điểm quét thẻ ra (`NULL` biểu thị xe đang đỗ trong bãi).
+- **`MaViTri`** `VARCHAR(20)` `NULL` **[FK]**: Vị trí ô đỗ được cấp tự động.
+- **`TienGui`** `DECIMAL(18,2)` `NOT NULL` `DEFAULT 0`: Số tiền thu thực tế khi xe check-out.
+- **`MaBai`** `VARCHAR(10)` `NOT NULL` **[FK]**: Liên kết `BAI_DO_XE(MaBai)`.
 
-### 10. Bảng `HOA_DON_VE_THANG` (Lịch sử gia hạn vé tháng theo bãi)
-- **`MaHD`** `VARCHAR(15)` **[PK]**: Mã hóa đơn (`HD20260908001`).
-- **`MaVe`** `VARCHAR(10)` **[FK]**: Hóa đơn thuộc vé tháng nào.
-- **`NgayThanhToan`** `DATETIME` `NOT NULL` `DEFAULT GETDATE()`: Ngày giờ đóng tiền.
-- **`SoThangGiaHan`** `INT` `NOT NULL` `DEFAULT 1`: Số tháng đóng tiền trước. **CHECK**: `SoThangGiaHan > 0`.
-- **`SoTien`** `DECIMAL(18,2)` `NOT NULL`: Tổng tiền thu.
-- **`MaBai`** `VARCHAR(10)` **[FK]**: Ghi nhận doanh thu cho bãi thực hiện.
+#### 10. Bảng `HOA_DON_VE_THANG` (Lịch sử thanh toán & Gia hạn thuê bao)
+Chứng từ thu tiền gia hạn vé tháng định kỳ.
+- **`MaHD`** `VARCHAR(15)` **[PK]**: Mã hóa đơn thu tiền (`HD20260908001`).
+- **`MaVe`** `VARCHAR(10)` `NOT NULL` **[FK]**: Liên kết `VE_THANG(MaVe)`.
+- **`NgayThanhToan`** `DATETIME` `NOT NULL` `DEFAULT GETDATE()`: Thời điểm nộp tiền.
+- **`SoThangGiaHan`** `INT` `NOT NULL` `DEFAULT 1`: Số tháng gia hạn nộp trước. **CHECK**: `SoThangGiaHan > 0`.
+- **`SoTien`** `DECIMAL(18,2)` `NOT NULL`: Số tiền thanh toán (VND). **CHECK**: `SoTien > 0`.
+- **`MaBai`** `VARCHAR(10)` `NOT NULL` **[FK]**: Bãi thực hiện thu tiền và hạch toán doanh thu.
 
-### 11. Bảng `LICHSU_SU_CO` (Nhật ký xử lý sự cố tại từng bãi)
-- **`MaSuCo`** `INT` **[PK IDENTITY]**: Mã sự cố tự tăng.
-- **`MaThe`** `VARCHAR(10)` **[FK NULL]**: Mã thẻ liên quan (nếu có).
-- **`BienSo`** `VARCHAR(15)` `NULL`: Biển số xe liên quan.
-- **`ThoiGianSuCo`** `DATETIME` `NOT NULL` `DEFAULT GETDATE()`: Thời điểm xảy ra sự cố.
-- **`MoTa`** `NVARCHAR(500)` `NOT NULL`: Mô tả biên bản sự cố.
-- **`TienPhat`** `DECIMAL(18,2)` `NOT NULL` `DEFAULT 0`: Số tiền phạt đền bù.
+#### 11. Bảng `LICHSU_SU_CO` (Nhật ký biên bản sự cố an ninh & Vi phạm)
+Ghi nhận các trường hợp mất thẻ, va chạm, hỏng hóc hoặc vi phạm nội quy bãi đỗ.
+- **`MaSuCo`** `INT` **[PK IDENTITY]**: Mã biên bản sự cố tự tăng.
+- **`MaThe`** `VARCHAR(10)` `NULL` **[FK]**: Mã thẻ liên quan đến sự cố (nếu có).
+- **`BienSo`** `VARCHAR(15)` `NULL`: Biển kiểm soát phương tiện liên quan.
+- **`ThoiGianSuCo`** `DATETIME` `NOT NULL` `DEFAULT GETDATE()`: Thời điểm lập biên bản.
+- **`MoTa`** `NVARCHAR(500)` `NOT NULL`: Nội dung chi tiết diễn biến sự cố.
+- **`TienPhat`** `DECIMAL(18,2)` `NOT NULL` `DEFAULT 0`: Số tiền phạt bồi hoàn. **CHECK**: `TienPhat >= 0`.
 - **`TrangThaiXuLy`** `NVARCHAR(50)` `NOT NULL` `DEFAULT N'Chờ xử lý'`: **CHECK**: `TrangThaiXuLy IN (N'Chờ xử lý', N'Đang giải quyết', N'Đã giải quyết')`.
-- **`MaBai`** `VARCHAR(10)` **[FK]**: Bãi đỗ xảy ra sự cố.
+- **`MaBai`** `VARCHAR(10)` `NOT NULL` **[FK]**: Chi nhánh bãi xảy ra sự cố.
 
 ---
 
 ## 🔒 PHẦN II: AN TOÀN THÔNG TIN, PHÂN QUYỀN & QUẢN TRỊ CSDL
 
-### 1. Phân quyền Truy cập (Role-Based Access Control - RBAC)
-Thiết lập 3 vai trò người dùng trong SQL Server với mức độ truy cập được phân cấp chặt chẽ:
+### 1. Phân Quyền Truy Cập (Role-Based Access Control - RBAC)
+Hệ thống thiết lập 3 Roles người dùng trong SQL Server (`sql/08_security_rbac.sql`) nhằm thực thi nguyên tắc đặc quyền tối thiểu (Principle of Least Privilege):
 
 ```sql
--- Tạo các Roles quản trị trong SQL Server
+-- 1. Khởi tạo 3 Roles quản trị
 CREATE ROLE r_Admin;
 CREATE ROLE r_QuanLyBai;
 CREATE ROLE r_BaoVe;
 
--- 1. Quyền r_Admin: Quyền tối cao (Full Control)
-GRANT CONTROL TO r_Admin;
+-- 2. Cấp đặc quyền r_Admin: Toàn quyền quản trị cơ sở dữ liệu
+GRANT CONTROL ON DATABASE::QuanLyBaiDoXe TO r_Admin;
 
--- 2. Quyền r_QuanLyBai: Được thao tác trên dữ liệu nghiệp vụ của bãi đỗ
+-- 3. Cấp đặc quyền r_QuanLyBai: Quản trị nghiệp vụ tại chi nhánh
 GRANT SELECT, INSERT, UPDATE ON BAI_DO_XE TO r_QuanLyBai;
 GRANT SELECT, INSERT, UPDATE ON VI_TRI_DO TO r_QuanLyBai;
 GRANT SELECT, INSERT, UPDATE ON THE_XE TO r_QuanLyBai;
+GRANT SELECT, INSERT, UPDATE ON KHACH_HANG TO r_QuanLyBai;
 GRANT SELECT, INSERT, UPDATE ON VE_THANG TO r_QuanLyBai;
 GRANT SELECT ON LUOT_GUI TO r_QuanLyBai;
 GRANT SELECT ON HOA_DON_VE_THANG TO r_QuanLyBai;
+GRANT SELECT, UPDATE ON LICHSU_SU_CO TO r_QuanLyBai;
+GRANT EXECUTE ON sp_DangKyThanhVien TO r_QuanLyBai;
+GRANT EXECUTE ON sp_GiaHanTheThang TO r_QuanLyBai;
+GRANT EXECUTE ON sp_BaoMatThe TO r_QuanLyBai;
+GRANT SELECT ON v_DoanhThuTheoBai TO r_QuanLyBai;
+GRANT SELECT ON v_CongSuatBaiDo TO r_QuanLyBai;
+GRANT SELECT ON v_BaoCaoSuCoChiNhanh TO r_QuanLyBai;
 
--- 3. Quyền r_BaoVe: Chỉ có quyền quét xe vào/ra và xem sơ đồ đỗ
+-- 4. Cấp đặc quyền r_BaoVe: Chỉ vận hành cổng barrier và xem sơ đồ đỗ
 GRANT EXECUTE ON sp_XeVaoBai TO r_BaoVe;
 GRANT EXECUTE ON sp_XeRaBai TO r_BaoVe;
 GRANT SELECT ON v_SodoOdoRealtime TO r_BaoVe;
-DENY UPDATE, DELETE ON LUOT_GUI TO r_BaoVe; -- Chặn bảo vệ sửa tiền/xóa lượt gửi
+GRANT SELECT ON v_Xedangtrongbai TO r_BaoVe;
+GRANT EXECUTE ON sp_BaoMatThe TO r_BaoVe;
+-- Chặn tuyệt đối quyền can thiệp dữ liệu tài chính
+DENY UPDATE, DELETE ON LUOT_GUI TO r_BaoVe;
+DENY UPDATE, DELETE ON HOA_DON_VE_THANG TO r_BaoVe;
 ```
 
-### 2. Import & Export Dữ liệu Hàng loạt (Bulk Data)
-- **Import thẻ xe từ CSV:**
+### 2. Xác Thực Mật Khẩu Băm (Hashing SHA-256)
+Mật khẩu của tài khoản nhân sự được băm một chiều trong SQL Server bằng thuật toán chuẩn `SHA2_256`:
+```sql
+-- Kiểm tra đăng nhập với chuỗi băm an toàn
+SELECT tk.TenDangNhap, nv.HoTen, nv.ChucVu, nv.MaBai
+FROM TAI_KHOAN tk
+JOIN NHAN_VIEN nv ON tk.MaNV = nv.MaNV
+WHERE tk.TenDangNhap = @TenDangNhap
+  AND tk.MatKhauHash = HASHBYTES('SHA2_256', @MatKhau)
+  AND tk.TrangThai = N'Hoạt động';
+```
+
+### 3. Nhập & Xuất Dữ Liệu Hàng Loạt (Bulk Data Import/Export)
+- **Import thẻ xe từ file CSV vào bảng `THE_XE`:**
 ```sql
 BULK INSERT THE_XE
-FROM 'C:\data	he_xe_import.csv'
+FROM '/var/opt/mssql/data/the_xe_import.csv' -- hoặc C:\data\the_xe_import.csv
 WITH (
     FIELDTERMINATOR = ',',
-    ROWTERMINATOR = '
-',
-    FIRSTROW = 2
+    ROWTERMINATOR = '\n',
+    FIRSTROW = 2,
+    CODEPAGE = '65001' -- Hỗ trợ UTF-8
 );
 ```
 - **Export Báo cáo Doanh thu sang CSV/Excel:**
-Sử dụng câu lệnh `bcp` hoặc script Python export dữ liệu trực tiếp từ các bảng View `v_DoanhThuTheoBai`.
+Thực thi lệnh tiện ích `bcp` hoặc trích xuất tự động qua backend Python từ View `v_DoanhThuTheoBai`.
 
-### 3. Sao lưu & Khôi phục CSDL (Backup & Restore)
-- **FULL BACKUP (Sao lưu toàn bộ - Thực hiện hàng tuần):**
+### 4. Chiến Lược Sao Lưu & Khôi Phục (Backup & Restore Strategy)
+Thực thi đầy đủ theo chuẩn doanh nghiệp tại file `sql/09_backup_restore.sql`:
+- **FULL BACKUP (Hàng tuần - Chủ nhật 00:00):**
 ```sql
 BACKUP DATABASE QuanLyBaiDoXe
-TO DISK = 'C:ackup\QuanLyBaiDoXe_Full.bak'
-WITH FORMAT, MEDIANAME = 'SQLServerBackups', NAME = 'Full Backup QuanLyBaiDoXe';
+TO DISK = '/var/opt/mssql/backup/QuanLyBaiDoXe_Full.bak'
+WITH FORMAT, INIT, MEDIANAME = 'ParkingBackups', NAME = 'Full Backup QuanLyBaiDoXe';
 ```
-- **DIFFERENTIAL BACKUP (Sao lưu phần thay đổi - Thực hiện hàng ngày):**
+- **DIFFERENTIAL BACKUP (Hàng ngày - 23:00):**
 ```sql
 BACKUP DATABASE QuanLyBaiDoXe
-TO DISK = 'C:ackup\QuanLyBaiDoXe_Diff.bak'
-WITH DIFFERENTIAL;
+TO DISK = '/var/opt/mssql/backup/QuanLyBaiDoXe_Diff.bak'
+WITH DIFFERENTIAL, INIT, NAME = 'Diff Backup QuanLyBaiDoXe';
 ```
-- **RESTORE DATABASE (Khôi phục dữ liệu khi gặp sự cố):**
+- **TRANSACTION LOG BACKUP (Định kỳ mỗi 2 giờ):**
+```sql
+BACKUP LOG QuanLyBaiDoXe
+TO DISK = '/var/opt/mssql/backup/QuanLyBaiDoXe_Log.trn'
+WITH INIT, NAME = 'Log Backup QuanLyBaiDoXe';
+```
+- **RESTORE DATABASE (Kịch bản phục hồi thảm họa sự cố):**
 ```sql
 RESTORE DATABASE QuanLyBaiDoXe
-FROM DISK = 'C:ackup\QuanLyBaiDoXe_Full.bak'
-WITH REPLACE, NORECOVERY;
+FROM DISK = '/var/opt/mssql/backup/QuanLyBaiDoXe_Full.bak'
+WITH NORECOVERY, REPLACE;
+
+RESTORE DATABASE QuanLyBaiDoXe
+FROM DISK = '/var/opt/mssql/backup/QuanLyBaiDoXe_Diff.bak'
+WITH RECOVERY;
 ```
 
 ---
 
-## 👁️ PHẦN III: DANH SÁCH BẢNG VÀO (VIEWS) VẬN HÀNH & BÁO CÁO
+## 👁️ PHẦN III: HỆ THỐNG BẢNG ẢO (VIEWS) GIÁM SÁT REALTIME & BÁO CÁO BI (8 VIEWS)
 
-### 1. `v_SodoOdoRealtime`: Sơ đồ ô đỗ thời gian thực
-```sql
-CREATE VIEW v_SodoOdoRealtime AS
-SELECT 
-    v.MaBai, b.TenBai, v.MaViTri, v.KhuVuc, v.TrangThai,
-    l.TenLoai, lg.BienSo, lg.ThoiGianVao
-FROM VI_TRI_DO v
-JOIN BAI_DO_XE b ON v.MaBai = b.MaBai
-JOIN LOAI_XE l ON v.MaLoaiXe = l.MaLoaiXe AND v.MaBai = l.MaBai
-LEFT JOIN LUOT_GUI lg ON v.MaViTri = lg.MaViTri AND lg.ThoiGianRa IS NULL;
-```
+Triển khai đầy đủ trong `sql/07_views.sql`, chia thành 2 nhóm chuyên biệt:
 
-### 2. `v_Xedangtrongbai`: Danh sách xe hiện đỗ trong bãi
-```sql
-CREATE VIEW v_Xedangtrongbai AS
-SELECT 
-    lg.MaLuot, lg.MaBai, b.TenBai, lg.MaThe, lg.BienSo, 
-    lg.MaViTri, lg.ThoiGianVao, t.LoaiThe
-FROM LUOT_GUI lg
-JOIN BAI_DO_XE b ON lg.MaBai = b.MaBai
-JOIN THE_XE t ON lg.MaThe = t.MaThe
-WHERE lg.ThoiGianRa IS NULL;
-```
+### Nhóm 1: Views Vận Hành Thời Gian Thực (Operational Realtime)
+1. **`v_SodoOdoRealtime`**: Sơ đồ mặt bằng ô đỗ thời gian thực, hiển thị trạng thái `Trống` / `Đã đỗ`, liên kết biển số xe và giờ gửi nếu đang có xe đỗ.
+2. **`v_Xedangtrongbai`**: Danh sách tất cả phương tiện đang đỗ thực tế trong từng bãi (`ThoiGianRa IS NULL`), kèm loại thẻ và thời gian vào bãi.
+3. **`v_DanhsachveThangsaphethan`**: Danh sách thuê bao vé tháng còn hạn dưới 3 ngày hoặc đã quá hạn, hỗ trợ quản lý gọi điện/nhắn tin nhắc khách gia hạn.
 
-### 3. `v_DanhsachveThangsaphethan`: Danh sách vé tháng còn dưới 3 ngày sử dụng
-```sql
-CREATE VIEW v_DanhsachveThangsaphethan AS
-SELECT 
-    vt.MaVe, vt.MaThe, kh.HoTen, kh.SDT, vt.BienSo, 
-    vt.NgayHetHan, DATEDIFF(DAY, GETDATE(), vt.NgayHetHan) AS SongayConLai, vt.MaBaiApDung
-FROM VE_THANG vt
-JOIN KHACH_HANG kh ON vt.MaKH = kh.MaKH
-WHERE DATEDIFF(DAY, GETDATE(), vt.NgayHetHan) BETWEEN 0 AND 3
-  AND vt.TrangThai = N'Hoạt động';
-```
+### Nhóm 2: Views Báo Cáo Phân Tích Quản Trị & BI (Business Intelligence)
+4. **`v_DoanhThuTheoBai`**: Tổng hợp doanh thu chi tiết từ vé lượt (`LUOT_GUI`) và vé tháng (`HOA_DON_VE_THANG`) theo từng chi nhánh bãi đỗ xe.
+5. **`v_CongSuatBaiDo`**: Phân tích hiệu suất khai thác, tỷ lệ lấp đầy (`SoLuongHienTai / SucChua * 100%`) của từng bãi đỗ xe.
+6. **`v_BaoCaoSuCoChiNhanh`**: Báo cáo tổng hợp số lượng sự cố an ninh, biên bản mất thẻ và tổng tiền phạt phát sinh theo từng chi nhánh.
+7. **`v_ThongKeLoaiXe`**: Báo cáo cơ cấu phương tiện gửi tại bãi (tỷ lệ xe máy, ô tô 4 chỗ, xe đạp) phục vụ quy hoạch mặt bằng.
+8. **`v_NhatKyVaoRaGanNhat`**: Top 100 sự kiện check-in / check-out mới nhất phục vụ màn hình camera giám sát tại phòng bảo vệ.
 
 ---
 
-## ⚙️ PHẦN IV: PROCEDURES, TRIGGERS, FUNCTIONS & CURSORS (KÈM DEMO 5 BƯỚC)
+## ⚙️ PHẦN IV: PROCEDURES, TRIGGERS, FUNCTIONS & CURSORS (KÈM KỊCH BẢN DEMO 5 BƯỚC)
 
-*Mỗi đối tượng lập trình đều chứa bình luận SQL phân tách rõ:*
-- **HÀNH VI TÊN WEBSITE:** Thao tác người dùng click nút trên giao diện Angular 22.
-- **KỊCH BẢN DEMO 5 BƯỚC TRONG SSMS:** Bộ lệnh SELECT kiểm chứng dữ liệu trước và sau khi thực thi.
+Hệ thống cung cấp đầy đủ các khối lệnh lập trình thủ tục nâng cao phục vụ vận hành bãi xe tự động.
 
-### 1. Stored Procedures (`03_procedures.sql`)
-- `sp_XeVaoBai`: Kiểm tra thẻ, tìm ô trống (`f_TimSlotTrong`), tạo lượt đỗ mới trong `LUOT_GUI`, đổi trạng thái ô đỗ.
-- `sp_XeRaBai`: Tìm lượt gửi, tính tiền (`f_TinhTienGuiXe`), cập nhật `ThoiGianRa`, `TienGui`, giải phóng ô đỗ về `'Trống'`.
-- `sp_DangKyThanhVien`: Tạo khách hàng, đăng ký vé tháng, xuất hóa đơn gia hạn (nằm trong **TRANSACTION**).
-- `sp_GiaHanTheThang`: Cộng ngày hết hạn vé tháng, chèn bản ghi hóa đơn.
-- `sp_BaoMatThe`: Đổi trạng thái thẻ sang `'Mất'`, tự ghi nhận sự cố, thu tiền phạt đền thẻ 50k.
-- `sp_DangNhap`: Kiểm tra tài khoản, đối chiếu mật khẩu Hash, trả về quyền và `MaBai` được phân công.
+### 1. Danh Mục Stored Procedures (`sql/03_procedures.sql`)
+- **`sp_XeVaoBai`**: Quét thẻ vào cổng barrier, kiểm tra thẻ hợp lệ, gọi hàm `f_TimSlotTrong` để tự động xếp slot, tạo lượt đỗ mới trong `LUOT_GUI` và cập nhật slot sang `'Đã đỗ'`.
+- **`sp_XeRaBai`**: Quét thẻ ra cổng barrier, gọi hàm `f_TinhTienGuiXe` để tính tiền gửi dựa theo đơn giá chi nhánh, ghi nhận `ThoiGianRa`, giải phóng ô đỗ về trạng thái `'Trống'`.
+- **`sp_DangKyThanhVien`**: Đăng ký khách hàng mới, phát hành vé tháng, xuất hóa đơn tháng đầu trong một khối **TRANSACTION** bảo đảm tính nguyên tử (Atomicity).
+- **`sp_GiaHanTheThang`**: Cộng thêm số ngày sử dụng cho vé tháng và tự sinh hóa đơn thanh toán trong `HOA_DON_VE_THANG`.
+- **`sp_BaoMatThe`**: Khóa thẻ bị mất, tự động lập biên bản sự cố trong `LICHSU_SU_CO` và áp mức phạt bồi thường thẻ 50.000đ.
+- **`sp_DangNhap`**: Xác thực đăng nhập hệ thống dựa trên tên đăng nhập và mật khẩu băm SHA-256, trả về thông tin nhân viên, chức vụ và bãi xe phụ trách.
 
-### 2. Triggers (`04_triggers.sql`)
-- `trg_KiemTraCheckIn`: Chặn xe vào nếu thẻ bị khóa/mất hoặc bãi đã đầy công suất (`SoLuongHienTai >= SucChua`).
-- `trg_ChanSuDungVeHetHan`: Chặn xe tháng hết hạn đăng ký check-in bãi đỗ.
-- `trg_DongBoTrangThaiSlot`: Tự động cập nhật `TrangThai` ô đỗ và tăng/giảm `SoLuongHienTai` của bãi đỗ khi check-in/out.
-- `trg_LogLichSuSuCo`: Tự động chèn biên bản vào `LICHSU_SU_CO` khi thẻ bị chuyển trạng thái báo mất.
-- `trg_ChanXoaDuLieuDangDung`: Chặn xóa bãi xe/thẻ xe nếu đang có xe đỗ chưa check-out.
+### 2. Danh Mục Triggers (`sql/04_triggers.sql`)
+- **`trg_KiemTraCheckIn`**: Chặn xe vào nếu thẻ bị khóa hoặc bãi đỗ đã đạt 100% sức chứa (`SoLuongHienTai >= SucChua`).
+- **`trg_ChanSuDungVeHetHan`**: Chặn quẹt thẻ tháng nếu vé đăng ký đã quá ngày hết hạn (`NgayHetHan < GETDATE()`).
+- **`trg_DongBoTrangThaiSlot`**: Tự động tăng/giảm `SoLuongHienTai` của bãi xe và cập nhật trạng thái ô đỗ trong `VI_TRI_DO` khi bản ghi `LUOT_GUI` được chèn hoặc cập nhật giờ ra.
+- **`trg_LogLichSuSuCo`**: Tự động tạo bản ghi biên bản sự cố trong `LICHSU_SU_CO` khi trạng thái thẻ trong `THE_XE` chuyển thành `'Mất'`.
+- **`trg_ChanXoaDuLieuDangDung`**: Chặn xóa thông tin bãi xe hoặc thẻ xe nếu đang có phương tiện đỗ thực tế trong bãi.
 
-### 3. Functions (`05_functions.sql`)
-- `f_TinhTienGuiXe`: Tính phí đỗ xe lượt lũy tiến theo giờ và đơn giá bãi đỗ (trả về 0 nếu là vé tháng hợp lệ).
-- `f_TimSlotTrong`: Trả về `MaViTri` ô đỗ trống đầu tiên khớp loại xe tại bãi đỗ chỉ định.
-- `f_DanhSachXeTrongBai`: Trả về bảng danh sách xe đỗ thực tế.
+### 3. Danh Mục User-Defined Functions (`sql/05_functions.sql`)
+- **`f_TinhTienGuiXe`**: Hàm vô hướng tính toán tiền gửi xe lũy tiến theo số giờ gửi thực tế và đơn giá loại xe của từng bãi (trả về 0đ nếu là vé tháng hợp lệ).
+- **`f_TimSlotTrong`**: Hàm vô hướng trả về mã vị trí ô đỗ (`MaViTri`) còn trống đầu tiên phù hợp với loại phương tiện tại chi nhánh chỉ định.
+- **`f_DanhSachXeTrongBai`**: Hàm bảng (Inline Table-Valued Function) trả về danh sách toàn bộ xe đang gửi tại bãi theo mã bãi truyền vào.
 
-### 4. Cursors (`06_cursors.sql`)
-- `cur_CanhBaoHanTheThang`: Quét danh sách vé tháng sắp hết hạn, tự chuyển trạng thái `'Hết hạn'` nếu quá ngày.
-- `cur_TongKetDoanhThuChuoi`: Duyệt qua từng bãi xe trong chuỗi, tính toán doanh thu tổng lượt và tháng trong tuần.
+### 4. Danh Mục Cursors (`sql/06_cursors.sql`)
+- **`cur_CanhBaoHanTheThang`**: Con trỏ duyệt toàn bộ danh sách vé tháng, kiểm tra hạn dùng, tự động chuyển trạng thái sang `'Hết hạn'` nếu quá hạn và xuất thông báo cảnh báo.
+- **`cur_TongKetDoanhThuChuoi`**: Con trỏ duyệt qua từng chi nhánh trong chuỗi, tổng hợp doanh thu vé lượt và vé tháng, phục vụ báo cáo định kỳ cho ban giám đốc.
 
 ---
 
-## 👥 PHẦN V: KẾ HOẠCH BÀI BẢN CHIA VIỆC CHO 10 THÀNH VIÊN
+## 🖥️ PHẦN V: KIẾN TRÚC GIAO DIỆN WEB DEMO ĐIỀU HÀNH TRỰC QUAN (V6)
 
-Dự án được phân rã thành **5 nhóm làm việc nhỏ** (mỗi nhóm 2 người) giúp đảm bảo sự đồng đều, minh bạch trách nhiệm và hỗ trợ lẫn nhau theo đúng mẫu báo cáo của trường.
+Ứng dụng Web Demo được xây dựng theo tiêu chuẩn Dashboard hiện đại, chạy trực tiếp tại địa chỉ **`http://localhost:5001`**, tuân thủ nguyên tắc thiết kế sang trọng, thanh Header/Nav đứng yên khi cuộn trang, spacing và bo góc không vượt quá 12px.
 
-| Nhóm | Thành viên | Đầu việc Phụ trách (Task Allocation) | Sản phẩm Bàn giao (Deliverables) |
+```
+                  CỔNG WEB DEMO ĐIỀU HÀNH (PORT 5001)
+┌────────────────────────────────────────────────────────────────────────┐
+│ [Logo] QUẢN LÝ CHUỖI BÃI ĐỖ XE  |  Tổng quan | Sơ đồ | Bảng | Báo cáo │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│  [MÀN HÌNH TỔNG QUAN / DASHBOARD]                                     │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │ BỘ LỌC KỊCH BẢN: [Tất cả (9)] [Procedure] [Trigger] [Function]...│  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│  ┌───────────────────────┐ ┌───────────────────────┐ ┌───────────────┐ │
+│  │ ⚡ Procedure Check-In │ │ ⚡ Procedure Check-Out│ │ ⚡ Báo mất thẻ │ │
+│  │ Xe vào & cấp slot tự  │ │ Xe ra & tính tiền lũy │ │ Khóa & lập BB │ │
+│  │ [Chạy Demo 5 Bước]    │ │ [Chạy Demo 5 Bước]    │ │ [Chạy Demo]   │ │
+│  └───────────────────────┘ └───────────────────────┘ └───────────────┘ │
+│                                                                        │
+│  [MÀN HÌNH TÍCH HỢP HEALTH & SETUP CSDL THÔNG MINH (/setup)]          │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │ KHỐI 1: KIỂM TRA KẾT NỐI SQL SERVER                              │  │
+│  │ [Kiểm tra kết nối] ──> Trạng thái: CONNECTED (Port 1433)         │  │
+│  └───────────────────────────────┬──────────────────────────────────┘  │
+│                                  │ (Tự động mở khóa khi thành công)    │
+│  ┌───────────────────────────────▼──────────────────────────────────┐  │
+│  │ KHỐI 2: CÀI ĐẶT CƠ SỞ DỮ LIỆU                                    │  │
+│  │ [Tạo nhanh Full CSDL (01-09)]  hoặc  [Chạy từng file tuần tự]    │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### Các Màn Hình Chức Năng Chính:
+1. **Màn hình Tổng quan (`/`):**
+   - Hiển thị danh mục 9 Kịch Bản Demo CSDL Chuẩn 5 Bước dưới dạng **List Card** phân chia theo 4 nhóm rõ ràng (`Procedure` | `Trigger` | `Function` | `Cursor`).
+   - Tích hợp thanh lọc nhanh (Quick Filter Pills) kèm badge đếm số lượng kịch bản.
+   - Hộp thoại nhập tham số tương tác và bảng so sánh Before / After trực quan khi thực thi kịch bản.
+2. **Màn hình Sơ đồ Bãi xe Thời gian thực (`/map`):**
+   - Bộ chọn chi nhánh bãi đỗ xe (`BAI_Q1`, `BAI_Q3`, `BAI_BT`).
+   - Thống kê tỷ lệ lấp đầy, số chỗ trống/đã đỗ theo loại xe (Xe máy, Ô tô).
+   - Mô phỏng ô đỗ trực quan, hiển thị biển kiểm soát dập nổi phản quang chân thực.
+3. **Màn hình Danh mục Bảng CSDL (`/tables`):**
+   - Xem dữ liệu bảng trực tiếp và cấu trúc 11 bảng CSDL.
+4. **Màn hình Báo cáo Quản trị BI (`/reports`):**
+   - Trực quan hóa dữ liệu 8 Views báo cáo, doanh thu, công suất bãi đỗ, phân loại xe và sự cố.
+5. **Màn hình Truy vấn SQL (`/sql`):**
+   - Trình thực thi câu lệnh SQL trực tiếp kèm hiển thị kết quả truy vấn dạng bảng.
+6. **Màn hình Tích hợp Health & Setup CSDL Thông minh (`/setup`):**
+   - **Gom chung Health Check & Setup CSDL:** Tránh tình trạng người dùng click cài đặt khi cơ sở dữ liệu chưa sẵn sàng hoặc kết nối bị từ chối.
+   - **Cơ chế khóa bảo vệ an toàn:** Khối Cài đặt CSDL bị ẩn và khóa ban đầu. Chỉ khi người dùng bấm *"Kiểm tra kết nối"* và hệ thống nhận phản hồi thành công (`CONNECTED`), phần Setup mới tự động mở khóa và hiển thị với hiệu ứng slide-in.
+   - **Hỗ trợ 2 phương thức cài đặt:** Khởi tạo trọn gói tự động bằng file tổng hợp `QL_BaiDoXe_FullScript.sql` hoặc chạy tuần tự từng script từ `01` đến `09`.
+
+---
+
+## 👥 PHẦN VI: KẾ HOẠCH BÀI BẢN CHIA VIỆC CHO 10 THÀNH VIÊN
+
+Đồ án được phân rã thành **5 nhóm chuyên môn** (mỗi nhóm 2 người) nhằm đảm bảo khối lượng công việc đồng đều, rõ ràng và minh bạch theo chuẩn đồ án đại học:
+
+| Nhóm | Thành viên | Đầu Việc Phụ Trách (Task Allocation) | Sản Phẩm Bàn Giao (Deliverables) |
 | :--- | :--- | :--- | :--- |
-| **Nhóm 1** | **Thành viên A, B** | **Phân tích ERD & Phân quyền RBAC:**<br>- Vẽ sơ đồ ERD 11 bảng chuẩn hóa.<br>- Viết tài liệu Từ điển Dữ liệu (Data Dictionary).<br>- Viết mã lệnh SQL tạo Role (`r_Admin`, `r_QuanLyBai`, `r_BaoVe`) và các câu lệnh `GRANT/DENY`. | - Sơ đồ ERD chuẩn dạng PNG.<br>- File Word Từ điển dữ liệu.<br>- Script phân quyền SQL. |
-| **Nhóm 2** | **Thành viên C, D** | **Setup Docker & Core Schema SQL:**<br>- Cấu hình Docker (`Azure SQL Edge`) trên Mac M1 (bạn).<br>- Viết file `01_schema.sql` tạo 11 bảng, PK, FK, ràng buộc `CHECK/DEFAULT`.<br>- Kiểm thử chạy script tạo bảng trên Mac và Windows. | - File `docker-compose.yml`.<br>- File `01_schema.sql` chạy 100% không lỗi. |
-| **Nhóm 3** | **Thành viên E, F** | **Lập trình Procedures, Triggers & Backup:**<br>- Viết 5 Stored Procedures nghiệp vụ (`sp_XeVaoBai`, `sp_XeRaBai`,...).<br>- Viết 5 Triggers bẫy lỗi an toàn bãi xe.<br>- Viết script **Full/Diff Backup & Restore** CSDL. | - File `03_procedures.sql`.<br>- File `04_triggers.sql`.<br>- Script Backup/Restore. |
-| **Nhóm 4** | **Thành viên G, H** | **Lập trình Views & Script Import/Export:**<br>- Viết 3-5 bảng View giám sát realtime và báo cáo.<br>- Viết lệnh `BULK INSERT` Import dữ liệu thẻ từ CSV.<br>- Viết script Export báo cáo doanh thu ra CSV. | - File `05_functions.sql` & Views.<br>- Data file CSV & Script Import/Export. |
-| **Nhóm 5** | **Thành viên I, K** | **Dữ liệu mẫu & Biên soạn Báo cáo cuối kỳ:**<br>- Chuẩn bị dữ liệu mẫu 10-20 dòng/bảng (`02_sample_data.sql`).<br>- Tổng hợp báo cáo vào template `Report_Template (Team).docx`.<br>- Soạn nội dung chương "An toàn thông tin & Phân quyền". | - File `02_sample_data.sql`.<br>- File Báo cáo Word hoàn chỉnh (< 20 trang). |
+| **Nhóm 1** | **Thành viên A, B** | **Phân tích Thiết kế ERD & Phân quyền RBAC:**<br>- Thiết kế mô hình quan hệ ERD 11 bảng chuẩn 3NF.<br>- Biên soạn Từ điển Dữ liệu (Data Dictionary).<br>- Viết mã lệnh phân quyền Roles (`r_Admin`, `r_QuanLyBai`, `r_BaoVe`) và các chính sách `GRANT/DENY`. | - File sơ đồ ERD chuẩn dạng PNG/PDF.<br>- Tài liệu Word Từ điển dữ liệu.<br>- File script `sql/08_security_rbac.sql`. |
+| **Nhóm 2** | **Thành viên C, D** | **Thiết Lập Môi Trường Docker & Core Schema:**<br>- Cấu hình Docker Container (`Azure SQL Edge` / SQL Server 2022) trên Mac M1 & Windows.<br>- Lập trình file `01_schema.sql` tạo 11 bảng, PK, FK, Composite PK, ràng buộc `CHECK/DEFAULT`.<br>- Tổng hợp file chạy tự động `QL_BaiDoXe_FullScript.sql`. | - File `docker-compose.yml`.<br>- File `sql/01_schema.sql` chạy 100% không lỗi.<br>- File `sql/QL_BaiDoXe_FullScript.sql`. |
+| **Nhóm 3** | **Thành viên E, F** | **Lập Trình Stored Procedures, Triggers & Backup:**<br>- Viết 6 Stored Procedures nghiệp vụ (`sp_XeVaoBai`, `sp_XeRaBai`, `sp_DangNhap`,...).<br>- Viết 5 Triggers kiểm soát an ninh bãi xe.<br>- Lập trình kịch bản Full/Diff/Log Backup & Restore CSDL. | - File `sql/03_procedures.sql`.<br>- File `sql/04_triggers.sql`.<br>- File script `sql/09_backup_restore.sql`. |
+| **Nhóm 4** | **Thành viên G, H** | **Lập Trình Views, Functions, Cursors & Bulk Data:**<br>- Viết 8 Bảng Views giám sát realtime và báo cáo BI.<br>- Viết 3 Functions tính phí và xếp slot tự động.<br>- Viết 2 Cursors duyệt quét tự động.<br>- Viết script Bulk Insert Import thẻ xe từ file CSV. | - File `sql/05_functions.sql`.<br>- File `sql/06_cursors.sql`.<br>- File `sql/07_views.sql`.<br>- Data file CSV mẫu & kịch bản bulk data. |
+| **Nhóm 5** | **Thành viên I, K** | **Dữ Liệu Mẫu, Web Demo UI & Biên Soạn Báo Cáo:**<br>- Chuẩn bị dữ liệu mẫu thực tế cho 11 bảng (`02_sample_data.sql`).<br>- Phát triển giao diện Web Dashboard điều hành trực quan (Flask + Jinja2 + Modern UI).<br>- Biên soạn Báo cáo hoàn chỉnh theo mẫu template trường quy định. | - File `sql/02_sample_data.sql`.<br>- Source code Web App (`app/`, `run.py`).<br>- File Báo cáo Word/PDF hoàn chỉnh (< 20 trang). |
 
 ---
 
-## 📋 CHECKLIST ĐÓNG GÓI SẢN PHẨM NỘP BÀI (`DoAn_NhomX.zip`)
+## 📋 PHẦN VII: CHECKLIST ĐÓNG GÓI SẢN PHẨM NỘP BÀI (`DoAn_NhomX.zip`)
 
-- [x] **File Báo cáo PDF:** Trình bày theo mẫu `Report_Template (Team).docx`, dưới 20 trang, chứa bảng phân công 10 người.
-- [x] **File Slide Thuyết trình PDF:** 15-20 slides tóm tắt đề tài, mô hình ERD, phân quyền và demo.
-- [x] **Link Video Demo:** File text chứa link video 15-20 phút (upload Google Drive công khai).
-- [x] **Thư mục `database/`:** Chứa đầy đủ 6 file SQL (`01_schema.sql` đến `06_cursors.sql` + script Phân quyền, Backup).
-- [x] **Thư mục Source Code:** Mã nguồn Web Python (FastAPI) + Angular 22.
+Cấu trúc gói nộp bài chuẩn bị sẵn sàng bàn giao cho giảng viên chấm thi:
+
+- [x] **File Báo Cáo Chính Thức (PDF):** Trình bày theo đúng mẫu `Report_Template (Team).docx`, dưới 20 trang, bao gồm mô hình ERD, mô tả 11 bảng, phân quyền RBAC và bảng phân công trách nhiệm 10 thành viên.
+- [x] **File Slide Thuyết Trình (PDF/PPTX):** 15-20 slides tóm tắt đề tài, điểm nổi bật của hệ thống CSDL, kiến trúc bảo mật và hình ảnh demo.
+- [x] **Link Video Thuyết Minh Demo:** File text ghi rõ link video 15-20 phút (upload YouTube/Google Drive chế độ công khai) minh họa kịch bản 5 bước chạy trong SSMS và trên giao diện Web.
+- [x] **Thư Mục Mã Nguồn CSDL (`sql/`):**
+  - `01_schema.sql`: Script khởi tạo 11 bảng.
+  - `02_sample_data.sql`: Dữ liệu mẫu thực tế.
+  - `03_procedures.sql`: 6 Stored Procedures nghiệp vụ.
+  - `04_triggers.sql`: 5 Triggers an ninh & toàn vẹn dữ liệu.
+  - `05_functions.sql`: 3 Functions tính phí và tìm slot.
+  - `06_cursors.sql`: 2 Cursors duyệt tự động.
+  - `07_views.sql`: 8 Views vận hành & báo cáo BI.
+  - `08_security_rbac.sql`: Phân quyền 3 Roles RBAC.
+  - `09_backup_restore.sql`: Chiến lược sao lưu và khôi phục CSDL.
+  - `QL_BaiDoXe_FullScript.sql`: Script tổng hợp toàn bộ CSDL chạy 1 lần duy nhất.
+- [x] **Thư Mục Mã Nguồn Web Ứng Dụng (`app/`, `run.py`, `requirements.txt`):** Ứng dụng điều hành trực quan cổng 5001.
+- [x] **Tài Liệu Hướng Dẫn Chạy:** `README.md` và `DemoGuilde.md` hướng dẫn chi tiết các bước thiết lập từ số 0.

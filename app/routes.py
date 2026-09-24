@@ -3,8 +3,8 @@ from pathlib import Path
 
 from flask import Blueprint, flash, redirect, render_template, request, send_from_directory, url_for
 
-from .db import execute_query, execute_script_return_sets, run_sql_file
-from .queries import DEMO_CASES, REPORT_VIEWS, TABLES_TO_SHOW
+from .db import execute_query, execute_script_return_sets, get_connection, run_sql_file
+from .queries import DEMO_CASES, DEMO_GROUPS, REPORT_VIEWS, TABLES_TO_SHOW
 
 bp = Blueprint("main", __name__)
 
@@ -67,16 +67,12 @@ def index():
         """)
     except Exception:
         overview = []
-    return render_template("index.html", demo_cases=DEMO_CASES, reports=REPORT_VIEWS, overview=overview)
+    return render_template("index.html", demo_cases=DEMO_CASES, demo_groups=DEMO_GROUPS, reports=REPORT_VIEWS, overview=overview)
 
 
 @bp.route("/health")
 def health():
-    try:
-        rows = execute_query("SELECT DB_NAME() AS DatabaseName, GETDATE() AS ServerTime, @@VERSION AS SQLServerVersion;")
-        return render_template("simple_result.html", title="Kiểm tra kết nối CSDL SQL Server", result_sets=[make_result_set("Kết nối thành công", rows)])
-    except Exception as exc:
-        return render_template("error.html", title="Không kết nối được SQL Server", error=str(exc))
+    return redirect(url_for("main.setup"))
 
 
 @bp.route("/map")
@@ -230,18 +226,73 @@ def sql_query():
     return render_template("sql_query.html", sql=sql, result_sets=result_sets, error=error)
 
 
+def check_db_health():
+    """Kiểm tra tình trạng kết nối tới SQL Server, thử DB chỉ định trước, nếu chưa có thì thử master."""
+    result = {
+        "connected": False,
+        "database_name": None,
+        "server_time": None,
+        "version": None,
+        "server_host": os.getenv("SQLSERVER_SERVER", "localhost,1433"),
+        "driver": os.getenv("SQLSERVER_DRIVER", "ODBC Driver 18 for SQL Server"),
+        "user": os.getenv("SQLSERVER_USERNAME", "sa"),
+        "error": None,
+        "is_master_fallback": False,
+    }
+    # 1. Thử kết nối trực tiếp vào database cấu hình trong .env (mặc định QuanLyBaiDoXe)
+    try:
+        rows = execute_query("SELECT DB_NAME() AS DatabaseName, GETDATE() AS ServerTime, @@VERSION AS SQLServerVersion;")
+        if rows:
+            result["connected"] = True
+            result["database_name"] = rows[0].get("DatabaseName")
+            result["server_time"] = rows[0].get("ServerTime")
+            result["version"] = rows[0].get("SQLServerVersion")
+            return result
+    except Exception as exc:
+        err_msg = str(exc)
+        # 2. Nếu database QuanLyBaiDoXe chưa tồn tại (ví dụ lỗi 4060), thử kết nối qua database master
+        try:
+            with get_connection(database="master") as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT DB_NAME() AS DatabaseName, GETDATE() AS ServerTime, @@VERSION AS SQLServerVersion;")
+                row = cursor.fetchone()
+                if row:
+                    result["connected"] = True
+                    result["database_name"] = f"{row[0]} (Đã kết nối máy chủ SQL Server, sẵn sàng tạo CSDL QuanLyBaiDoXe)"
+                    result["server_time"] = row[1]
+                    result["version"] = row[2]
+                    result["is_master_fallback"] = True
+                    return result
+        except Exception as master_exc:
+            result["connected"] = False
+            result["error"] = str(master_exc)
+            return result
+
+        result["connected"] = False
+        result["error"] = err_msg
+    return result
+
+
 @bp.route("/setup", methods=["GET", "POST"])
 def setup():
     allow = os.getenv("ALLOW_RUN_FULL_SCRIPT", "0") == "1"
+    health_info = check_db_health()
+
     if request.method == "POST":
+        if not health_info["connected"]:
+            flash("Lỗi kết nối: Không thể thực hiện Setup vì chưa kết nối được tới máy chủ SQL Server!", "error")
+            return redirect(url_for("main.setup"))
         if not allow:
-            flash("Chức năng chạy nạp lại full script đang bị khóa. Hãy cấu hình ALLOW_RUN_FULL_SCRIPT=1 trong .env nếu muốn bật.", "error")
+            flash("Chức năng chạy nạp lại full script đang bị khóa an toàn trong .env (ALLOW_RUN_FULL_SCRIPT=0).", "error")
             return redirect(url_for("main.setup"))
         try:
             sql_file = Path(__file__).resolve().parents[1] / "sql" / "QL_BaiDoXe_FullScript.sql"
             count = run_sql_file(str(sql_file))
-            flash(f"Đã khởi tạo và nạp thành công toàn bộ CSDL QuanLyBaiDoXe với {count} batch SQL!", "success")
-            return redirect(url_for("main.health"))
+            flash(f"Khởi tạo và nạp thành công toàn bộ CSDL QuanLyBaiDoXe với {count} batch SQL!", "success")
+            return redirect(url_for("main.setup"))
         except Exception as exc:
-            return render_template("error.html", title="Lỗi nạp full script CSDL", error=str(exc))
-    return render_template("setup.html", allow=allow)
+            flash(f"Lỗi khi nạp script CSDL: {str(exc)}", "error")
+            return redirect(url_for("main.setup"))
+
+    return render_template("setup.html", allow=allow, health=health_info)
+
