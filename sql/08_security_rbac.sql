@@ -73,3 +73,29 @@ DENY UPDATE, DELETE ON dbo.LUOT_GUI TO r_BaoVe;
 DENY UPDATE, DELETE ON dbo.HOA_DON_VE_THANG TO r_BaoVe;
 DENY SELECT, INSERT, UPDATE, DELETE ON dbo.TAI_KHOAN TO r_BaoVe;
 GO
+
+-- ====================================================================================
+-- 3. PHÂN QUYỀN BỔ SUNG CHO 7 VIEWS BỐT KIỂM SOÁT CỔNG & SƠ ĐỒ BÃI XE REALTIME
+-- ====================================================================================
+
+-- A. Nhân viên bảo vệ trực bốt cổng: được tra cứu thẻ, xem xe chờ ra, nhật ký vào/ra và bảng đèn cổng
+GRANT SELECT ON dbo.v_BotCong_TraCuuThe TO r_BaoVe;
+GRANT SELECT ON dbo.v_BotCong_XeChoRa TO r_BaoVe;
+GRANT SELECT ON dbo.v_BotCong_NhatKyVaoRa TO r_BaoVe;
+GRANT SELECT ON dbo.v_BotCong_BangDenCong TO r_BaoVe;
+
+-- Được xem sơ đồ bãi xe thời gian thực để hướng dẫn khách vào đúng khu vực còn chỗ
+GRANT SELECT ON dbo.v_SodoBai_ODoChiTiet TO r_BaoVe;
+GRANT SELECT ON dbo.v_SodoBai_TongHopKhuVuc TO r_BaoVe;
+GRANT SELECT ON dbo.v_SodoBai_TongQuanBai TO r_BaoVe;
+GO
+
+-- B. Quản lý bãi: xem toàn bộ 7 views vận hành bốt cổng và sơ đồ realtime
+GRANT SELECT ON dbo.v_BotCong_TraCuuThe TO r_QuanLyBai;
+GRANT SELECT ON dbo.v_BotCong_XeChoRa TO r_QuanLyBai;
+GRANT SELECT ON dbo.v_BotCong_NhatKyVaoRa TO r_QuanLyBai;
+GRANT SELECT ON dbo.v_BotCong_BangDenCong TO r_QuanLyBai;
+GRANT SELECT ON dbo.v_SodoBai_ODoChiTiet TO r_QuanLyBai;
+GRANT SELECT ON dbo.v_SodoBai_TongHopKhuVuc TO r_QuanLyBai;
+GRANT SELECT ON dbo.v_SodoBai_TongQuanBai TO r_QuanLyBai;
+GO

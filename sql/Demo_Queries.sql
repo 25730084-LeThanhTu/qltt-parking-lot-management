@@ -52,3 +52,64 @@ EXEC dbo.sp_DemoTongKetDoanhThuChuoi;
 -- Lệnh dưới đây sẽ bị Trigger trg_KiemTraCheckIn chặn lại và ném lỗi 50002
 -- INSERT INTO dbo.LUOT_GUI (MaThe, BienSo, ThoiGianVao, MaViTri, TienGui, MaBai)
 -- VALUES ('THE0006', '59X-999.99', GETDATE(), 'Q1_XM_01', 0, 'BAI_Q1');
+
+-- ====================================================================================
+-- 11. DEMO 4 VIEWS BỐT KIỂM SOÁT CỔNG VÀO / RA
+-- ====================================================================================
+
+-- 11.1. Bốt cổng quét thẻ: xem quyết định mở barrier cho từng mã thẻ
+-- (Thẻ THE0005 bị khóa, THE0006 báo mất, THE0008 vé tháng hết hạn đều bị ChoPhepQuet = 0)
+SELECT MaThe, LoaiThe, TrangThaiThe, TenBaiKiemSoat, SoChoTrong, MaVe, SoNgayConLaiVe,
+       DangTrongBai, ChieuQuetKeTiep, ChoPhepQuet, LyDoTuChoi, GhiChuCanhBao
+FROM dbo.v_BotCong_TraCuuThe
+ORDER BY ChoPhepQuet, MaThe;
+
+-- 11.2. Bốt cổng quét 1 thẻ cụ thể (thao tác thực tế của nhân viên bảo vệ)
+SELECT * FROM dbo.v_BotCong_TraCuuThe WHERE MaThe = 'THE0001';
+
+-- 11.3. Màn hình cổng ra: danh sách xe chờ ra kèm tiền tạm tính theo block giờ
+SELECT MaLuot, TenBai, MaThe, LoaiThe, BienSoLucVao, MaViTri, LoaiPhuongTien, DonGiaGio,
+       SoPhutDaDo, SoBlockGioTinhPhi, TienTamTinh, ChinhSachThanhToan, CanhBaoLechBienSo, GhiChuCanhBao
+FROM dbo.v_BotCong_XeChoRa
+ORDER BY ThoiGianVao;
+
+-- 11.4. Bảng điện tử nhật ký 200 sự kiện xe qua barrier mới nhất
+SELECT MaLuot, TenBai, ChieuDiChuyen, ThoiGianSuKien, MaThe, LoaiThe, BienSo, MaViTri,
+       SoPhutLuuBai, SoTienThu, TrangThaiLuot
+FROM dbo.v_BotCong_NhatKyVaoRa;
+
+-- 11.5. Bảng đèn tín hiệu CÒN CHỖ / HẾT CHỖ tại cổng vào từng bãi
+SELECT MaBai, TenBai, LoaiPhuongTien, DonGiaGio, TongODoTheoLoai, SoODoTrong,
+       TyLeLapDayTheoLoai, MaViTriGoiY, ChoPhepVaoCong, DenTinHieuCong
+FROM dbo.v_BotCong_BangDenCong
+ORDER BY MaBai, MaLoaiXe;
+
+-- ====================================================================================
+-- 12. DEMO 3 VIEWS SƠ ĐỒ BÃI XE THỜI GIAN THỰC
+-- ====================================================================================
+
+-- 12.1. Lưới ô đỗ chi tiết của bãi Lê Lai (đúng 1 dòng cho 1 ô đỗ)
+SELECT ThuTuHienThi, MaViTri, KhuVuc, LoaiPhuongTien, TrangThaiHienThi, BienSo, LoaiThe,
+       SoPhutDaDo, TienTamTinh, HoTenKhachHang, NgayHetHan, CanhBaoLechDuLieu
+FROM dbo.v_SodoBai_ODoChiTiet
+WHERE MaBai = 'BAI_Q1'
+ORDER BY ThuTuHienThi;
+
+-- 12.2. Thanh tổng hợp số ô trống theo từng khu vực / tầng
+SELECT MaBai, KhuVuc, TongODo, SoODoDaDo, SoODoTrong, TyLeLapDayPercent,
+       SoODoXeMayTrong, SoODoOToTrong, SoODoXeDapTrong
+FROM dbo.v_SodoBai_TongHopKhuVuc
+ORDER BY MaBai, KhuVuc;
+
+-- 12.3. Thẻ tổng quan công suất từng bãi kèm cờ đối soát bộ đếm
+SELECT MaBai, TenBai, SucChua, SoLuongHienTai, SoXeThucTeTrongBai, CanhBaoLechBoDem,
+       SoChoTrong, TyLeLapDayPercent, SoXeTheThang, SoXeTheLuot,
+       SoLuotVaoHomNay, SoLuotRaHomNay, DoanhThuLuotHomNay, MucDoCanhBao
+FROM dbo.v_SodoBai_TongQuanBai
+ORDER BY MaBai;
+
+-- 12.4. Dò tìm ô đỗ có dữ liệu lệch giữa VI_TRI_DO và LUOT_GUI (đối soát vận hành)
+SELECT MaBai, MaViTri, KhuVuc, TrangThaiODo, TrangThaiHienThi, MaLuot, BienSo
+FROM dbo.v_SodoBai_ODoChiTiet
+WHERE CanhBaoLechDuLieu = 1
+ORDER BY MaBai, MaViTri;

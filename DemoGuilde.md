@@ -17,7 +17,7 @@
    docker start <ten_container>
    ```
 2. **Khởi tạo CSDL 11 bảng:** Có 2 cách thực hiện:
-   - **Cách 1 (Khuyên dùng - Nhanh nhất):** Khởi chạy web, truy cập trang **`http://127.0.0.1:5001/setup`**, hệ thống tự kiểm tra kết nối thành công $\rightarrow$ nhấn nút **"🔄 Bắt Đầu Nạp Lại Toàn Bộ CSDL"**. Toàn bộ 11 bảng, 6 procedures, 5 triggers, 3 functions, 2 cursors, 8 views và phân quyền RBAC sẽ được tạo tự động 100%.
+   - **Cách 1 (Khuyên dùng - Nhanh nhất):** Khởi chạy web, truy cập trang **`http://127.0.0.1:5001/setup`**, hệ thống tự kiểm tra kết nối thành công $\rightarrow$ nhấn nút **"🔄 Bắt Đầu Nạp Lại Toàn Bộ CSDL"**. Toàn bộ 11 bảng, 6 procedures, 5 triggers, 3 functions, 2 cursors, 15 views và phân quyền RBAC sẽ được tạo tự động 100%.
    - **Cách 2 (Thủ công qua SSMS / DBeaver):** Mở file script tổng hợp [sql/QL_BaiDoXe_FullScript.sql](file:///Users/tult/Documents/ORTHER/Học%20Tập/2026/Kì%202/Quản%20lý%20thông%20tin/Đồ%20án/qltt-parking-lot-management/sql/QL_BaiDoXe_FullScript.sql) $\rightarrow$ Bấm **Execute (F5)**.
 3. Mở thêm 1 cửa sổ Query trắng dưới SSMS, gõ `USE QuanLyBaiDoXe;` để sẵn sàng chạy các câu lệnh đối chứng số liệu trước/sau.
 
@@ -247,7 +247,7 @@ Chỉ cho giảng viên thấy file [sql/08_security_rbac.sql](file:///Users/tul
 - **`r_BaoVe`**: Chỉ được quét xe qua thủ tục `sp_XeVaoBai`, `sp_XeRaBai` và xem sơ đồ đỗ; **chặn tuyệt đối** quyền chỉnh sửa hay xóa tiền gửi và nhật ký xe (`DENY UPDATE, DELETE ON LUOT_GUI, HOA_DON_VE_THANG`).
 
 ### 5. Báo Cáo Phân Tích & Views Quản Trị (`/reports`)
-- Hệ thống xây dựng đầy đủ 8 Views (3 Views vận hành Blueprint + 5 Views báo cáo BI).
+- Hệ thống xây dựng đầy đủ 15 Views (3 Views vận hành Blueprint + 5 Views báo cáo BI + 4 Views bốt kiểm soát cổng vào/ra + 3 Views sơ đồ bãi xe realtime).
 - Tích hợp khung Dashboard Dark Frame hiển thị đồ họa phân tích kết hợp bảng dữ liệu thời gian thực.
 
 ### 6. Trình Chạy SQL Trực Tiếp (`/sql`)
@@ -259,7 +259,7 @@ Chỉ cho giảng viên thấy file [sql/08_security_rbac.sql](file:///Users/tul
 ## 🏆 KẾT LUẬN & ĐIỂM NỔI BẬT ĂN ĐIỂM TỐI ĐA
 
 1. **CSDL chuẩn hóa 11 bảng:** Đáp ứng trọn vẹn cả phân hệ quản lý vận hành lẫn phân hệ nhân sự & an toàn thông tin (mã hóa mật khẩu SHA-256).
-2. **Đầy đủ 100% đối tượng nâng cao:** 6 Stored Procedures, 5 Triggers, 3 Functions, 2 Cursors, 8 Views, 3 Roles RBAC.
+2. **Đầy đủ 100% đối tượng nâng cao:** 6 Stored Procedures, 5 Triggers, 3 Functions, 2 Cursors, 15 Views, 3 Roles RBAC.
 3. **Màn hình Health & Setup thông minh:** Tích hợp kiểm tra máy chủ và chỉ cho phép nạp CSDL khi kết nối thành công.
 4. **Màn hình Tổng quan phân nhóm List Card:** Trình bày 9 kịch bản rõ ràng theo từng nhóm đối tượng CSDL kèm bộ lọc nhanh dạng Pills.
 5. **Chuẩn thiết kế UI/UX hiện đại:** Sticky Topbar/Nav ghim cố định, toàn bộ khoảng cách padding/margin/border-radius ≤ 12px, responsive trên mọi thiết bị.

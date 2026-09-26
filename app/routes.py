@@ -4,7 +4,17 @@ from pathlib import Path
 from flask import Blueprint, flash, redirect, render_template, request, send_from_directory, url_for
 
 from .db import execute_query, execute_script_return_sets, get_connection, run_sql_file
-from .queries import DEMO_CASES, DEMO_GROUPS, REPORT_VIEWS, TABLES_TO_SHOW
+from .queries import (
+    ALL_VIEWS,
+    DEMO_CASES,
+    DEMO_GROUPS,
+    GATE_VIEWS,
+    MAP_VIEWS,
+    OPERATION_VIEW_META,
+    OPERATION_VIEWS,
+    REPORT_VIEWS,
+    TABLES_TO_SHOW,
+)
 
 bp = Blueprint("main", __name__)
 
@@ -32,6 +42,21 @@ def build_report_items():
             "view_name": view_name,
             "expected_filename": f"{view_name}.png",
             "screenshot_filename": screenshot_filename,
+        })
+    return items
+
+
+def build_operation_view_items():
+    """Dựng danh mục 7 views vận hành (bốt cổng + sơ đồ realtime) cho trang Báo cáo."""
+    items = []
+    for view_name in OPERATION_VIEWS:
+        meta = OPERATION_VIEW_META.get(view_name, {})
+        items.append({
+            "view_name": view_name,
+            "icon": meta.get("icon", "📊"),
+            "title": meta.get("title", view_name),
+            "desc": meta.get("desc", "View vận hành thời gian thực."),
+            "category": meta.get("category", "Vận Hành"),
         })
     return items
 
@@ -77,9 +102,11 @@ def health():
 
 @bp.route("/map")
 def parking_map():
+    """Sơ đồ bãi xe thời gian thực, dữ liệu lấy trực tiếp từ 3 views PHẦN D của sql/07_views.sql."""
     selected_bai = request.args.get("bai", "BAI_Q1")
     bai_list = []
     slots = []
+    zones = []
     bai_info = None
     error = None
 
@@ -88,35 +115,97 @@ def parking_map():
         if bai_list and not any(b["MaBai"] == selected_bai for b in bai_list):
             selected_bai = bai_list[0]["MaBai"]
 
-        bai_info_rows = execute_query("SELECT * FROM dbo.vw_Report_CongSuatBaiDo WHERE MaBai = ?", (selected_bai,))
+        # Thẻ tổng quan công suất bãi (kèm cờ đối soát bộ đếm và nhịp xe vào/ra trong ngày)
+        bai_info_rows = execute_query(
+            "SELECT * FROM dbo.v_SodoBai_TongQuanBai WHERE MaBai = ?;", (selected_bai,)
+        )
         if bai_info_rows:
             bai_info = bai_info_rows[0]
 
-        slots = execute_query("""
-            SELECT 
-                vt.MaViTri, 
-                vt.KhuVuc, 
-                vt.TrangThai, 
-                vt.MaLoaiXe, 
-                lx.TenLoai,
-                lg.BienSo,
-                lg.ThoiGianVao,
-                lg.MaThe
-            FROM dbo.VI_TRI_DO vt
-            INNER JOIN dbo.LOAI_XE lx ON vt.MaLoaiXe = lx.MaLoaiXe AND vt.MaBai = lx.MaBai
-            LEFT JOIN dbo.LUOT_GUI lg ON vt.MaViTri = lg.MaViTri AND lg.ThoiGianRa IS NULL
-            WHERE vt.MaBai = ?
-            ORDER BY vt.KhuVuc, vt.MaViTri;
-        """, (selected_bai,))
+        # Thanh tổng hợp số ô trống theo từng khu vực / tầng
+        zones = execute_query(
+            "SELECT * FROM dbo.v_SodoBai_TongHopKhuVuc WHERE MaBai = ? ORDER BY KhuVuc;", (selected_bai,)
+        )
+
+        # Lưới ô đỗ chi tiết (view đã bảo đảm đúng 1 dòng cho 1 ô đỗ)
+        slots = execute_query(
+            "SELECT * FROM dbo.v_SodoBai_ODoChiTiet WHERE MaBai = ? ORDER BY ThuTuHienThi;", (selected_bai,)
+        )
     except Exception as exc:
         error = str(exc)
 
     return render_template(
-        "parking_map.html", 
-        bai_list=bai_list, 
-        selected_bai=selected_bai, 
-        bai_info=bai_info, 
-        slots=slots, 
+        "parking_map.html",
+        bai_list=bai_list,
+        selected_bai=selected_bai,
+        bai_info=bai_info,
+        zones=zones,
+        slots=slots,
+        map_views=MAP_VIEWS,
+        error=error
+    )
+
+
+@bp.route("/gate")
+def gate_booth():
+    """Bốt kiểm soát cổng vào/ra, dữ liệu lấy trực tiếp từ 4 views PHẦN C của sql/07_views.sql."""
+    selected_bai = request.args.get("bai", "")
+    ma_the = (request.args.get("the") or "").strip().upper()
+
+    bai_list = []
+    den_cong = []
+    xe_cho_ra = []
+    nhat_ky = []
+    the_options = []
+    the_info = None
+    error = None
+
+    try:
+        bai_list = execute_query("SELECT MaBai, TenBai FROM dbo.BAI_DO_XE ORDER BY MaBai;")
+        if selected_bai and not any(b["MaBai"] == selected_bai for b in bai_list):
+            selected_bai = ""
+
+        # Bảng đèn tín hiệu CÒN CHỖ / HẾT CHỖ tại cổng vào
+        if selected_bai:
+            den_cong = execute_query(
+                "SELECT * FROM dbo.v_BotCong_BangDenCong WHERE MaBai = ? ORDER BY MaLoaiXe;", (selected_bai,)
+            )
+            xe_cho_ra = execute_query(
+                "SELECT * FROM dbo.v_BotCong_XeChoRa WHERE MaBai = ? ORDER BY ThoiGianVao;", (selected_bai,)
+            )
+            nhat_ky = execute_query(
+                "SELECT TOP 25 * FROM dbo.v_BotCong_NhatKyVaoRa WHERE MaBai = ?;", (selected_bai,)
+            )
+        else:
+            den_cong = execute_query("SELECT * FROM dbo.v_BotCong_BangDenCong ORDER BY MaBai, MaLoaiXe;")
+            xe_cho_ra = execute_query("SELECT * FROM dbo.v_BotCong_XeChoRa ORDER BY ThoiGianVao;")
+            nhat_ky = execute_query("SELECT TOP 25 * FROM dbo.v_BotCong_NhatKyVaoRa;")
+
+        # Danh sách mã thẻ gợi ý cho ô nhập quét thẻ tại bốt cổng
+        the_options = execute_query("""
+            SELECT MaThe, LoaiThe, TrangThaiThe, ChieuQuetKeTiep, ChoPhepQuet
+            FROM dbo.v_BotCong_TraCuuThe
+            ORDER BY MaThe;
+        """)
+
+        # Kết quả quét 1 mã thẻ cụ thể tại barrier
+        if ma_the:
+            the_rows = execute_query("SELECT * FROM dbo.v_BotCong_TraCuuThe WHERE MaThe = ?;", (ma_the,))
+            the_info = the_rows[0] if the_rows else None
+    except Exception as exc:
+        error = str(exc)
+
+    return render_template(
+        "gate_booth.html",
+        bai_list=bai_list,
+        selected_bai=selected_bai,
+        ma_the=ma_the,
+        the_info=the_info,
+        the_options=the_options,
+        den_cong=den_cong,
+        xe_cho_ra=xe_cho_ra,
+        nhat_ky=nhat_ky,
+        gate_views=GATE_VIEWS,
         error=error
     )
 
@@ -139,7 +228,12 @@ def table_detail(table_name):
 
 @bp.route("/reports")
 def reports():
-    return render_template("reports.html", reports=REPORT_VIEWS, report_items=build_report_items())
+    return render_template(
+        "reports.html",
+        reports=REPORT_VIEWS,
+        report_items=build_report_items(),
+        operation_view_items=build_operation_view_items(),
+    )
 
 
 @bp.route("/report-image/<path:filename>")
@@ -149,7 +243,7 @@ def report_image(filename):
 
 @bp.route("/report/<view_name>")
 def report_detail(view_name):
-    if view_name not in REPORT_VIEWS:
+    if view_name not in ALL_VIEWS:
         return render_template("error.html", title="Báo cáo không hợp lệ", error="View không nằm trong danh mục cho phép."), 400
     try:
         rows = execute_query(f"SELECT TOP 200 * FROM dbo.{view_name};")

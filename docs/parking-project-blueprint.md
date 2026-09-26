@@ -242,9 +242,9 @@ WITH RECOVERY;
 
 ---
 
-## 👁️ PHẦN III: HỆ THỐNG BẢNG ẢO (VIEWS) GIÁM SÁT REALTIME & BÁO CÁO BI (8 VIEWS)
+## 👁️ PHẦN III: HỆ THỐNG BẢNG ẢO (VIEWS) GIÁM SÁT REALTIME & BÁO CÁO BI (15 VIEWS)
 
-Triển khai đầy đủ trong `sql/07_views.sql`, chia thành 2 nhóm chuyên biệt:
+Triển khai đầy đủ trong `sql/07_views.sql`, chia thành 4 nhóm chuyên biệt:
 
 ### Nhóm 1: Views Vận Hành Thời Gian Thực (Operational Realtime)
 1. **`v_SodoOdoRealtime`**: Sơ đồ mặt bằng ô đỗ thời gian thực, hiển thị trạng thái `Trống` / `Đã đỗ`, liên kết biển số xe và giờ gửi nếu đang có xe đỗ.
@@ -257,6 +257,21 @@ Triển khai đầy đủ trong `sql/07_views.sql`, chia thành 2 nhóm chuyên 
 6. **`v_BaoCaoSuCoChiNhanh`**: Báo cáo tổng hợp số lượng sự cố an ninh, biên bản mất thẻ và tổng tiền phạt phát sinh theo từng chi nhánh.
 7. **`v_ThongKeLoaiXe`**: Báo cáo cơ cấu phương tiện gửi tại bãi (tỷ lệ xe máy, ô tô 4 chỗ, xe đạp) phục vụ quy hoạch mặt bằng.
 8. **`v_NhatKyVaoRaGanNhat`**: Top 100 sự kiện check-in / check-out mới nhất phục vụ màn hình camera giám sát tại phòng bảo vệ.
+
+### Nhóm 3: Views Bốt Kiểm Soát Cổng Vào / Ra (Gate Control Kiosk)
+Bộ 4 views này là nguồn dữ liệu duy nhất cho màn hình bảo vệ trực barrier: quét mã thẻ là ra ngay quyết định đóng/mở cổng, số tiền phải thu và cảnh báo an ninh kèm theo.
+
+9. **`v_BotCong_TraCuuThe`**: Tra cứu thẻ tại bốt cổng, mỗi mã thẻ trả về đúng 1 dòng gồm tình trạng thẻ, hợp đồng vé tháng, lượt gửi đang mở, chiều quét kế tiếp (`Vào` / `Ra`), cờ `ChoPhepQuet` và `LyDoTuChoi` đối chiếu đúng các rào chặn của `trg_KiemTraCheckIn` (lỗi 50001 / 50002) và `trg_ChanSuDungVeHetHan` (lỗi 50003).
+10. **`v_BotCong_XeChoRa`**: Màn hình check-out tại cổng ra, liệt kê xe đang trong bãi kèm số phút đỗ, số block giờ tính phí, `TienTamTinh` theo đúng công thức `f_TinhTienGuiXe` và chính sách miễn phí xe vé tháng của `sp_XeRaBai`, kèm cờ `CanhBaoLechBienSo`.
+11. **`v_BotCong_NhatKyVaoRa`**: Bảng điện tử 200 sự kiện vào/ra mới nhất, mỗi lượt gửi được trải thành 2 dòng sự kiện (`Vào` và `Ra`) theo trục thời gian cho phòng bảo vệ đối chiếu camera giám sát.
+12. **`v_BotCong_BangDenCong`**: Bảng đèn tín hiệu `CÒN CHỖ` / `HẾT CHỖ` đặt tại cổng vào theo từng cặp (bãi đỗ × loại phương tiện), kèm ô đỗ gợi ý do `f_TimSlotTrong` cấp phát và biểu phí niêm yết.
+
+### Nhóm 4: Views Sơ Đồ Bãi Xe Thời Gian Thực (Realtime Parking Map)
+Bộ 3 views này phục vụ trực tiếp màn hình `/map`: một view vẽ lưới ô đỗ, một view vẽ thanh tổng hợp theo khu vực và một view vẽ thẻ tổng quan công suất.
+
+13. **`v_SodoBai_ODoChiTiet`**: Chi tiết từng ô đỗ trên sơ đồ mặt bằng (bảo đảm đúng 1 dòng / 1 ô đỗ), kèm phương tiện đang chiếm chỗ, thời gian lưu bãi, tiền tạm tính, hồ sơ chủ xe vé tháng và cờ `CanhBaoLechDuLieu` khi trạng thái ô đỗ không khớp lượt gửi đang mở.
+14. **`v_SodoBai_TongHopKhuVuc`**: Tổng hợp số ô trống / đã đỗ theo từng khu vực – tầng, chia nhỏ theo loại phương tiện để bảo vệ hướng dẫn khách đi đúng tầng còn chỗ.
+15. **`v_SodoBai_TongQuanBai`**: Thẻ tổng quan công suất từng bãi, đối soát bộ đếm `BAI_DO_XE.SoLuongHienTai` với số lượt gửi đang mở thực tế (cờ `CanhBaoLechBoDem`), kèm nhịp xe vào/ra và doanh thu vé lượt trong ngày.
 
 ---
 
@@ -297,7 +312,7 @@ Hệ thống cung cấp đầy đủ các khối lệnh lập trình thủ tục
 ```
                   CỔNG WEB DEMO ĐIỀU HÀNH (PORT 5001)
 ┌────────────────────────────────────────────────────────────────────────┐
-│ [Logo] QUẢN LÝ CHUỖI BÃI ĐỖ XE  |  Tổng quan | Sơ đồ | Bảng | Báo cáo │
+│ [Logo] QUẢN LÝ BÃI ĐỖ XE | Tổng quan | Sơ đồ | Bốt cổng | Bảng | Báo cáo│
 ├────────────────────────────────────────────────────────────────────────┤
 │                                                                        │
 │  [MÀN HÌNH TỔNG QUAN / DASHBOARD]                                     │
@@ -332,13 +347,18 @@ Hệ thống cung cấp đầy đủ các khối lệnh lập trình thủ tục
    - Bộ chọn chi nhánh bãi đỗ xe (`BAI_Q1`, `BAI_Q3`, `BAI_BT`).
    - Thống kê tỷ lệ lấp đầy, số chỗ trống/đã đỗ theo loại xe (Xe máy, Ô tô).
    - Mô phỏng ô đỗ trực quan, hiển thị biển kiểm soát dập nổi phản quang chân thực.
-3. **Màn hình Danh mục Bảng CSDL (`/tables`):**
+3. **Màn hình Bốt Kiểm Soát Cổng Vào/Ra (`/gate`):**
+   - Khối quét thẻ tại barrier: nhập mã thẻ trả về đèn quyết định `MỞ BARRIER` / `TỪ CHỐI`, chiều quét kế tiếp, lý do từ chối và ghi chú cảnh báo an ninh (view `v_BotCong_TraCuuThe`).
+   - Bảng đèn tín hiệu cổng vào theo loại phương tiện kèm ô đỗ gợi ý (view `v_BotCong_BangDenCong`).
+   - Danh sách xe chờ ra cổng kèm tiền tạm tính và cảnh báo lệch biển số (view `v_BotCong_XeChoRa`).
+   - Nhật ký dòng sự kiện xe qua barrier theo trục thời gian (view `v_BotCong_NhatKyVaoRa`).
+4. **Màn hình Danh mục Bảng CSDL (`/tables`):**
    - Xem dữ liệu bảng trực tiếp và cấu trúc 11 bảng CSDL.
-4. **Màn hình Báo cáo Quản trị BI (`/reports`):**
-   - Trực quan hóa dữ liệu 8 Views báo cáo, doanh thu, công suất bãi đỗ, phân loại xe và sự cố.
-5. **Màn hình Truy vấn SQL (`/sql`):**
+5. **Màn hình Báo cáo Quản trị BI (`/reports`):**
+   - Trực quan hóa dữ liệu 15 Views báo cáo, doanh thu, công suất bãi đỗ, phân loại xe và sự cố.
+6. **Màn hình Truy vấn SQL (`/sql`):**
    - Trình thực thi câu lệnh SQL trực tiếp kèm hiển thị kết quả truy vấn dạng bảng.
-6. **Màn hình Tích hợp Health & Setup CSDL Thông minh (`/setup`):**
+7. **Màn hình Tích hợp Health & Setup CSDL Thông minh (`/setup`):**
    - **Gom chung Health Check & Setup CSDL:** Tránh tình trạng người dùng click cài đặt khi cơ sở dữ liệu chưa sẵn sàng hoặc kết nối bị từ chối.
    - **Cơ chế khóa bảo vệ an toàn:** Khối Cài đặt CSDL bị ẩn và khóa ban đầu. Chỉ khi người dùng bấm *"Kiểm tra kết nối"* và hệ thống nhận phản hồi thành công (`CONNECTED`), phần Setup mới tự động mở khóa và hiển thị với hiệu ứng slide-in.
    - **Hỗ trợ 2 phương thức cài đặt:** Khởi tạo trọn gói tự động bằng file tổng hợp `QL_BaiDoXe_FullScript.sql` hoặc chạy tuần tự từng script từ `01` đến `09`.
@@ -354,7 +374,7 @@ Hệ thống cung cấp đầy đủ các khối lệnh lập trình thủ tục
 | **Nhóm 1** | **Thành viên A, B** | **Phân tích Thiết kế ERD & Phân quyền RBAC:**<br>- Thiết kế mô hình quan hệ ERD 11 bảng chuẩn 3NF.<br>- Biên soạn Từ điển Dữ liệu (Data Dictionary).<br>- Viết mã lệnh phân quyền Roles (`r_Admin`, `r_QuanLyBai`, `r_BaoVe`) và các chính sách `GRANT/DENY`. | - File sơ đồ ERD chuẩn dạng PNG/PDF.<br>- Tài liệu Word Từ điển dữ liệu.<br>- File script `sql/08_security_rbac.sql`. |
 | **Nhóm 2** | **Thành viên C, D** | **Thiết Lập Môi Trường Docker & Core Schema:**<br>- Cấu hình Docker Container (`Azure SQL Edge` / SQL Server 2022) trên Mac M1 & Windows.<br>- Lập trình file `01_schema.sql` tạo 11 bảng, PK, FK, Composite PK, ràng buộc `CHECK/DEFAULT`.<br>- Tổng hợp file chạy tự động `QL_BaiDoXe_FullScript.sql`. | - File `docker-compose.yml`.<br>- File `sql/01_schema.sql` chạy 100% không lỗi.<br>- File `sql/QL_BaiDoXe_FullScript.sql`. |
 | **Nhóm 3** | **Thành viên E, F** | **Lập Trình Stored Procedures, Triggers & Backup:**<br>- Viết 6 Stored Procedures nghiệp vụ (`sp_XeVaoBai`, `sp_XeRaBai`, `sp_DangNhap`,...).<br>- Viết 5 Triggers kiểm soát an ninh bãi xe.<br>- Lập trình kịch bản Full/Diff/Log Backup & Restore CSDL. | - File `sql/03_procedures.sql`.<br>- File `sql/04_triggers.sql`.<br>- File script `sql/09_backup_restore.sql`. |
-| **Nhóm 4** | **Thành viên G, H** | **Lập Trình Views, Functions, Cursors & Bulk Data:**<br>- Viết 8 Bảng Views giám sát realtime và báo cáo BI.<br>- Viết 3 Functions tính phí và xếp slot tự động.<br>- Viết 2 Cursors duyệt quét tự động.<br>- Viết script Bulk Insert Import thẻ xe từ file CSV. | - File `sql/05_functions.sql`.<br>- File `sql/06_cursors.sql`.<br>- File `sql/07_views.sql`.<br>- Data file CSV mẫu & kịch bản bulk data. |
+| **Nhóm 4** | **Thành viên G, H** | **Lập Trình Views, Functions, Cursors & Bulk Data:**<br>- Viết 15 Bảng Views giám sát realtime, bốt kiểm soát cổng vào/ra và báo cáo BI.<br>- Viết 3 Functions tính phí và xếp slot tự động.<br>- Viết 2 Cursors duyệt quét tự động.<br>- Viết script Bulk Insert Import thẻ xe từ file CSV. | - File `sql/05_functions.sql`.<br>- File `sql/06_cursors.sql`.<br>- File `sql/07_views.sql`.<br>- Data file CSV mẫu & kịch bản bulk data. |
 | **Nhóm 5** | **Thành viên I, K** | **Dữ Liệu Mẫu, Web Demo UI & Biên Soạn Báo Cáo:**<br>- Chuẩn bị dữ liệu mẫu thực tế cho 11 bảng (`02_sample_data.sql`).<br>- Phát triển giao diện Web Dashboard điều hành trực quan (Flask + Jinja2 + Modern UI).<br>- Biên soạn Báo cáo hoàn chỉnh theo mẫu template trường quy định. | - File `sql/02_sample_data.sql`.<br>- Source code Web App (`app/`, `run.py`).<br>- File Báo cáo Word/PDF hoàn chỉnh (< 20 trang). |
 
 ---
@@ -373,7 +393,7 @@ Cấu trúc gói nộp bài chuẩn bị sẵn sàng bàn giao cho giảng viên
   - `04_triggers.sql`: 5 Triggers an ninh & toàn vẹn dữ liệu.
   - `05_functions.sql`: 3 Functions tính phí và tìm slot.
   - `06_cursors.sql`: 2 Cursors duyệt tự động.
-  - `07_views.sql`: 8 Views vận hành & báo cáo BI.
+  - `07_views.sql`: 15 Views vận hành, bốt cổng, sơ đồ realtime & báo cáo BI.
   - `08_security_rbac.sql`: Phân quyền 3 Roles RBAC.
   - `09_backup_restore.sql`: Chiến lược sao lưu và khôi phục CSDL.
   - `QL_BaiDoXe_FullScript.sql`: Script tổng hợp toàn bộ CSDL chạy 1 lần duy nhất.

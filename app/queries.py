@@ -25,6 +25,75 @@ REPORT_VIEWS = [
     "vw_Report_NhatKySuCo",
 ]
 
+# ====================================================================================
+# DANH MỤC VIEWS VẬN HÀNH THỜI GIAN THỰC (sql/07_views.sql - PHẦN C & PHẦN D)
+# 4 views phục vụ bốt kiểm soát cổng vào/ra + 3 views phục vụ sơ đồ bãi xe realtime
+# ====================================================================================
+
+GATE_VIEWS = [
+    "v_BotCong_TraCuuThe",
+    "v_BotCong_XeChoRa",
+    "v_BotCong_NhatKyVaoRa",
+    "v_BotCong_BangDenCong",
+]
+
+MAP_VIEWS = [
+    "v_SodoBai_ODoChiTiet",
+    "v_SodoBai_TongHopKhuVuc",
+    "v_SodoBai_TongQuanBai",
+]
+
+OPERATION_VIEWS = GATE_VIEWS + MAP_VIEWS
+
+# Toàn bộ views được phép mở trực tiếp qua route /report/<view_name>
+ALL_VIEWS = REPORT_VIEWS + OPERATION_VIEWS
+
+# Chú giải hiển thị cho 7 views vận hành trên trang Báo cáo
+OPERATION_VIEW_META = {
+    "v_BotCong_TraCuuThe": {
+        "icon": "🪪",
+        "title": "Tra Cứu Thẻ Tại Bốt Cổng",
+        "desc": "Quét 1 mã thẻ trả về đúng 1 dòng: tình trạng thẻ, vé tháng, chiều quét kế tiếp, cờ cho phép mở barrier và lý do từ chối.",
+        "category": "Bốt Cổng",
+    },
+    "v_BotCong_XeChoRa": {
+        "icon": "🧾",
+        "title": "Xe Chờ Ra & Tiền Tạm Tính",
+        "desc": "Danh sách xe đang trong bãi kèm số block giờ tính phí, tiền tạm tính theo f_TinhTienGuiXe và cảnh báo lệch biển số.",
+        "category": "Bốt Cổng",
+    },
+    "v_BotCong_NhatKyVaoRa": {
+        "icon": "📽️",
+        "title": "Nhật Ký 200 Sự Kiện Vào / Ra",
+        "desc": "Mỗi lượt gửi được trải thành 2 dòng sự kiện Vào và Ra theo trục thời gian cho màn hình phòng bảo vệ.",
+        "category": "Bốt Cổng",
+    },
+    "v_BotCong_BangDenCong": {
+        "icon": "🚦",
+        "title": "Bảng Đèn Tín Hiệu Cổng Vào",
+        "desc": "Trạng thái CÒN CHỖ / HẾT CHỖ theo từng cặp bãi đỗ x loại phương tiện, kèm ô đỗ gợi ý từ f_TimSlotTrong.",
+        "category": "Bốt Cổng",
+    },
+    "v_SodoBai_ODoChiTiet": {
+        "icon": "🅿️",
+        "title": "Chi Tiết Ô Đỗ Trên Sơ Đồ",
+        "desc": "Lưới ô đỗ thời gian thực (đúng 1 dòng / 1 ô đỗ) kèm xe đang chiếm chỗ, thời gian lưu bãi và cờ lệch dữ liệu.",
+        "category": "Sơ Đồ Realtime",
+    },
+    "v_SodoBai_TongHopKhuVuc": {
+        "icon": "🧱",
+        "title": "Tổng Hợp Theo Khu Vực / Tầng",
+        "desc": "Số ô trống và đã đỗ của từng khu vực, chia nhỏ theo loại phương tiện để hướng dẫn khách đi đúng tầng.",
+        "category": "Sơ Đồ Realtime",
+    },
+    "v_SodoBai_TongQuanBai": {
+        "icon": "📟",
+        "title": "Tổng Quan Công Suất Từng Bãi",
+        "desc": "Đối soát bộ đếm SoLuongHienTai với lượt gửi thực tế, nhịp xe vào/ra và doanh thu vé lượt trong ngày.",
+        "category": "Sơ Đồ Realtime",
+    },
+}
+
 DEMO_CASES = {
     # --------------------------------------------------------------------------------
     # CASE 1: sp_XeVaoBai
