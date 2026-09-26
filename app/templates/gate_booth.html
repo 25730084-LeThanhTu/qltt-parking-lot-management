@@ -1,0 +1,342 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="page-header" style="margin-bottom: 12px;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;">
+        <div>
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                <span class="step-badge" style="background: #fef3c7; color: #b45309;">GATE CONTROL KIOSK</span>
+                <span style="font-size: 0.825rem; color: var(--text-tertiary);">Vận hành barrier vào / ra</span>
+            </div>
+            <h1 style="font-size: 1.6rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.02em;">
+                🚦 Bốt Kiểm Soát Cổng Vào / Ra
+            </h1>
+            <p style="color: var(--text-secondary); margin-top: 4px; font-size: 0.9rem; max-width: 860px;">
+                Màn hình trực barrier của nhân viên bảo vệ. Toàn bộ số liệu đọc trực tiếp từ 4 SQL View:
+                {% for v in gate_views %}<code style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--primary);">{{ v }}</code>{% if not loop.last %} • {% endif %}{% endfor %}.
+            </p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <a href="{{ url_for('main.parking_map', bai=selected_bai or 'BAI_Q1') }}" class="btn btn-outline" style="font-size: 0.85rem; padding: 6px 12px;">
+                🗺️ Sơ Đồ Bãi Xe
+            </a>
+            <a href="{{ url_for('main.index') }}" class="btn btn-outline" style="font-size: 0.85rem; padding: 6px 12px;">
+                ← Về Trang Chủ
+            </a>
+        </div>
+    </div>
+</div>
+
+{% if error %}
+<div class="error-box" style="margin-bottom: 12px;">
+    <h3>Lỗi tải dữ liệu bốt cổng</h3>
+    <pre>{{ error }}</pre>
+</div>
+{% endif %}
+
+<!-- Bộ chọn chi nhánh bãi đỗ trực cổng -->
+<div class="card" style="padding: 10px 12px; margin-bottom: 12px;">
+    <div class="segmented-control">
+        <a href="{{ url_for('main.gate_booth', the=ma_the) }}" class="segmented-btn {% if not selected_bai %}active{% endif %}">
+            🌐 Toàn chuỗi
+        </a>
+        {% for b in bai_list %}
+        <a href="{{ url_for('main.gate_booth', bai=b.MaBai, the=ma_the) }}"
+           class="segmented-btn {% if b.MaBai == selected_bai %}active{% endif %}">
+           🏢 {{ b.TenBai }}
+        </a>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- ============================================================================
+     KHỐI 1: QUÉT THẺ TẠI BARRIER (view v_BotCong_TraCuuThe)
+     ============================================================================ -->
+<div class="card" style="padding: 12px; margin-bottom: 12px;">
+    <div class="card-header">
+        <h3 class="card-title">
+            <span>🪪 Khối 1 · Quét Thẻ Tại Barrier</span>
+        </h3>
+        <span class="badge badge-info" style="font-size: 0.72rem;">dbo.v_BotCong_TraCuuThe</span>
+    </div>
+
+    <form method="get" action="{{ url_for('main.gate_booth') }}" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 10px;">
+        <input type="hidden" name="bai" value="{{ selected_bai }}">
+        <div>
+            <label for="the" style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px;">
+                Mã thẻ quét qua đầu đọc
+            </label>
+            <input id="the" name="the" list="the-options" value="{{ ma_the }}" placeholder="VD: THE0001"
+                   style="font-family: var(--font-mono); font-weight: 700; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; min-width: 200px; font-size: 0.9rem;">
+            <datalist id="the-options">
+                {% for t in the_options %}
+                <option value="{{ t.MaThe }}">{{ t.MaThe }} — {{ t.LoaiThe }} — {{ t.TrangThaiThe }} — quét {{ t.ChieuQuetKeTiep }}</option>
+                {% endfor %}
+            </datalist>
+        </div>
+        <button type="submit" class="btn btn-primary" style="padding: 7px 14px; font-size: 0.875rem;">
+            🔍 Tra Cứu Quyết Định Mở Barrier
+        </button>
+        {% if ma_the %}
+        <a href="{{ url_for('main.gate_booth', bai=selected_bai) }}" class="btn btn-outline" style="padding: 7px 12px; font-size: 0.85rem;">
+            ✕ Xóa kết quả quét
+        </a>
+        {% endif %}
+    </form>
+
+    {% if ma_the and not the_info %}
+    <div class="flash error">
+        <div class="flash-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+        </div>
+        <div class="flash-text">
+            Không tìm thấy mã thẻ <strong>{{ ma_the }}</strong> trong kho thẻ <code>THE_XE</code>. Từ chối mở barrier và yêu cầu khách về quầy dịch vụ.
+        </div>
+    </div>
+    {% endif %}
+
+    {% if the_info %}
+    <!-- Bảng quyết định barrier -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;">
+        <!-- Đèn quyết định -->
+        <div style="border-radius: 10px; padding: 12px; border: 2px solid {% if the_info.ChoPhepQuet %}var(--success){% else %}var(--danger){% endif %}; background: {% if the_info.ChoPhepQuet %}var(--success-bg){% else %}var(--danger-bg){% endif %};">
+            <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-tertiary);">
+                Quyết định barrier · chiều quét kế tiếp
+            </div>
+            <div style="font-size: 1.5rem; font-weight: 800; margin-top: 4px; color: {% if the_info.ChoPhepQuet %}#065f46{% else %}#991b1b{% endif %};">
+                {% if the_info.ChoPhepQuet %}✅ MỞ BARRIER{% else %}⛔ TỪ CHỐI{% endif %}
+            </div>
+            <div style="margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap;">
+                <span class="badge {% if the_info.ChieuQuetKeTiep == 'Vào' %}badge-info{% else %}badge-warning{% endif %}">
+                    <span class="badge-dot"></span>Chiều quét: {{ the_info.ChieuQuetKeTiep }}
+                </span>
+                <span class="badge {% if the_info.DangTrongBai %}badge-danger{% else %}badge-success{% endif %}">
+                    <span class="badge-dot"></span>{% if the_info.DangTrongBai %}Xe đang trong bãi{% else %}Xe ngoài bãi{% endif %}
+                </span>
+            </div>
+            {% if the_info.LyDoTuChoi %}
+            <p style="margin-top: 8px; font-size: 0.85rem; color: #991b1b; font-weight: 600; line-height: 1.45;">
+                ⛔ {{ the_info.LyDoTuChoi }}
+            </p>
+            {% endif %}
+            {% if the_info.GhiChuCanhBao %}
+            <p style="margin-top: 8px; font-size: 0.85rem; color: #92400e; font-weight: 600; line-height: 1.45;">
+                ⚠️ {{ the_info.GhiChuCanhBao }}
+            </p>
+            {% endif %}
+        </div>
+
+        <!-- Thông tin thẻ -->
+        <div class="card" style="padding: 10px 12px; margin-bottom: 0; border: 1px solid var(--border);">
+            <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-tertiary); letter-spacing: 0.05em; margin-bottom: 6px;">
+                Hồ sơ thẻ xe
+            </div>
+            <table style="width: 100%; font-size: 0.85rem;">
+                <tbody>
+                <tr><td style="color: var(--text-secondary); padding: 2px 0;">Mã thẻ</td><td style="text-align: right; font-family: var(--font-mono); font-weight: 700;">{{ the_info.MaThe }}</td></tr>
+                <tr><td style="color: var(--text-secondary); padding: 2px 0;">Loại thẻ</td>
+                    <td style="text-align: right;"><span class="badge {{ the_info.LoaiThe|status_badge_class }}"><span class="badge-dot"></span>{{ the_info.LoaiThe }}</span></td></tr>
+                <tr><td style="color: var(--text-secondary); padding: 2px 0;">Trạng thái thẻ</td>
+                    <td style="text-align: right;"><span class="badge {{ the_info.TrangThaiThe|status_badge_class }}"><span class="badge-dot"></span>{{ the_info.TrangThaiThe }}</span></td></tr>
+                <tr><td style="color: var(--text-secondary); padding: 2px 0;">Bãi kiểm soát</td><td style="text-align: right; font-weight: 600;">{{ the_info.TenBaiKiemSoat or the_info.MaBaiKiemSoat }}</td></tr>
+                <tr><td style="color: var(--text-secondary); padding: 2px 0;">Chỗ trống của bãi</td>
+                    <td style="text-align: right; font-weight: 700; color: {% if the_info.SoChoTrong and the_info.SoChoTrong > 0 %}var(--success){% else %}var(--danger){% endif %};">
+                        {{ the_info.SoChoTrong }} / {{ the_info.SucChua }}
+                    </td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Hợp đồng vé tháng -->
+        <div class="card" style="padding: 10px 12px; margin-bottom: 0; border: 1px solid var(--border);">
+            <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-tertiary); letter-spacing: 0.05em; margin-bottom: 6px;">
+                Hợp đồng vé tháng
+            </div>
+            {% if the_info.MaVe %}
+            <table style="width: 100%; font-size: 0.85rem;">
+                <tbody>
+                <tr><td style="color: var(--text-secondary); padding: 2px 0;">Mã vé</td><td style="text-align: right; font-family: var(--font-mono); font-weight: 700;">{{ the_info.MaVe }}</td></tr>
+                <tr><td style="color: var(--text-secondary); padding: 2px 0;">Chủ xe</td><td style="text-align: right; font-weight: 600;">{{ the_info.HoTenKhachHang }}</td></tr>
+                <tr><td style="color: var(--text-secondary); padding: 2px 0;">Điện thoại</td><td style="text-align: right; font-family: var(--font-mono);">{{ the_info.SDTKhachHang }}</td></tr>
+                <tr><td style="color: var(--text-secondary); padding: 2px 0;">Biển số đăng ký</td><td style="text-align: right;"><span class="license-plate" style="font-size: 0.78rem;">{{ the_info.BienSoDangKy }}</span></td></tr>
+                <tr><td style="color: var(--text-secondary); padding: 2px 0;">Hạn sử dụng</td>
+                    <td style="text-align: right; font-weight: 700; color: {% if the_info.SoNgayConLaiVe is not none and the_info.SoNgayConLaiVe < 0 %}var(--danger){% elif the_info.SoNgayConLaiVe is not none and the_info.SoNgayConLaiVe <= 3 %}var(--warning){% else %}var(--success){% endif %};">
+                        {{ the_info.NgayHetHan }} ({{ the_info.SoNgayConLaiVe }} ngày)
+                    </td></tr>
+                <tr><td style="color: var(--text-secondary); padding: 2px 0;">Phạm vi áp dụng</td>
+                    <td style="text-align: right; font-weight: 600;">
+                        {% if the_info.VeApDungToanChuoi %}Toàn chuỗi ({{ the_info.MaBaiApDung }}){% else %}{{ the_info.MaBaiApDung }}{% endif %}
+                    </td></tr>
+                </tbody>
+            </table>
+            {% else %}
+            <p style="font-size: 0.85rem; color: var(--text-tertiary); font-style: italic;">
+                Thẻ lượt vãng lai — không gắn hợp đồng vé tháng. Phí gửi sẽ được tính khi ra cổng.
+            </p>
+            {% endif %}
+        </div>
+
+        <!-- Lượt gửi đang mở -->
+        {% if the_info.MaLuotDangMo %}
+        <div class="card" style="padding: 10px 12px; margin-bottom: 0; border: 1px solid var(--border);">
+            <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-tertiary); letter-spacing: 0.05em; margin-bottom: 6px;">
+                Lượt gửi đang mở
+            </div>
+            <table style="width: 100%; font-size: 0.85rem;">
+                <tbody>
+                <tr><td style="color: var(--text-secondary); padding: 2px 0;">Mã lượt</td><td style="text-align: right; font-family: var(--font-mono); font-weight: 700;">{{ the_info.MaLuotDangMo }}</td></tr>
+                <tr><td style="color: var(--text-secondary); padding: 2px 0;">Biển số lúc vào</td><td style="text-align: right;"><span class="license-plate" style="font-size: 0.78rem;">{{ the_info.BienSoDangGui }}</span></td></tr>
+                <tr><td style="color: var(--text-secondary); padding: 2px 0;">Ô đỗ đang chiếm</td><td style="text-align: right; font-family: var(--font-mono); font-weight: 700;">{{ the_info.MaViTriDangDo }}</td></tr>
+                <tr><td style="color: var(--text-secondary); padding: 2px 0;">Giờ vào</td><td style="text-align: right;">{{ the_info.ThoiGianVao }}</td></tr>
+                <tr><td style="color: var(--text-secondary); padding: 2px 0;">Đã đỗ</td><td style="text-align: right; font-weight: 700;">{{ the_info.SoPhutDaDo }} phút</td></tr>
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- ============================================================================
+     KHỐI 2: BẢNG ĐÈN TÍN HIỆU CỔNG VÀO (view v_BotCong_BangDenCong)
+     ============================================================================ -->
+<div class="card" style="padding: 12px; margin-bottom: 12px;">
+    <div class="card-header">
+        <h3 class="card-title"><span>🚥 Khối 2 · Bảng Đèn Tín Hiệu Cổng Vào</span></h3>
+        <span class="badge badge-info" style="font-size: 0.72rem;">dbo.v_BotCong_BangDenCong</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px;">
+        {% for d in den_cong %}
+        {% set is_red = 'ĐỎ' in d.DenTinHieuCong %}
+        {% set is_yellow = 'VÀNG' in d.DenTinHieuCong %}
+        <div style="border-radius: 10px; padding: 10px 12px; border: 2px solid {% if is_red %}var(--danger){% elif is_yellow %}var(--warning){% else %}var(--success){% endif %}; background: {% if is_red %}var(--danger-bg){% elif is_yellow %}var(--warning-bg){% else %}var(--success-bg){% endif %};">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 6px;">
+                <strong style="font-size: 0.9rem;">
+                    {% if d.MaLoaiXe == 'XM' %}🛵{% elif d.MaLoaiXe == 'OT' %}🚗{% else %}🚲{% endif %}
+                    {{ d.LoaiPhuongTien }}
+                </strong>
+                <span style="font-size: 1.15rem;">{% if is_red %}🔴{% elif is_yellow %}🟡{% else %}🟢{% endif %}</span>
+            </div>
+            {% if not selected_bai %}
+            <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 2px;">{{ d.TenBai }}</div>
+            {% endif %}
+            <div style="font-size: 0.82rem; font-weight: 700; margin-top: 6px; color: {% if is_red %}#991b1b{% elif is_yellow %}#92400e{% else %}#065f46{% endif %};">
+                {{ d.DenTinHieuCong }}
+            </div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px;">
+                Trống <strong>{{ d.SoODoTrong }}</strong> / {{ d.TongODoTheoLoai }} ô • lấp đầy {{ d.TyLeLapDayTheoLoai }}%
+            </div>
+            <div style="font-size: 0.78rem; color: var(--text-tertiary); margin-top: 3px;">
+                Ô gợi ý: <strong style="font-family: var(--font-mono);">{{ d.MaViTriGoiY or '—' }}</strong>
+                • {{ d.DonGiaGio|format_cell('DonGiaGio') }}/giờ
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- ============================================================================
+     KHỐI 3: XE CHỜ RA & TIỀN TẠM TÍNH (view v_BotCong_XeChoRa)
+     ============================================================================ -->
+<div class="card" style="padding: 12px; margin-bottom: 12px;">
+    <div class="card-header">
+        <h3 class="card-title"><span>🧾 Khối 3 · Xe Chờ Ra Cổng & Tiền Tạm Tính</span></h3>
+        <div style="display: flex; gap: 6px;">
+            <span class="badge badge-warning" style="font-size: 0.72rem;">{{ xe_cho_ra|length }} xe trong bãi</span>
+            <span class="badge badge-info" style="font-size: 0.72rem;">dbo.v_BotCong_XeChoRa</span>
+        </div>
+    </div>
+
+    {% if xe_cho_ra %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+            <tr>
+                <th>Lượt</th><th>Thẻ</th><th>Loại thẻ</th><th>Biển số</th><th>Ô đỗ</th><th>Phương tiện</th>
+                <th>Giờ vào</th><th>Đã đỗ</th><th>Block giờ</th><th>Tiền tạm tính</th><th>Chính sách</th><th>Cảnh báo</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for x in xe_cho_ra %}
+            <tr>
+                <td class="number-cell">{{ x.MaLuot }}</td>
+                <td style="font-family: var(--font-mono); font-weight: 600;">{{ x.MaThe }}</td>
+                <td><span class="badge {{ x.LoaiThe|status_badge_class }}"><span class="badge-dot"></span>{{ x.LoaiThe }}</span></td>
+                <td><span class="license-plate" style="font-size: 0.78rem;">{{ x.BienSoLucVao }}</span></td>
+                <td style="font-family: var(--font-mono);">{{ x.MaViTri }}</td>
+                <td>{{ x.LoaiPhuongTien }}</td>
+                <td>{{ x.ThoiGianVao }}</td>
+                <td class="number-cell">{{ x.SoPhutDaDo }} phút</td>
+                <td class="number-cell">{{ x.SoBlockGioTinhPhi }}</td>
+                <td class="money-cell">{{ x.TienTamTinh|format_cell('TienTamTinh') }}</td>
+                <td style="font-size: 0.8rem;">{{ x.ChinhSachThanhToan }}</td>
+                <td style="font-size: 0.78rem; color: {% if x.GhiChuCanhBao %}var(--danger){% else %}var(--text-tertiary) {% endif %};">
+                    {% if x.CanhBaoLechBienSo %}⚠️ {% endif %}{{ x.GhiChuCanhBao or '—' }}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div style="padding: 12px; text-align: center; color: var(--text-tertiary); font-size: 0.9rem; font-style: italic;">
+        (Hiện không có xe nào đang trong bãi chờ ra cổng)
+    </div>
+    {% endif %}
+</div>
+
+<!-- ============================================================================
+     KHỐI 4: NHẬT KÝ SỰ KIỆN QUA BARRIER (view v_BotCong_NhatKyVaoRa)
+     ============================================================================ -->
+<div class="card" style="padding: 12px; margin-bottom: 12px;">
+    <div class="card-header">
+        <h3 class="card-title"><span>📽️ Khối 4 · Nhật Ký Sự Kiện Xe Qua Barrier</span></h3>
+        <span class="badge badge-info" style="font-size: 0.72rem;">dbo.v_BotCong_NhatKyVaoRa</span>
+    </div>
+    <p style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 8px;">
+        View trả về 200 sự kiện mới nhất của toàn chuỗi; bảng dưới đây hiển thị 25 sự kiện gần nhất
+        {% if selected_bai %}thuộc bãi đang trực{% else %}trên toàn hệ thống{% endif %}.
+    </p>
+
+    {% if nhat_ky %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+            <tr>
+                <th>Thời điểm</th><th>Chiều</th><th>Bãi</th><th>Lượt</th><th>Thẻ</th><th>Loại thẻ</th>
+                <th>Biển số</th><th>Ô đỗ</th><th>Phương tiện</th><th>Lưu bãi</th><th>Tiền thu</th><th>Trạng thái lượt</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for k in nhat_ky %}
+            <tr>
+                <td>{{ k.ThoiGianSuKien }}</td>
+                <td>
+                    <span class="badge {% if k.ChieuDiChuyen == 'Vào' %}badge-info{% else %}badge-warning{% endif %}">
+                        <span class="badge-dot"></span>{% if k.ChieuDiChuyen == 'Vào' %}➡️ Vào{% else %}⬅️ Ra{% endif %}
+                    </span>
+                </td>
+                <td style="font-size: 0.8rem;">{{ k.TenBai }}</td>
+                <td class="number-cell">{{ k.MaLuot }}</td>
+                <td style="font-family: var(--font-mono); font-weight: 600;">{{ k.MaThe }}</td>
+                <td><span class="badge {{ k.LoaiThe|status_badge_class }}"><span class="badge-dot"></span>{{ k.LoaiThe }}</span></td>
+                <td><span class="license-plate" style="font-size: 0.78rem;">{{ k.BienSo }}</span></td>
+                <td style="font-family: var(--font-mono);">{{ k.MaViTri }}</td>
+                <td>{{ k.LoaiPhuongTien }}</td>
+                <td class="number-cell">{% if k.SoPhutLuuBai is not none %}{{ k.SoPhutLuuBai }} phút{% else %}—{% endif %}</td>
+                <td class="money-cell">{% if k.SoTienThu is not none %}{{ k.SoTienThu|format_cell('SoTienThu') }}{% else %}—{% endif %}</td>
+                <td style="font-size: 0.8rem;">{{ k.TrangThaiLuot }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div style="padding: 12px; text-align: center; color: var(--text-tertiary); font-size: 0.9rem; font-style: italic;">
+        (Chưa có sự kiện xe qua barrier nào được ghi nhận)
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

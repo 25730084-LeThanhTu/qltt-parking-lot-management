@@ -55,6 +55,10 @@
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M9 3v18"></path><path d="M15 3v18"></path><path d="M3 9h18"></path><path d="M3 15h18"></path></svg>
                 <span>Sơ Đồ Mặt Bằng</span>
             </a>
+            <a href="{{ url_for('main.gate_booth') }}" class="{% if request.endpoint == 'main.gate_booth' %}active{% endif %}">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V8l8-5 8 5v13"></path><path d="M4 14h16"></path><circle cx="12" cy="17" r="1.6"></circle></svg>
+                <span>Bốt Cổng Vào/Ra</span>
+            </a>
             <a href="{{ url_for('main.tables') }}" class="{% if request.endpoint in ['main.tables', 'main.table_detail'] %}active{% endif %}">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5V19A9 3 0 0 0 21 19V5"></path><path d="M3 12A9 3 0 0 0 21 12"></path></svg>
                 <span>11 Bảng CSDL</span>

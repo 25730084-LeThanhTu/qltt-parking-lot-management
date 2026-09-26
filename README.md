@@ -44,7 +44,7 @@ qltt-parking-lot-management/
 │   ├── 04_triggers.sql                 # 5 Database Triggers bẫy lỗi & đồng bộ dữ liệu
 │   ├── 05_functions.sql                # 3 Functions (Tính tiền giờ, Tìm slot trống, Danh sách xe)
 │   ├── 06_cursors.sql                  # 2 Cursors (Quét hạn vé tháng, Tổng kết tài chính chuỗi)
-│   ├── 07_views.sql                    # 5 Views báo cáo thống kê quản trị
+│   ├── 07_views.sql                    # 15 Views: vận hành, bốt cổng vào/ra, sơ đồ realtime & báo cáo BI
 │   ├── QL_BaiDoXe_FullScript.sql       # Script tổng hợp chạy 1 lần tự động dựng toàn bộ CSDL
 │   └── Demo_Queries.sql                # Câu lệnh SQL mẫu để đối chứng song hành dưới SSMS
 │
@@ -62,9 +62,10 @@ qltt-parking-lot-management/
 │       ├── base.html                   # Layout khung sườn
 │       ├── index.html                  # Trang chủ & thẻ thống kê tổng quan
 │       ├── parking_map.html            # Sơ đồ mặt bằng ô đỗ xe thời gian thực (Slot Map)
+│       ├── gate_booth.html             # Bốt kiểm soát cổng vào/ra (quét thẻ, đèn cổng, xe chờ ra, nhật ký)
 │       ├── demo.html                   # Màn hình Demo 5 bước song hành SSMS
 │       ├── tables.html                 # Danh mục 9 bảng dữ liệu
-│       ├── reports.html                # Danh mục 5 báo cáo thống kê
+│       ├── reports.html                # Danh mục 5 báo cáo BI + 7 views vận hành realtime
 │       ├── report_detail.html          # Chi tiết dữ liệu View & ảnh Dashboard
 │       ├── sql_query.html              # Trình gõ và chạy SQL trực tiếp
 │       ├── setup.html                  # Công cụ nạp lại CSDL từ web
@@ -162,13 +163,41 @@ Hệ thống được lập trình sẵn 9 kịch bản demo tại route `/demo/
 - Mỗi ô đỗ hiển thị mã vị trí, phân khu, loại xe đỗ cho phép.
 - Ô màu xanh lá = **Trống**; Ô màu đỏ = **Đã đỗ** (hiển thị kèm Biển số xe, mã thẻ chip, thời gian vào).
 - Sau khi bấm Check-in hoặc Check-out ở màn hình Demo, vào lại màn hình `/map` sẽ thấy trạng thái ô đỗ và số lượng xe được tự động cập nhật thời gian thực nhờ Trigger.
+- Toàn bộ số liệu đọc trực tiếp từ 3 SQL View: `v_SodoBai_ODoChiTiet` (lưới ô đỗ), `v_SodoBai_TongHopKhuVuc` (thanh tổng hợp theo khu vực/tầng) và `v_SodoBai_TongQuanBai` (thẻ tổng quan công suất, cờ đối soát bộ đếm, doanh thu vé lượt trong ngày).
 
 ---
 
-## 📊 6. Danh mục 5 Báo cáo Quản trị (`/reports`)
+## 🚦 5b. Màn hình Bốt Kiểm Soát Cổng Vào / Ra (`/gate`)
+
+Màn hình trực barrier của nhân viên bảo vệ, đọc trực tiếp từ 4 SQL View nhóm bốt cổng:
+
+- **Khối 1 · Quét thẻ tại barrier** (`v_BotCong_TraCuuThe`): nhập/chọn mã thẻ → hiển thị đèn quyết định **MỞ BARRIER** hoặc **TỪ CHỐI**, chiều quét kế tiếp (Vào / Ra), lý do từ chối (thẻ khóa/mất, vé tháng hết hạn, bãi đầy) và ghi chú cảnh báo an ninh; kèm hồ sơ thẻ, hợp đồng vé tháng và lượt gửi đang mở.
+- **Khối 2 · Bảng đèn tín hiệu cổng vào** (`v_BotCong_BangDenCong`): đèn 🟢 / 🟡 / 🔴 theo từng loại phương tiện, số ô trống, ô đỗ gợi ý và đơn giá niêm yết.
+- **Khối 3 · Xe chờ ra cổng** (`v_BotCong_XeChoRa`): số phút đỗ, số block giờ tính phí, tiền tạm tính và cảnh báo lệch biển số so với vé tháng.
+- **Khối 4 · Nhật ký sự kiện qua barrier** (`v_BotCong_NhatKyVaoRa`): dòng sự kiện Vào / Ra mới nhất kèm thời gian lưu bãi và số tiền thực thu.
+
+Hỗ trợ lọc theo từng chi nhánh bãi đỗ hoặc xem toàn chuỗi.
+
+---
+
+## 📊 6. Danh mục Báo cáo Quản trị (`/reports`)
+
+### 6a. 5 Views báo cáo BI
 
 1. `vw_Report_CongSuatBaiDo`: Sức chứa, số lượng đang gửi, chỗ trống, tỷ lệ lấp đầy từng bãi.
 2. `vw_Report_DoanhThuTheoBai`: Doanh thu xe lượt, doanh thu vé tháng và tổng doanh thu phân bổ.
 3. `vw_Report_XeDangDoHienTai`: Danh sách chi tiết toàn bộ phương tiện đang có mặt trong chuỗi.
 4. `vw_Report_VeThangSapHetHan`: Danh sách khách hàng và phương tiện cần gửi thông báo gia hạn vé.
 5. `vw_Report_NhatKySuCo`: Tổng hợp biên bản mất thẻ và số tiền phạt đền bù thu được.
+
+### 6b. 7 Views vận hành realtime
+
+Trang `/reports` liệt kê thêm 7 view vận hành, bấm vào từng thẻ để xem dữ liệu thô qua route `/report/<view_name>`:
+
+1. `v_BotCong_TraCuuThe`: Quyết định mở barrier khi quét thẻ tại bốt cổng.
+2. `v_BotCong_XeChoRa`: Xe đang trong bãi kèm tiền tạm tính khi ra cổng.
+3. `v_BotCong_NhatKyVaoRa`: 200 sự kiện xe qua barrier mới nhất.
+4. `v_BotCong_BangDenCong`: Đèn tín hiệu CÒN CHỖ / HẾT CHỖ tại cổng vào.
+5. `v_SodoBai_ODoChiTiet`: Chi tiết từng ô đỗ trên sơ đồ mặt bằng.
+6. `v_SodoBai_TongHopKhuVuc`: Tổng hợp ô trống theo khu vực / tầng.
+7. `v_SodoBai_TongQuanBai`: Tổng quan công suất và đối soát bộ đếm từng bãi.
