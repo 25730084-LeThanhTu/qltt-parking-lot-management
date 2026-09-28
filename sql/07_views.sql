@@ -1,8 +1,9 @@
 -- ====================================================================================
 -- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
--- BƯỚC 7: DATABASE VIEWS (15 VIEWS)
+-- BƯỚC 7: DATABASE VIEWS (21 VIEWS)
 -- PHẦN A: 3 views vận hành Blueprint V6 | PHẦN B: 5 views báo cáo BI
 -- PHẦN C: 4 views bốt kiểm soát cổng vào/ra | PHẦN D: 3 views sơ đồ bãi xe realtime
+-- PHẦN E: 6 views tổng hợp cho quản lý chuỗi bãi xe
 -- ====================================================================================
 
 -- ====================================================================================
@@ -611,4 +612,173 @@ OUTER APPLY (
       AND (CAST(l.ThoiGianVao AS DATE) = CAST(GETDATE() AS DATE)
            OR CAST(l.ThoiGianRa AS DATE) = CAST(GETDATE() AS DATE))
 ) hn;
+GO
+
+-- ====================================================================================
+-- PHẦN E: 6 VIEWS TỔNG HỢP PHỤC VỤ NHÀ QUẢN LÝ CHUỖI BÃI XE (ISSUE #12)
+-- Mục tiêu: Ban quản lý nhìn được doanh thu theo thời gian, giờ cao điểm, cơ cấu loại xe,
+-- xếp hạng các bãi và một bảng tổng quan toàn chuỗi. Chỉ đọc dữ liệu (SELECT), không sửa bảng.
+-- ====================================================================================
+
+-- 16. View vw_Report_DoanhThuTheoNgay: Doanh thu (lượt + vé tháng) theo từng ngày, từng bãi
+CREATE OR ALTER VIEW dbo.vw_Report_DoanhThuTheoNgay
+AS
+WITH Nguon AS (
+    SELECT
+        MaBai,
+        CAST(ThoiGianRa AS DATE) AS Ngay,
+        COUNT(*) AS SoLuotXe,
+        SUM(ISNULL(TienGui, 0)) AS DoanhThuLuot,
+        0 AS SoHoaDonVeThang,
+        CAST(0 AS DECIMAL(18,2)) AS DoanhThuVeThang
+    FROM dbo.LUOT_GUI
+    WHERE ThoiGianRa IS NOT NULL
+    GROUP BY MaBai, CAST(ThoiGianRa AS DATE)
+
+    UNION ALL
+
+    SELECT
+        MaBai,
+        CAST(NgayThanhToan AS DATE) AS Ngay,
+        0 AS SoLuotXe,
+        CAST(0 AS DECIMAL(18,2)) AS DoanhThuLuot,
+        COUNT(*) AS SoHoaDonVeThang,
+        SUM(ISNULL(SoTien, 0)) AS DoanhThuVeThang
+    FROM dbo.HOA_DON_VE_THANG
+    GROUP BY MaBai, CAST(NgayThanhToan AS DATE)
+)
+SELECT
+    bd.MaBai,
+    bd.TenBai,
+    n.Ngay,
+    SUM(n.SoLuotXe) AS SoLuotXe,
+    SUM(n.DoanhThuLuot) AS DoanhThuLuot,
+    SUM(n.SoHoaDonVeThang) AS SoHoaDonVeThang,
+    SUM(n.DoanhThuVeThang) AS DoanhThuVeThang,
+    SUM(n.DoanhThuLuot) + SUM(n.DoanhThuVeThang) AS TongDoanhThu
+FROM Nguon n
+INNER JOIN dbo.BAI_DO_XE bd ON n.MaBai = bd.MaBai
+GROUP BY bd.MaBai, bd.TenBai, n.Ngay;
+GO
+
+-- 17. View vw_Report_DoanhThuTheoThang: Doanh thu (lượt + vé tháng) theo từng tháng, từng bãi
+CREATE OR ALTER VIEW dbo.vw_Report_DoanhThuTheoThang
+AS
+WITH Nguon AS (
+    SELECT
+        MaBai,
+        YEAR(ThoiGianRa) AS Nam,
+        MONTH(ThoiGianRa) AS Thang,
+        COUNT(*) AS SoLuotXe,
+        SUM(ISNULL(TienGui, 0)) AS DoanhThuLuot,
+        0 AS SoHoaDonVeThang,
+        CAST(0 AS DECIMAL(18,2)) AS DoanhThuVeThang
+    FROM dbo.LUOT_GUI
+    WHERE ThoiGianRa IS NOT NULL
+    GROUP BY MaBai, YEAR(ThoiGianRa), MONTH(ThoiGianRa)
+
+    UNION ALL
+
+    SELECT
+        MaBai,
+        YEAR(NgayThanhToan) AS Nam,
+        MONTH(NgayThanhToan) AS Thang,
+        0 AS SoLuotXe,
+        CAST(0 AS DECIMAL(18,2)) AS DoanhThuLuot,
+        COUNT(*) AS SoHoaDonVeThang,
+        SUM(ISNULL(SoTien, 0)) AS DoanhThuVeThang
+    FROM dbo.HOA_DON_VE_THANG
+    GROUP BY MaBai, YEAR(NgayThanhToan), MONTH(NgayThanhToan)
+)
+SELECT
+    bd.MaBai,
+    bd.TenBai,
+    n.Nam,
+    n.Thang,
+    SUM(n.SoLuotXe) AS SoLuotXe,
+    SUM(n.DoanhThuLuot) AS DoanhThuLuot,
+    SUM(n.SoHoaDonVeThang) AS SoHoaDonVeThang,
+    SUM(n.DoanhThuVeThang) AS DoanhThuVeThang,
+    SUM(n.DoanhThuLuot) + SUM(n.DoanhThuVeThang) AS TongDoanhThu
+FROM Nguon n
+INNER JOIN dbo.BAI_DO_XE bd ON n.MaBai = bd.MaBai
+GROUP BY bd.MaBai, bd.TenBai, n.Nam, n.Thang;
+GO
+
+-- 18. View vw_Report_LuuLuongTheoGio: Số lượt xe vào theo khung giờ, để tìm giờ cao điểm
+CREATE OR ALTER VIEW dbo.vw_Report_LuuLuongTheoGio
+AS
+SELECT
+    bd.MaBai,
+    bd.TenBai,
+    DATEPART(HOUR, lg.ThoiGianVao) AS GioTrongNgay,
+    COUNT(*) AS SoLuotVao,
+    COUNT(DISTINCT CAST(lg.ThoiGianVao AS DATE)) AS SoNgayCoDuLieu,
+    CAST(COUNT(*) * 1.0 / NULLIF(COUNT(DISTINCT CAST(lg.ThoiGianVao AS DATE)), 0) AS DECIMAL(10,2)) AS SoLuotVaoTBMoiNgay
+FROM dbo.LUOT_GUI lg
+INNER JOIN dbo.BAI_DO_XE bd ON lg.MaBai = bd.MaBai
+GROUP BY bd.MaBai, bd.TenBai, DATEPART(HOUR, lg.ThoiGianVao);
+GO
+
+-- 19. View vw_Report_ThongKeTheoLoaiXe: Cơ cấu lượt gửi và doanh thu theo loại phương tiện
+CREATE OR ALTER VIEW dbo.vw_Report_ThongKeTheoLoaiXe
+AS
+SELECT
+    bd.MaBai,
+    bd.TenBai,
+    lx.MaLoaiXe,
+    lx.TenLoai AS LoaiPhuongTien,
+    COUNT(*) AS SoLuotXe,
+    SUM(ISNULL(lg.TienGui, 0)) AS DoanhThuLuot,
+    CAST(AVG(CAST(DATEDIFF(MINUTE, lg.ThoiGianVao, lg.ThoiGianRa) AS FLOAT)) / 60.0 AS DECIMAL(10,2)) AS SoGioGuiTB
+FROM dbo.LUOT_GUI lg
+INNER JOIN dbo.BAI_DO_XE bd ON lg.MaBai = bd.MaBai
+INNER JOIN dbo.VI_TRI_DO v ON lg.MaViTri = v.MaViTri
+INNER JOIN dbo.LOAI_XE lx ON v.MaLoaiXe = lx.MaLoaiXe AND v.MaBai = lx.MaBai
+WHERE lg.ThoiGianRa IS NOT NULL
+GROUP BY bd.MaBai, bd.TenBai, lx.MaLoaiXe, lx.TenLoai;
+GO
+
+-- 20. View vw_Report_XepHangBai: Xếp hạng các bãi theo tổng doanh thu, kèm tỉ lệ lấp đầy hiện tại
+--     Tận dụng lại 2 view báo cáo có sẵn ở PHẦN B nên số liệu luôn đồng nhất.
+CREATE OR ALTER VIEW dbo.vw_Report_XepHangBai
+AS
+SELECT
+    RANK() OVER (ORDER BY dt.TongDoanhThu DESC) AS HangDoanhThu,
+    dt.MaBai,
+    dt.TenBai,
+    dt.DoanhThuLuot,
+    dt.DoanhThuThang,
+    dt.TongDoanhThu,
+    cs.SucChua,
+    cs.SoLuongHienTai,
+    cs.TyLeLapDayPercent
+FROM dbo.vw_Report_DoanhThuTheoBai dt
+INNER JOIN dbo.vw_Report_CongSuatBaiDo cs ON dt.MaBai = cs.MaBai;
+GO
+
+-- 21. View vw_Report_TongQuanChuoi: Bảng tổng quan toàn chuỗi, luôn trả về đúng 1 dòng
+CREATE OR ALTER VIEW dbo.vw_Report_TongQuanChuoi
+AS
+SELECT
+    (SELECT COUNT(*) FROM dbo.BAI_DO_XE) AS TongSoBai,
+    (SELECT ISNULL(SUM(SucChua), 0) FROM dbo.BAI_DO_XE) AS TongSucChua,
+    (SELECT ISNULL(SUM(SoLuongHienTai), 0) FROM dbo.BAI_DO_XE) AS TongXeDangGui,
+    CAST((SELECT ISNULL(SUM(SoLuongHienTai), 0) * 100.0 / NULLIF(SUM(SucChua), 0)
+          FROM dbo.BAI_DO_XE) AS DECIMAL(5,2)) AS TyLeLapDayToanChuoiPercent,
+    (SELECT ISNULL(SUM(TienGui), 0) FROM dbo.LUOT_GUI
+      WHERE CAST(ThoiGianRa AS DATE) = CAST(GETDATE() AS DATE)) AS DoanhThuLuotHomNay,
+    (SELECT ISNULL(SUM(SoTien), 0) FROM dbo.HOA_DON_VE_THANG
+      WHERE CAST(NgayThanhToan AS DATE) = CAST(GETDATE() AS DATE)) AS DoanhThuVeThangHomNay,
+    (SELECT ISNULL(SUM(TienGui), 0) FROM dbo.LUOT_GUI
+      WHERE ThoiGianRa >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)) AS DoanhThuLuotThangNay,
+    (SELECT ISNULL(SUM(SoTien), 0) FROM dbo.HOA_DON_VE_THANG
+      WHERE NgayThanhToan >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)) AS DoanhThuVeThangThangNay,
+    (SELECT COUNT(*) FROM dbo.VE_THANG
+      WHERE TrangThai = N'Hoạt động' AND NgayHetHan >= CAST(GETDATE() AS DATE)) AS SoVeThangConHieuLuc,
+    (SELECT COUNT(*) FROM dbo.VE_THANG
+      WHERE TrangThai = N'Hoạt động'
+        AND DATEDIFF(DAY, CAST(GETDATE() AS DATE), NgayHetHan) BETWEEN 0 AND 7) AS SoVeThangSapHetHan7Ngay,
+    (SELECT COUNT(*) FROM dbo.LICHSU_SU_CO
+      WHERE CAST(ThoiGianSuCo AS DATE) = CAST(GETDATE() AS DATE)) AS SoSuCoHomNay;
 GO
