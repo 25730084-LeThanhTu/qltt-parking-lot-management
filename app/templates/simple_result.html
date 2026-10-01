@@ -1,41 +1,31 @@
 {% extends 'base.html' %}
 {% from '_result_table.html' import render_result_set %}
+{% from '_icons.html' import icon %}
 {% block content %}
-<div class="page-header" style="margin-bottom: 12px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-        <div>
-            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
-                <span class="step-badge" style="background: var(--accent-light); color: var(--accent);">TABLE VIEWER</span>
-                <span style="font-size: 0.825rem; color: var(--text-tertiary);">Truy Vấn Bảng Vật Lý</span>
-            </div>
-            <h1 style="font-size: 1.5rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.02em;">
-                {{ title }}
-            </h1>
+<div class="page-head">
+    <div class="ph-main">
+        <div class="eyebrow">
+            <a href="{{ url_for('main.tables') }}" class="row" style="gap: 4px;">{{ icon('arrow-left', 13) }} Bảng dữ liệu</a>
+            <span class="sep">/ Table viewer</span>
         </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-            <a href="{{ url_for('main.tables') }}" class="btn btn-outline" style="font-size: 0.85rem; padding: 6px 12px;">
-                ← Danh Mục 9 Bảng
-            </a>
-            <a href="{{ url_for('main.sql_query') }}" class="btn btn-outline" style="font-size: 0.85rem; padding: 6px 12px;">
-                💻 Chạy SQL Tùy Chỉnh
-            </a>
-        </div>
+        <h1 class="ph-title">{{ title }}</h1>
+    </div>
+    <div class="ph-actions">
+        <a href="{{ url_for('main.tables') }}" class="btn btn-outline">{{ icon('database', 15) }}<span>Danh mục bảng</span></a>
+        <a href="{{ url_for('main.sql_query') }}" class="btn btn-outline">{{ icon('terminal', 15) }}<span>Chạy SQL tùy chỉnh</span></a>
     </div>
 </div>
 
-<div class="card" style="padding: 12px; margin-bottom: 12px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light);">
-        <div style="display: flex; align-items: center; gap: 6px;">
-            <span class="badge badge-success" style="padding: 3px 8px;">✓ Dữ Liệu Thời Gian Thực (Live)</span>
-            <span style="font-size: 0.8rem; color: var(--text-tertiary);">Giới hạn 100 dòng mới nhất</span>
+<section class="card">
+    <div class="card-head">
+        <div class="row">
+            <span class="badge badge-success"><span class="badge-dot"></span>Live</span>
+            <span class="subtle sm">Giới hạn 100 dòng</span>
         </div>
-        <button class="btn btn-outline" onclick="window.location.reload();" style="padding: 4px 8px; font-size: 0.8rem;">
-            🔄 Tải Lại Dữ Liệu
-        </button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="window.location.reload();">{{ icon('refresh', 14) }}<span>Tải lại</span></button>
     </div>
-
     {% for rs in result_sets %}
         {{ render_result_set(rs) }}
     {% endfor %}
-</div>
+</section>
 {% endblock %}

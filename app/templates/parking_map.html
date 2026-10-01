@@ -1,198 +1,161 @@
 {% extends 'base.html' %}
+{% from '_icons.html' import icon, vehicle_icon %}
+{% from '_lot_picker.html' import lot_picker %}
 {% block content %}
 
-<div class="card" style="padding: 12px; margin-bottom: 12px;">
-    <div class="map-controls">
-        <div>
-            <h2 style="font-size: 1.25rem; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 6px;">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color: var(--primary);"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M9 3v18"></path><path d="M15 3v18"></path><path d="M3 9h18"></path><path d="M3 15h18"></path></svg>
-                <span>Sơ Đồ Mặt Bằng Bãi Đỗ Xe Thời Gian Thực</span>
-            </h2>
-            <p style="color: var(--text-secondary); font-size: 0.825rem; margin-top: 2px;">
-                Toàn bộ số liệu trên trang này đọc trực tiếp từ 3 SQL View vận hành:
-                {% for v in map_views %}<code style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--primary);">{{ v }}</code>{% if not loop.last %} • {% endif %}{% endfor %}.
-                Trạng thái ô đỗ được cập nhật tự động qua <strong>Database Trigger</strong> khi có xe check-in / check-out.
-            </p>
+<!-- HEADER & BỘ CHỌN CHI NHÁNH -->
+<div class="page-head">
+    <div class="ph-main">
+        <div class="eyebrow">{{ icon('grid', 13) }} Parking bay matrix</div>
+        <h1 class="ph-title">Sơ đồ mặt bằng bãi xe thời gian thực</h1>
+        <div class="ph-sub row wrap" style="gap: 6px;">
+            <span>Dữ liệu từ 3 views:</span>
+            <code>v_SodoBai_ODoChiTiet</code><code>v_SodoBai_TongHopKhuVuc</code><code>v_SodoBai_TongQuanBai</code>
         </div>
+    </div>
+    {{ lot_picker(bai_list, selected_bai, 'main.parking_map') }}
+</div>
 
-        <div class="segmented-control">
-            {% for b in bai_list %}
-            <a href="{{ url_for('main.parking_map', bai=b.MaBai) }}"
-               class="segmented-btn {% if b.MaBai == selected_bai %}active{% endif %}">
-               🏢 {{ b.TenBai }} ({{ b.SoLuongHienTai }}/{{ b.SucChua }})
-            </a>
-            {% endfor %}
+{% if error %}
+<div class="alert alert-error">
+    {{ icon('alert-circle', 18) }}
+    <div class="grow">
+        <div class="alert-title">Lỗi tải dữ liệu sơ đồ</div>
+        <pre class="code-danger wrap-text no-copy">{{ error }}</pre>
+    </div>
+</div>
+{% endif %}
+
+{% if bai_info %}
+<!-- CÔNG SUẤT BÃI -->
+<section class="card">
+    <div class="cap-head">
+        <div>
+            <div class="cap-title">
+                <span class="tile-ico tone-blue">{{ icon('building', 18) }}</span>
+                <span>{{ bai_info.TenBai }}</span>
+                <span class="badge badge-sq">{{ bai_info.MaBai }}</span>
+            </div>
+            <div class="cap-stats">
+                <div class="cap-stat"><div class="l">Sức chứa</div><div class="v">{{ bai_info.SucChua }} <span class="subtle sm">slots</span></div></div>
+                <div class="cap-stat"><div class="l">Đang gửi</div><div class="v text-primary">{{ bai_info.SoLuongHienTai }} <span class="subtle sm">xe</span></div></div>
+                <div class="cap-stat"><div class="l">Chỗ trống</div><div class="v text-success">{{ bai_info.SoChoTrong }} <span class="subtle sm">chỗ</span></div></div>
+                <div class="cap-stat"><div class="l">Thuê bao tháng</div><div class="v">{{ bai_info.SoXeTheThang }}</div></div>
+                <div class="cap-stat"><div class="l">Khách vãng lai</div><div class="v">{{ bai_info.SoXeTheLuot }}</div></div>
+                <div class="cap-stat"><div class="l">Số khu vực</div><div class="v">{{ bai_info.SoKhuVuc }}</div></div>
+            </div>
+        </div>
+        <div class="cap-pct">
+            <div class="subtle xs strong" style="text-transform: uppercase; letter-spacing: 0.06em;">Tỷ lệ lấp đầy</div>
+            <div class="v {% if bai_info.TyLeLapDayPercent >= 80 %}text-danger{% else %}text-primary{% endif %}">{{ bai_info.TyLeLapDayPercent }}%</div>
+            <span class="badge mt-8 {% if 'ĐỎ' in bai_info.MucDoCanhBao %}badge-danger{% elif 'VÀNG' in bai_info.MucDoCanhBao %}badge-warning{% else %}badge-success{% endif %}">
+                <span class="badge-dot"></span>{{ bai_info.MucDoCanhBao }}
+            </span>
         </div>
     </div>
 
-    {% if bai_info %}
-    <!-- Capacity Progress Card: dữ liệu từ view v_SodoBai_TongQuanBai -->
-    <div class="capacity-bar-container">
-        <div class="capacity-stats">
-            <div>
-                <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--text-primary);">
-                    {{ bai_info.TenBai }}
-                    <span style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-tertiary); font-weight: 500;">({{ bai_info.MaBai }})</span>
-                </h3>
-                <div style="font-size: 0.825rem; color: var(--text-secondary); margin-top: 2px; display: flex; gap: 12px; flex-wrap: wrap;">
-                    <span>Sức chứa: <strong>{{ bai_info.SucChua }} slots</strong></span>
-                    <span>Đang gửi: <strong style="color: var(--primary);">{{ bai_info.SoLuongHienTai }} xe</strong></span>
-                    <span>Chỗ trống: <strong style="color: var(--success);">{{ bai_info.SoChoTrong }} chỗ</strong></span>
-                    <span>Vé tháng / Vé lượt: <strong>{{ bai_info.SoXeTheThang }} / {{ bai_info.SoXeTheLuot }}</strong></span>
-                    <span>Số khu vực: <strong>{{ bai_info.SoKhuVuc }}</strong></span>
-                </div>
-            </div>
-            <div style="text-align: right;">
-                <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-tertiary); font-weight: 700; letter-spacing: 0.05em;">Tỷ lệ lấp đầy</div>
-                <div style="font-size: 1.4rem; font-weight: 800; font-family: var(--font-sans); color: {% if bai_info.TyLeLapDayPercent >= 80 %}var(--danger){% else %}var(--primary){% endif %};">
-                    {{ bai_info.TyLeLapDayPercent }}%
-                </div>
-                <span class="badge {% if 'ĐỎ' in bai_info.MucDoCanhBao %}badge-danger{% elif 'VÀNG' in bai_info.MucDoCanhBao %}badge-warning{% else %}badge-success{% endif %}" style="margin-top: 2px;">
-                    <span class="badge-dot"></span>{{ bai_info.MucDoCanhBao }}
-                </span>
-            </div>
-        </div>
+    <div class="progress" role="progressbar" aria-valuenow="{{ bai_info.TyLeLapDayPercent }}" aria-valuemin="0" aria-valuemax="100">
+        <div class="progress-fill {% if bai_info.TyLeLapDayPercent >= 80 %}high{% endif %}" style="width: {{ bai_info.TyLeLapDayPercent }}%;"></div>
+    </div>
 
-        <div class="capacity-progress-track">
-            <div class="capacity-progress-fill {% if bai_info.TyLeLapDayPercent >= 80 %}high{% endif %}"
-                 style="width: {{ bai_info.TyLeLapDayPercent }}%;"></div>
-        </div>
-
-        <!-- Nhịp vận hành trong ngày & cờ đối soát bộ đếm -->
-        <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; font-size: 0.8rem; color: var(--text-secondary);">
-            <span>🚗 Lượt vào hôm nay: <strong>{{ bai_info.SoLuotVaoHomNay }}</strong></span>
-            <span>🏁 Lượt ra hôm nay: <strong>{{ bai_info.SoLuotRaHomNay }}</strong></span>
-            <span>💰 Doanh thu vé lượt hôm nay: <strong class="money-cell">{{ bai_info.DoanhThuLuotHomNay|format_cell('DoanhThuLuotHomNay') }}</strong></span>
-            {% if bai_info.ThoiGianXeVaoGanNhat %}
-            <span>⏱️ Xe vào gần nhất: <strong>{{ bai_info.ThoiGianXeVaoGanNhat }}</strong></span>
-            {% endif %}
-        </div>
-
-        {% if bai_info.CanhBaoLechBoDem %}
-        <div class="flash error" style="margin-top: 8px;">
-            <div class="flash-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-            </div>
-            <div class="flash-text">
-                <strong>Cảnh báo đối soát:</strong> Bộ đếm <code>BAI_DO_XE.SoLuongHienTai</code> = {{ bai_info.SoLuongHienTai }}
-                nhưng số lượt gửi đang mở thực tế trong <code>LUOT_GUI</code> = {{ bai_info.SoXeThucTeTrongBai }}. Cần kiểm tra lại dữ liệu vận hành.
-            </div>
-        </div>
+    <div class="meta-row">
+        <span>{{ icon('log-in', 14) }}Lượt vào hôm nay: <strong>{{ bai_info.SoLuotVaoHomNay }}</strong></span>
+        <span>{{ icon('log-out', 14) }}Lượt ra hôm nay: <strong>{{ bai_info.SoLuotRaHomNay }}</strong></span>
+        <span>{{ icon('wallet', 14) }}Doanh thu vé lượt: <strong class="money-cell">{{ bai_info.DoanhThuLuotHomNay|format_cell('DoanhThuLuotHomNay') }}</strong></span>
+        {% if bai_info.ThoiGianXeVaoGanNhat %}
+        <span>{{ icon('clock', 14) }}Xe vào gần nhất: <strong>{{ bai_info.ThoiGianXeVaoGanNhat }}</strong></span>
         {% endif %}
     </div>
-    {% endif %}
 
-    {% if zones %}
-    <!-- Thanh tổng hợp theo khu vực / tầng: dữ liệu từ view v_SodoBai_TongHopKhuVuc -->
-    <div style="margin-bottom: 10px;">
-        <h3 style="font-size: 0.9rem; font-weight: 700; color: var(--text-primary); margin-bottom: 6px;">
-            🧱 Tổng Hợp Ô Trống Theo Khu Vực / Tầng
-        </h3>
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px;">
-            {% for z in zones %}
-            <div class="card" style="padding: 8px 10px; margin-bottom: 0; border: 1px solid var(--border);">
-                <div style="display: flex; justify-content: space-between; align-items: center; gap: 6px;">
-                    <strong style="font-size: 0.85rem; color: var(--text-primary);">{{ z.KhuVuc }}</strong>
-                    <span class="badge {% if z.TyLeLapDayPercent >= 80 %}badge-danger{% elif z.TyLeLapDayPercent > 0 %}badge-warning{% else %}badge-success{% endif %}">
-                        <span class="badge-dot"></span>{{ z.TyLeLapDayPercent }}%
-                    </span>
-                </div>
-                <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px;">
-                    Trống <strong style="color: var(--success);">{{ z.SoODoTrong }}</strong> / {{ z.TongODo }} ô
-                    <span style="color: var(--text-tertiary); font-family: var(--font-mono); font-size: 0.72rem;">
-                        ({{ z.ODoDauKhuVuc }} → {{ z.ODoCuoiKhuVuc }})
-                    </span>
-                </div>
-                <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 3px; display: flex; gap: 8px; flex-wrap: wrap;">
-                    {% if z.SoODoXeMay %}<span>🛵 {{ z.SoODoXeMayTrong }}/{{ z.SoODoXeMay }}</span>{% endif %}
-                    {% if z.SoODoOTo %}<span>🚗 {{ z.SoODoOToTrong }}/{{ z.SoODoOTo }}</span>{% endif %}
-                    {% if z.SoODoXeDap %}<span>🚲 {{ z.SoODoXeDapTrong }}/{{ z.SoODoXeDap }}</span>{% endif %}
-                </div>
-            </div>
-            {% endfor %}
+    {% if bai_info.CanhBaoLechBoDem %}
+    <div class="alert alert-warning mt-12">
+        {{ icon('alert', 16) }}
+        <div>
+            <strong>Cảnh báo đối soát:</strong> Bộ đếm <code>BAI_DO_XE.SoLuongHienTai</code> = {{ bai_info.SoLuongHienTai }}
+            nhưng lượt gửi mở thực tế = {{ bai_info.SoXeThucTeTrongBai }}.
         </div>
     </div>
     {% endif %}
+</section>
+{% endif %}
 
-    <!-- Chú thích Legend -->
-    <div style="display: flex; gap: 12px; margin-bottom: 10px; font-size: 0.825rem; font-weight: 600; background: #ffffff; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); flex-wrap: wrap;">
-        <div style="display: flex; align-items: center; gap: 6px;">
-            <span style="width: 12px; height: 12px; background: var(--success); border-radius: 4px; display: inline-block;"></span>
-            <span>Ô Trống (Sẵn sàng đỗ xe)</span>
+{% if zones %}
+<!-- TỔNG HỢP THEO KHU VỰC -->
+<div class="grid grid-auto">
+    {% for z in zones %}
+    <div class="card zone-card">
+        <div class="zone-top">
+            <span class="zone-name">{{ z.KhuVuc }}</span>
+            <span class="badge {% if z.TyLeLapDayPercent >= 80 %}badge-danger{% elif z.TyLeLapDayPercent > 0 %}badge-warning{% else %}badge-success{% endif %}">{{ z.TyLeLapDayPercent }}%</span>
         </div>
-        <div style="display: flex; align-items: center; gap: 6px;">
-            <span style="width: 12px; height: 12px; background: var(--danger); border-radius: 4px; display: inline-block;"></span>
-            <span>Đã Đỗ (Phương tiện đang chiếm chỗ)</span>
+        <div class="zone-bar {% if z.TyLeLapDayPercent >= 80 %}high{% endif %}"><span style="width: {{ z.TyLeLapDayPercent }}%;"></span></div>
+        <div class="sm">Trống <strong class="text-success">{{ z.SoODoTrong }}</strong> / {{ z.TongODo }} ô</div>
+        <div class="row between wrap mt-4">
+            <span class="zone-range">{{ z.ODoDauKhuVuc }} → {{ z.ODoCuoiKhuVuc }}</span>
+            <span class="zone-veh">
+            {% if z.SoODoXeMay %}<span>{{ icon('moto', 13) }}{{ z.SoODoXeMayTrong }}/{{ z.SoODoXeMay }}</span>{% endif %}
+            {% if z.SoODoOTo %}<span>{{ icon('car', 13) }}{{ z.SoODoOToTrong }}/{{ z.SoODoOTo }}</span>{% endif %}
+            {% if z.SoODoXeDap %}<span>{{ icon('bike', 13) }}{{ z.SoODoXeDapTrong }}/{{ z.SoODoXeDap }}</span>{% endif %}
+            </span>
         </div>
-        <div style="display: flex; align-items: center; gap: 6px;">
-            <span style="width: 12px; height: 12px; background: var(--warning); border-radius: 4px; display: inline-block;"></span>
-            <span>Lệch Dữ Liệu (Trạng thái ô đỗ không khớp lượt gửi)</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- LƯỚI Ô ĐỖ -->
+<section class="card">
+    <div class="card-head bordered">
+        <div class="legend">
+            <span><i class="legend-dot" style="background: var(--success);"></i>Ô trống</span>
+            <span><i class="legend-dot" style="background: var(--danger);"></i>Đã đỗ</span>
+            <span><i class="legend-dot" style="background: var(--warning);"></i>Lệch dữ liệu</span>
+            {% if slots %}<span class="subtle">• {{ slots|length }} ô đỗ</span>{% endif %}
         </div>
-        <a href="{{ url_for('main.gate_booth', bai=selected_bai) }}" class="btn btn-outline btn-sm" style="margin-left: auto;">
-            🚦 Mở Bốt Kiểm Soát Cổng
+        <a href="{{ url_for('main.gate_booth', bai=selected_bai) }}" class="btn btn-outline btn-sm">
+            {{ icon('barrier', 14) }}<span>Sang bốt cổng</span>{{ icon('arrow-right', 14) }}
         </a>
     </div>
 
-    {% if error %}
-    <div class="error-box">
-        <h3>Lỗi tải dữ liệu sơ đồ</h3>
-        <pre>{{ error }}</pre>
-    </div>
-    {% endif %}
-
-    <!-- Lưới hiển thị các ô đỗ xe thông minh: dữ liệu từ view v_SodoBai_ODoChiTiet -->
-    <div class="slots-grid">
+    {% if slots %}
+    <div class="slot-grid slots-grid">
         {% for slot in slots %}
-        <div class="slot-item {% if slot.TrangThaiHienThi == 'Trống' %}trong{% else %}dado{% endif %}">
-            <div>
-                <div class="slot-header">
-                    <span class="slot-code">{{ slot.MaViTri }}</span>
-                    <span class="badge {% if slot.CanhBaoLechDuLieu %}badge-warning{% elif slot.TrangThaiHienThi == 'Đã đỗ' %}badge-danger{% else %}badge-success{% endif %}" style="padding: 2px 6px;">
-                        <span class="badge-dot"></span>
-                        {{ slot.TrangThaiHienThi }}
-                    </span>
-                </div>
-                <div class="slot-zone">{{ slot.KhuVuc }}</div>
-                <div class="slot-vehicle">
-                    {% if slot.MaLoaiXe == 'XM' %}🛵{% elif slot.MaLoaiXe == 'OT' %}🚗{% else %}🚲{% endif %}
-                    {{ slot.LoaiPhuongTien }}
-                </div>
+        <div class="slot {% if slot.CanhBaoLechDuLieu %}is-warn{% elif slot.TrangThaiHienThi == 'Trống' %}is-free{% else %}is-busy{% endif %}">
+            <div class="slot-head">
+                <span class="slot-code">{{ slot.MaViTri }}</span>
+                <span class="slot-status"><span class="badge-dot"></span>{{ slot.TrangThaiHienThi }}</span>
             </div>
+            <div class="slot-body">
+                <div class="slot-sub">
+                    <span class="slot-veh">{{ vehicle_icon(slot.MaLoaiXe, 14) }}{{ slot.LoaiPhuongTien }}</span>
+                    <span class="truncate">{{ slot.KhuVuc }}</span>
+                </div>
 
-            {% if slot.MaLuot and slot.BienSo %}
-            <div class="plate-badge-container">
-                <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                    <span class="license-plate">{{ slot.BienSo }}</span>
-                    <span class="badge {{ slot.LoaiThe|status_badge_class }}" style="padding: 2px 6px;">
-                        <span class="badge-dot"></span>{{ slot.LoaiThe }}
-                    </span>
+                {% if slot.MaLuot and slot.BienSo %}
+                <div class="row wrap" style="gap: 6px;">
+                    <span class="plate">{{ slot.BienSo }}</span>
+                    <span class="badge {{ slot.LoaiThe|status_badge_class }}">{{ slot.LoaiThe }}</span>
                 </div>
-                <div class="slot-card-meta">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                    <span>Thẻ <strong>{{ slot.MaThe }}</strong> • đỗ <strong>{{ slot.SoPhutDaDo }}</strong> phút</span>
-                </div>
-                <div class="slot-card-meta">
-                    <span>Tạm tính: <strong class="money-cell">{{ slot.TienTamTinh|format_cell('TienTamTinh') }}</strong></span>
-                </div>
+                <div class="slot-meta">{{ icon('clock', 13) }}<span>Thẻ <strong>{{ slot.MaThe }}</strong> • <strong>{{ slot.SoPhutDaDo }}</strong> phút</span></div>
+                <div class="slot-meta">{{ icon('wallet', 13) }}<span>Tạm tính <strong class="money-cell">{{ slot.TienTamTinh|format_cell('TienTamTinh') }}</strong></span></div>
                 {% if slot.HoTenKhachHang %}
-                <div class="slot-card-meta">
-                    <span>👤 {{ slot.HoTenKhachHang }} • hạn vé {{ slot.NgayHetHan }}</span>
+                <div class="slot-meta">{{ icon('user', 13) }}<span class="truncate">{{ slot.HoTenKhachHang }}</span></div>
+                {% endif %}
+                <a href="{{ url_for('main.gate_booth', bai=selected_bai, the=slot.MaThe) }}" class="btn btn-outline btn-xs btn-block">
+                    {{ icon('log-out', 12) }}Quét xuất bãi
+                </a>
+                {% else %}
+                <div class="slot-free">
+                    {% if slot.CanhBaoLechDuLieu %}{{ icon('alert', 15) }}<span>Lệch lượt gửi</span>{% else %}{{ icon('check', 15) }}<span>Slot khả dụng</span>{% endif %}
                 </div>
                 {% endif %}
             </div>
-            {% else %}
-            <div style="margin-top: 8px; font-size: 0.78rem; color: {% if slot.CanhBaoLechDuLieu %}var(--warning){% else %}var(--success){% endif %}; font-weight: 600; display: flex; align-items: center; gap: 4px;">
-                {% if slot.CanhBaoLechDuLieu %}
-                <span>⚠️ Ô đang ghi "{{ slot.TrangThaiODo }}" nhưng không có lượt gửi mở</span>
-                {% else %}
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                <span>Slot khả dụng</span>
-                {% endif %}
-            </div>
-            {% endif %}
         </div>
         {% endfor %}
     </div>
-</div>
+    {% else %}
+    <div class="empty empty-lg">{{ icon('grid', 24) }}<span>Chưa có dữ liệu ô đỗ cho chi nhánh này.</span></div>
+    {% endif %}
+</section>
 
 {% endblock %}

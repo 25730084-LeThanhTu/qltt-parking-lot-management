@@ -1,0 +1,72 @@
+{% from '_icons.html' import icon %}
+{#-
+    Bộ chọn bãi đỗ dùng chung, hoạt động với số lượng bãi bất kỳ lấy từ BAI_DO_XE.
+    - bai_list: danh sách dict có MaBai, TenBai (tùy chọn: DiaChi, SucChua, SoLuongHienTai)
+    - selected: MaBai đang chọn ('' = toàn chuỗi)
+    - endpoint: route đích, mỗi lựa chọn là 1 link GET ?bai=<MaBai>
+    - extra: các tham số query giữ nguyên khi đổi bãi (vd: {'the': ma_the})
+    - allow_all: có hiển thị lựa chọn "Toàn chuỗi" hay không
+-#}
+{% macro lot_picker(bai_list, selected, endpoint, extra={}, allow_all=false) %}
+{%- set cur = namespace(b=none) -%}
+{%- for b in bai_list %}{% if b.MaBai == selected %}{% set cur.b = b %}{% endif %}{% endfor -%}
+<details class="lot-picker" data-lot-picker>
+    <summary class="lot-trigger" aria-label="Chọn bãi đỗ xe">
+        <span class="tile-ico tone-blue">{% if cur.b %}{{ icon('building', 16) }}{% else %}{{ icon('layers', 16) }}{% endif %}</span>
+        <span class="lot-trigger-text">
+            <span class="lot-trigger-label">Chi nhánh {% if cur.b %}• <span class="mono">{{ cur.b.MaBai }}</span>{% endif %}</span>
+            <span class="lot-trigger-name">{% if cur.b %}{{ cur.b.TenBai }}{% else %}Toàn chuỗi • {{ bai_list|length }} bãi{% endif %}</span>
+        </span>
+        {% if cur.b and cur.b.SucChua %}
+        <span class="lot-trigger-cap mono">{{ cur.b.SoLuongHienTai }}/{{ cur.b.SucChua }}</span>
+        {% endif %}
+        <span class="lot-caret">{{ icon('chevron-right', 16) }}</span>
+    </summary>
+
+    <div class="lot-pop">
+        <div class="input-group lot-search">
+            {{ icon('search', 15) }}
+            <input type="search" class="input" placeholder="Tìm theo tên, mã hoặc địa chỉ…" aria-label="Tìm bãi đỗ" data-lot-search autocomplete="off">
+        </div>
+
+        <div class="lot-list" role="listbox">
+            {% if allow_all %}
+            <a href="{{ url_for(endpoint, **extra) }}" class="lot-opt {% if not selected %}active{% endif %}" role="option" data-lot-text="toan chuoi tat ca">
+                <span class="lot-opt-ico">{{ icon('layers', 15) }}</span>
+                <span class="lot-opt-main">
+                    <span class="lot-opt-name">Toàn chuỗi</span>
+                    <span class="lot-opt-sub">Giám sát đồng thời tất cả {{ bai_list|length }} bãi</span>
+                </span>
+                {% if not selected %}<span class="lot-opt-check">{{ icon('check', 15) }}</span>{% endif %}
+            </a>
+            {% endif %}
+
+            {% for b in bai_list %}
+            {%- set pct = ((b.SoLuongHienTai or 0) * 100 / b.SucChua) if b.SucChua else none -%}
+            <a href="{{ url_for(endpoint, bai=b.MaBai, **extra) }}" class="lot-opt {% if b.MaBai == selected %}active{% endif %}" role="option"
+               data-lot-text="{{ b.TenBai }} {{ b.MaBai }} {{ b.DiaChi or '' }}">
+                <span class="lot-opt-ico">{{ icon('building', 15) }}</span>
+                <span class="lot-opt-main">
+                    <span class="lot-opt-name">{{ b.TenBai }}</span>
+                    <span class="lot-opt-sub"><span class="mono">{{ b.MaBai }}</span>{% if b.DiaChi %} • {{ b.DiaChi }}{% endif %}</span>
+                </span>
+                {% if pct is not none %}
+                <span class="lot-opt-cap" title="{{ b.SoLuongHienTai }}/{{ b.SucChua }} xe • {{ '%.0f'|format(pct) }}%">
+                    <span class="mono">{{ b.SoLuongHienTai }}/{{ b.SucChua }}</span>
+                    <span class="mini-bar {% if pct >= 80 %}high{% elif pct >= 50 %}mid{% endif %}"><span style="width: {{ pct }}%;"></span></span>
+                </span>
+                {% endif %}
+                {% if b.MaBai == selected %}<span class="lot-opt-check">{{ icon('check', 15) }}</span>{% endif %}
+            </a>
+            {% endfor %}
+
+            <div class="lot-empty" data-lot-empty hidden>{{ icon('search', 16) }}<span>Không tìm thấy bãi phù hợp</span></div>
+        </div>
+
+        <div class="lot-foot">
+            <span>{{ bai_list|length }} chi nhánh trong hệ thống</span>
+            <span class="lot-keys"><kbd>↑</kbd><kbd>↓</kbd> chọn • <kbd>Esc</kbd> đóng</span>
+        </div>
+    </div>
+</details>
+{% endmacro %}

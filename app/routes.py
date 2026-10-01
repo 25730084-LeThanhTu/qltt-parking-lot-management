@@ -92,7 +92,14 @@ def index():
         """)
     except Exception:
         overview = []
-    return render_template("index.html", demo_cases=DEMO_CASES, demo_groups=DEMO_GROUPS, reports=REPORT_VIEWS, overview=overview)
+
+    # Danh bạ toàn bộ chi nhánh (không cố định số lượng bãi)
+    bai_list = []
+    try:
+        bai_list = execute_query("SELECT MaBai, TenBai, DiaChi, SucChua, SoLuongHienTai FROM dbo.BAI_DO_XE ORDER BY MaBai;")
+    except Exception:
+        bai_list = []
+    return render_template("index.html", demo_cases=DEMO_CASES, demo_groups=DEMO_GROUPS, reports=REPORT_VIEWS, overview=overview, bai_list=bai_list)
 
 
 @bp.route("/health")
@@ -111,7 +118,7 @@ def parking_map():
     error = None
 
     try:
-        bai_list = execute_query("SELECT MaBai, TenBai, SucChua, SoLuongHienTai FROM dbo.BAI_DO_XE ORDER BY MaBai;")
+        bai_list = execute_query("SELECT MaBai, TenBai, DiaChi, SucChua, SoLuongHienTai FROM dbo.BAI_DO_XE ORDER BY MaBai;")
         if bai_list and not any(b["MaBai"] == selected_bai for b in bai_list):
             selected_bai = bai_list[0]["MaBai"]
 
@@ -161,7 +168,7 @@ def gate_booth():
     error = None
 
     try:
-        bai_list = execute_query("SELECT MaBai, TenBai FROM dbo.BAI_DO_XE ORDER BY MaBai;")
+        bai_list = execute_query("SELECT MaBai, TenBai, DiaChi, SucChua, SoLuongHienTai FROM dbo.BAI_DO_XE ORDER BY MaBai;")
         if selected_bai and not any(b["MaBai"] == selected_bai for b in bai_list):
             selected_bai = ""
 
