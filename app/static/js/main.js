@@ -1,6 +1,9 @@
 // ==========================================================================
-// CLIENT JAVASCRIPT HỖ TRỢ TƯƠNG TÁC GIAO DIỆN CAO CẤP
+// CLIENT JAVASCRIPT HỖ TRỢ TƯƠNG TÁC GIAO DIỆN (chỉ xử lý hiển thị, không đổi nghiệp vụ)
 // ==========================================================================
+
+const ICON_COPY = '<svg class="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+const ICON_CHECK = '<svg class="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>';
 
 document.addEventListener("DOMContentLoaded", function () {
     // 1. Tự động cuộn tới kết quả sau khi thực thi form POST
@@ -9,60 +12,72 @@ document.addEventListener("DOMContentLoaded", function () {
         executeOutput.scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
-    // 2. Tự động làm mờ và ẩn thông báo Flash sau 5 giây
-    const flashMessages = document.querySelectorAll(".flash");
-    flashMessages.forEach((el) => {
-        setTimeout(() => {
-            el.style.opacity = "0";
-            el.style.transform = "translateY(-10px)";
-            el.style.transition = "all 0.4s ease";
-            setTimeout(() => el.remove(), 400);
-        }, 5000);
+    // 2. Thông báo Flash: đóng thủ công hoặc tự ẩn sau 6 giây
+    document.querySelectorAll(".flash-item").forEach((el) => {
+        const dismiss = () => {
+            el.classList.add("is-leaving");
+            setTimeout(() => el.remove(), 350);
+        };
+        const btn = el.querySelector("[data-dismiss]");
+        if (btn) btn.addEventListener("click", dismiss);
+        setTimeout(dismiss, 6000);
     });
 
-    // 3. Tự động thêm nút "Sao chép SQL" cho tất cả thẻ <pre><code>
-    const codeBlocks = document.querySelectorAll("pre code");
-    codeBlocks.forEach((codeEl) => {
+    // 3. Menu sidebar trên màn hình nhỏ
+    const toggleNav = (open) => document.body.classList.toggle("nav-open", open);
+    document.querySelectorAll("[data-nav-toggle]").forEach((b) =>
+        b.addEventListener("click", () => toggleNav(!document.body.classList.contains("nav-open")))
+    );
+    document.querySelectorAll("[data-nav-close]").forEach((b) => b.addEventListener("click", () => toggleNav(false)));
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") toggleNav(false);
+    });
+
+    // 4. Chuyển giao diện Sáng / Tối (lưu lựa chọn trên trình duyệt)
+    document.querySelectorAll("[data-theme-toggle]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            const root = document.documentElement;
+            const current = root.getAttribute("data-theme") ||
+                (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+            const next = current === "dark" ? "light" : "dark";
+            root.setAttribute("data-theme", next);
+            try { localStorage.setItem("sp-theme", next); } catch (e) {}
+        });
+    });
+
+    // 5. Tự động thêm nút "Sao chép" cho tất cả thẻ <pre><code>
+    document.querySelectorAll("pre code").forEach((codeEl) => {
         const pre = codeEl.parentElement;
-        if (!pre.classList.contains("no-copy")) {
-            // Bao bọc trong wrapper
-            const wrapper = document.createElement("div");
-            wrapper.className = "code-block-wrapper";
-            pre.parentNode.insertBefore(wrapper, pre);
-            wrapper.appendChild(pre);
+        if (pre.classList.contains("no-copy")) return;
 
-            // Nút sao chép
-            const copyBtn = document.createElement("button");
-            copyBtn.type = "button";
-            copyBtn.className = "code-copy-btn";
-            copyBtn.innerHTML = `
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                <span>Sao chép</span>
-            `;
+        const wrapper = document.createElement("div");
+        wrapper.className = "code-block-wrapper";
+        pre.parentNode.insertBefore(wrapper, pre);
+        wrapper.appendChild(pre);
 
-            copyBtn.addEventListener("click", () => {
-                const text = codeEl.innerText;
-                navigator.clipboard.writeText(text).then(() => {
-                    copyBtn.innerHTML = `
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                        <span style="color: #34d399;">Đã chép!</span>
-                    `;
-                    showToast("Đã sao chép câu lệnh SQL vào clipboard!");
-                    setTimeout(() => {
-                        copyBtn.innerHTML = `
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                            <span>Sao chép</span>
-                        `;
-                    }, 2000);
-                }).catch(err => {
-                    console.error("Lỗi khi sao chép:", err);
-                });
+        const copyBtn = document.createElement("button");
+        copyBtn.type = "button";
+        copyBtn.className = "code-copy-btn";
+        copyBtn.innerHTML = `${ICON_COPY}<span>Sao chép</span>`;
+        copyBtn.addEventListener("click", () => {
+            copyText(codeEl.innerText).then(() => {
+                copyBtn.innerHTML = `${ICON_CHECK}<span>Đã chép</span>`;
+                setTimeout(() => { copyBtn.innerHTML = `${ICON_COPY}<span>Sao chép</span>`; }, 2000);
             });
-
-            wrapper.appendChild(copyBtn);
-        }
+        });
+        wrapper.appendChild(copyBtn);
     });
 });
+
+// Sao chép văn bản vào clipboard và hiện toast xác nhận
+function copyText(text, message) {
+    return navigator.clipboard.writeText(text).then(() => {
+        showToast(message || "Đã sao chép câu lệnh SQL vào clipboard!");
+    }).catch((err) => {
+        console.error("Lỗi khi sao chép:", err);
+        showToast("Trình duyệt không cho phép sao chép tự động.");
+    });
+}
 
 // Hàm hiển thị Toast thông báo nổi
 function showToast(message) {
@@ -71,16 +86,106 @@ function showToast(message) {
 
     const toast = document.createElement("div");
     toast.className = "toast";
-    toast.innerHTML = `
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-        <span>${message}</span>
-    `;
+    toast.innerHTML = ICON_CHECK;
+    const span = document.createElement("span");
+    span.textContent = message;
+    toast.appendChild(span);
     container.appendChild(toast);
 
     setTimeout(() => {
-        toast.style.opacity = "0";
-        toast.style.transform = "translateY(10px)";
-        toast.style.transition = "all 0.3s ease";
+        toast.classList.add("is-leaving");
         setTimeout(() => toast.remove(), 300);
     }, 2500);
 }
+
+// Chuẩn hóa chuỗi tiếng Việt để tìm kiếm không phân biệt dấu / hoa thường
+function normalizeVi(text) {
+    return String(text || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .replace(/đ/g, "d")
+        .trim();
+}
+
+// Lọc danh sách phần tử theo từ khóa (dùng thuộc tính data-lot-text)
+function filterByText(items, query, emptyEl) {
+    const q = normalizeVi(query);
+    let shown = 0;
+    items.forEach((el) => {
+        const match = !q || normalizeVi(el.getAttribute("data-lot-text")).includes(q);
+        el.hidden = !match;
+        if (match) shown++;
+    });
+    if (emptyEl) emptyEl.hidden = shown > 0;
+    return shown;
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    // Bộ chọn bãi đỗ (lot picker): tìm kiếm, điều hướng phím, đóng khi bấm ra ngoài
+    document.querySelectorAll("[data-lot-picker]").forEach((picker) => {
+        const search = picker.querySelector("[data-lot-search]");
+        const options = Array.from(picker.querySelectorAll(".lot-opt"));
+        const emptyEl = picker.querySelector("[data-lot-empty]");
+        const visible = () => options.filter((o) => !o.hidden);
+
+        picker.addEventListener("toggle", () => {
+            if (!picker.open) return;
+            if (search) {
+                search.value = "";
+                filterByText(options, "", emptyEl);
+                search.focus();
+            }
+            const active = picker.querySelector(".lot-opt.active");
+            if (active) active.scrollIntoView({ block: "nearest" });
+        });
+
+        if (search) {
+            search.addEventListener("input", () => filterByText(options, search.value, emptyEl));
+            search.addEventListener("keydown", (e) => {
+                if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    const first = visible()[0];
+                    if (first) first.focus();
+                } else if (e.key === "Enter") {
+                    const list = visible();
+                    if (list.length === 1) {
+                        e.preventDefault();
+                        window.location.href = list[0].href;
+                    }
+                }
+            });
+        }
+
+        picker.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") {
+                picker.open = false;
+                picker.querySelector("summary").focus();
+                return;
+            }
+            if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+            const list = visible();
+            const idx = list.indexOf(document.activeElement);
+            if (idx === -1) return;
+            e.preventDefault();
+            const next = e.key === "ArrowDown" ? list[idx + 1] : list[idx - 1];
+            if (next) next.focus();
+            else if (e.key === "ArrowUp" && search) search.focus();
+        });
+    });
+
+    document.addEventListener("click", (e) => {
+        document.querySelectorAll("[data-lot-picker][open]").forEach((picker) => {
+            if (!picker.contains(e.target)) picker.open = false;
+        });
+    });
+
+    // Ô tìm kiếm danh bạ chi nhánh trên trang chủ
+    document.querySelectorAll("[data-lot-dir-search]").forEach((input) => {
+        const dir = document.getElementById(input.getAttribute("data-lot-dir-search"));
+        if (!dir) return;
+        const cards = Array.from(dir.querySelectorAll("[data-lot-text]"));
+        const emptyEl = document.querySelector(`[data-lot-dir-empty="${dir.id}"]`);
+        input.addEventListener("input", () => filterByText(cards, input.value, emptyEl));
+    });
+});

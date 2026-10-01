@@ -1,165 +1,125 @@
 {% extends 'base.html' %}
+{% from '_icons.html' import icon %}
 {% block content %}
-<div class="page-header" style="margin-bottom: 12px;">
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;">
-        <div>
-            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
-                <span class="step-badge" style="background: #ecfdf5; color: #059669;">BI & ANALYTICS</span>
-                <span style="font-size: 0.825rem; color: var(--text-tertiary);">5 SQL Views BI + 7 SQL Views vận hành realtime</span>
-            </div>
-            <h1 style="font-size: 1.6rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.02em;">
-                📊 Danh Mục Báo Cáo Thống Kê & Bảng Điều Khiển
-            </h1>
-            <p style="color: var(--text-secondary); margin-top: 4px; font-size: 0.9rem; max-width: 820px;">
-                Tổng hợp số liệu từ các View tối ưu hóa trong SQL Server. Hỗ trợ hiển thị bảng dữ liệu thời gian thực và tự động nhúng ảnh đồ họa Dashboard xuất từ Tableau hoặc PowerBI khi có sẵn.
-            </p>
-        </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-            <a href="{{ url_for('main.parking_map') }}" class="btn btn-outline" style="font-size: 0.85rem; padding: 6px 12px;">
-                🗺️ Sơ Đồ Bãi Xe
-            </a>
-            <a href="{{ url_for('main.gate_booth') }}" class="btn btn-outline" style="font-size: 0.85rem; padding: 6px 12px;">
-                🚦 Bốt Cổng Vào/Ra
-            </a>
-            <a href="{{ url_for('main.index') }}" class="btn btn-outline" style="font-size: 0.85rem; padding: 6px 12px;">
-                ← Về Trang Chủ
-            </a>
-        </div>
+
+{% set view_meta = {
+    'vw_Report_CongSuatBaiDo': {
+        'icon': 'trending', 'tone': 'tone-blue',
+        'title': 'Công Suất & Tỷ Lệ Lấp Đầy',
+        'desc': 'Thống kê tổng số ô đỗ, số ô đang có xe và tỷ lệ lấp đầy (%) theo từng chi nhánh bãi.',
+        'category': 'Vận Hành'
+    },
+    'vw_Report_DoanhThuTheoBai': {
+        'icon': 'wallet', 'tone': 'tone-green',
+        'title': 'Tổng Hợp Doanh Thu Theo Bãi',
+        'desc': 'Tổng hợp nguồn thu từ vé gửi vãng lai và hóa đơn thuê vé tháng phân bổ theo từng bãi đỗ.',
+        'category': 'Tài Chính'
+    },
+    'vw_Report_XeDangDoHienTai': {
+        'icon': 'car', 'tone': 'tone-cyan',
+        'title': 'Danh Sách Xe Đang Đỗ Thời Gian Thực',
+        'desc': 'Chi tiết danh sách các phương tiện hiện đang nằm trong bãi, vị trí ô đỗ và thời điểm vào.',
+        'category': 'Giám Sát IoT'
+    },
+    'vw_Report_VeThangSapHetHan': {
+        'icon': 'hourglass', 'tone': 'tone-amber',
+        'title': 'Cảnh Báo Vé Tháng Sắp Hết Hạn',
+        'desc': 'Lọc danh sách các thuê bao khách hàng sắp hết hạn trong vòng 7 ngày tới để chăm sóc gia hạn.',
+        'category': 'Chăm Sóc KH'
+    },
+    'vw_Report_NhatKySuCo': {
+        'icon': 'octagon', 'tone': 'tone-red',
+        'title': 'Nhật Ký Vi Phạm & Sự Cố Hệ Thống',
+        'desc': 'Báo cáo trích xuất từ bảng ghi sự cố tự động (Trigger): quẹt thẻ lỗi, mất thẻ, biển số không khớp.',
+        'category': 'An Ninh & Audit'
+    }
+} %}
+{% set op_icons = {
+    'v_BotCong_TraCuuThe': 'card',
+    'v_BotCong_XeChoRa': 'receipt',
+    'v_BotCong_NhatKyVaoRa': 'list',
+    'v_BotCong_BangDenCong': 'traffic',
+    'v_SodoBai_ODoChiTiet': 'grid',
+    'v_SodoBai_TongHopKhuVuc': 'layers',
+    'v_SodoBai_TongQuanBai': 'building',
+} %}
+
+<div class="page-head">
+    <div class="ph-main">
+        <div class="eyebrow">{{ icon('chart', 13) }} BI &amp; analytics <span class="sep">• {{ report_items|length }} views BI + {{ operation_view_items|length }} views vận hành</span></div>
+        <h1 class="ph-title">Báo cáo thống kê &amp; bảng điều khiển</h1>
+        <p class="ph-sub">
+            Tổng hợp số liệu từ các View tối ưu trong SQL Server. Hiển thị bảng dữ liệu thời gian thực và tự động nhúng ảnh
+            Dashboard xuất từ Tableau / Power BI khi có sẵn.
+        </p>
+    </div>
+    <div class="ph-actions">
+        <a href="{{ url_for('main.parking_map') }}" class="btn btn-outline">{{ icon('grid', 15) }}<span>Sơ đồ bãi xe</span></a>
+        <a href="{{ url_for('main.gate_booth') }}" class="btn btn-outline">{{ icon('barrier', 15) }}<span>Bốt cổng</span></a>
     </div>
 </div>
 
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px;">
-    {% set view_meta = {
-        'vw_Report_CongSuatBaiDo': {
-            'icon': '📈', 
-            'title': 'Công Suất & Tỷ Lệ Lấp Đầy', 
-            'desc': 'Thống kê tổng số ô đỗ, số ô đang có xe và tỷ lệ lấp đầy (%) theo từng chi nhánh bãi.',
-            'category': 'Vận Hành'
-        },
-        'vw_Report_DoanhThuTheoBai': {
-            'icon': '💰', 
-            'title': 'Tổng Hợp Doanh Thu Theo Bãi', 
-            'desc': 'Tổng hợp nguồn thu từ vé gửi vãng lai và hóa đơn thuê vé tháng phân bổ theo từng bãi đỗ.',
-            'category': 'Tài Chính'
-        },
-        'vw_Report_XeDangDoHienTai': {
-            'icon': '🚘', 
-            'title': 'Danh Sách Xe Đang Đỗ Thời Gian Thực', 
-            'desc': 'Chi tiết danh sách các phương tiện hiện đang nằm trong bãi, vị trí ô đỗ và thời điểm vào.',
-            'category': 'Giám Sát IoT'
-        },
-        'vw_Report_VeThangSapHetHan': {
-            'icon': '⏳', 
-            'title': 'Cảnh Báo Vé Tháng Sắp Hết Hạn', 
-            'desc': 'Lọc danh sách các thuê bao khách hàng sắp hết hạn trong vòng 7 ngày tới để chăm sóc gia hạn.',
-            'category': 'Chăm Sóc KH'
-        },
-        'vw_Report_NhatKySuCo': {
-            'icon': '🚨', 
-            'title': 'Nhật Ký Vi Phạm & Sự Cố Hệ Thống', 
-            'desc': 'Báo cáo trích xuất từ bảng ghi sự cố tự động (Trigger): quẹt thẻ lỗi, mất thẻ, biển số không khớp.',
-            'category': 'An Ninh & Audit'
-        }
-    } %}
-
-    {% for item in report_items %}
-    {% set meta = view_meta.get(item.view_name, {'icon': '📊', 'title': item.view_name, 'desc': 'Báo cáo thống kê trích xuất từ SQL View.', 'category': 'Thống Kê'}) %}
-    <div class="card" style="display: flex; flex-direction: column; justify-content: space-between; border: 1px solid var(--border); padding: 12px; margin-bottom: 0; transition: transform 0.2s ease, box-shadow 0.2s ease;">
-        <div>
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <div style="width: 36px; height: 36px; border-radius: 8px; background: #f0fdf4; color: #16a34a; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
-                        {{ meta.icon }}
-                    </div>
-                    <div>
-                        <span class="badge badge-primary" style="font-size: 0.7rem; padding: 2px 6px;">SQL VIEW</span>
-                        <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--text-primary); margin-top: 2px; line-height: 1.25;">
-                            {{ meta.title }}
-                        </h3>
-                    </div>
-                </div>
-                <span class="badge badge-info" style="font-size: 0.7rem; padding: 2px 6px;">{{ meta.category }}</span>
-            </div>
-
-            <p style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.4; margin-bottom: 10px;">
-                {{ meta.desc }}
-            </p>
-
-            <div style="margin-bottom: 10px; font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tertiary); background: var(--bg-main); padding: 4px 8px; border-radius: 6px;">
-                dbo.{{ item.view_name }}
-            </div>
-        </div>
-
-        <div>
-            <div style="margin-bottom: 8px;">
-                {% if item.screenshot_filename %}
-                    <span class="badge badge-success" style="font-size: 0.75rem; padding: 3px 8px;">
-                        ✓ Đã có ảnh Dashboard trực quan
-                    </span>
-                {% else %}
-                    <span class="badge badge-warning" style="font-size: 0.75rem; background: #fef3c7; color: #b45309; padding: 3px 8px;">
-                        💡 Chưa có ảnh biểu đồ (Option)
-                    </span>
-                {% endif %}
-            </div>
-
-            <a href="{{ url_for('main.report_detail', view_name=item.view_name) }}" class="btn btn-primary" style="width: 100%; font-size: 0.85rem; justify-content: center; padding: 6px 12px;">
-                Mở Báo Cáo Chi Tiết ➔
-            </a>
-        </div>
+<!-- NHÓM 1: VIEWS BÁO CÁO BI -->
+<div class="section-head">
+    <div>
+        <h2 class="section-title">{{ icon('chart', 17) }}Views báo cáo quản trị</h2>
+        <div class="section-sub">Dữ liệu tổng hợp phục vụ ban giám đốc và Power BI / Tableau</div>
     </div>
+</div>
+
+<div class="grid grid-auto">
+    {% for item in report_items %}
+    {% set meta = view_meta.get(item.view_name, {'icon': 'chart', 'tone': 'tone-blue', 'title': item.view_name, 'desc': 'Báo cáo thống kê trích xuất từ SQL View.', 'category': 'Thống Kê'}) %}
+    <a href="{{ url_for('main.report_detail', view_name=item.view_name) }}" class="card card-link cat-card">
+        <div class="cat-card-top">
+            <span class="tile-ico {{ meta.tone }}">{{ icon(meta.icon, 18) }}</span>
+            <div class="grow">
+                <span class="badge badge-secondary">{{ meta.category }}</span>
+                <h3 class="cat-card-title mt-4">{{ meta.title }}</h3>
+            </div>
+        </div>
+        <p class="cat-card-desc">{{ meta.desc }}</p>
+        <span class="obj-name"><span class="dim">dbo.</span>{{ item.view_name }}</span>
+        <div class="card-foot" style="margin-top: 0;">
+            {% if item.screenshot_filename %}
+            <span class="badge badge-success">{{ icon('image', 12) }}Có ảnh dashboard</span>
+            {% else %}
+            <span class="badge badge-secondary">{{ icon('image', 12) }}Chưa có ảnh</span>
+            {% endif %}
+            <span class="go-link">Mở báo cáo{{ icon('arrow-right', 14) }}</span>
+        </div>
+    </a>
     {% endfor %}
 </div>
 
-<!-- ============================================================================
-     7 VIEWS VẬN HÀNH THỜI GIAN THỰC: BỐT KIỂM SOÁT CỔNG & SƠ ĐỒ BÃI XE
-     ============================================================================ -->
-<div class="page-header" style="margin-top: 20px; margin-bottom: 12px;">
-    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
-        <span class="step-badge" style="background: #fef3c7; color: #b45309;">OPERATIONAL REALTIME</span>
-        <span style="font-size: 0.825rem; color: var(--text-tertiary);">sql/07_views.sql · PHẦN C & PHẦN D</span>
+<!-- NHÓM 2: VIEWS VẬN HÀNH REALTIME -->
+<div class="section-head mt-12">
+    <div>
+        <h2 class="section-title">{{ icon('activity', 17) }}{{ operation_view_items|length }} views vận hành bốt cổng &amp; sơ đồ bãi</h2>
+        <div class="section-sub">
+            <code>sql/07_views.sql</code> • phần C &amp; D. Phục vụ trực tiếp màn hình
+            <a href="{{ url_for('main.gate_booth') }}">Bốt kiểm soát cổng</a> và
+            <a href="{{ url_for('main.parking_map') }}">Sơ đồ bãi xe</a>.
+        </div>
     </div>
-    <h2 style="font-size: 1.3rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.02em;">
-        🚦 7 Views Vận Hành Bốt Cổng & Sơ Đồ Bãi Xe Realtime
-    </h2>
-    <p style="color: var(--text-secondary); margin-top: 4px; font-size: 0.9rem; max-width: 820px;">
-        Nhóm views phục vụ trực tiếp màn hình <a href="{{ url_for('main.gate_booth') }}">Bốt Kiểm Soát Cổng Vào/Ra</a>
-        và <a href="{{ url_for('main.parking_map') }}">Sơ Đồ Bãi Xe Thời Gian Thực</a>. Bấm vào từng thẻ để xem dữ liệu thô trả về từ SQL Server.
-    </p>
 </div>
 
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px;">
+<div class="grid grid-auto">
     {% for item in operation_view_items %}
-    <div class="card" style="display: flex; flex-direction: column; justify-content: space-between; border: 1px solid var(--border); padding: 12px; margin-bottom: 0;">
-        <div>
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <div style="width: 36px; height: 36px; border-radius: 8px; background: #fffbeb; color: #b45309; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
-                        {{ item.icon }}
-                    </div>
-                    <div>
-                        <span class="badge badge-warning" style="font-size: 0.7rem; padding: 2px 6px;">SQL VIEW</span>
-                        <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--text-primary); margin-top: 2px; line-height: 1.25;">
-                            {{ item.title }}
-                        </h3>
-                    </div>
-                </div>
-                <span class="badge badge-info" style="font-size: 0.7rem; padding: 2px 6px;">{{ item.category }}</span>
-            </div>
-
-            <p style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.4; margin-bottom: 10px;">
-                {{ item.desc }}
-            </p>
-
-            <div style="margin-bottom: 10px; font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-tertiary); background: var(--bg-main); padding: 4px 8px; border-radius: 6px;">
-                dbo.{{ item.view_name }}
+    <a href="{{ url_for('main.report_detail', view_name=item.view_name) }}" class="card card-link cat-card">
+        <div class="cat-card-top">
+            <span class="tile-ico tone-amber">{{ icon(op_icons.get(item.view_name, 'activity'), 18) }}</span>
+            <div class="grow">
+                <span class="badge badge-warning">{{ item.category }}</span>
+                <h3 class="cat-card-title mt-4">{{ item.title }}</h3>
             </div>
         </div>
-
-        <a href="{{ url_for('main.report_detail', view_name=item.view_name) }}" class="btn btn-primary" style="width: 100%; font-size: 0.85rem; justify-content: center; padding: 6px 12px;">
-            Xem Dữ Liệu View ➔
-        </a>
-    </div>
+        <p class="cat-card-desc">{{ item.desc }}</p>
+        <div class="card-foot" style="margin-top: 0;">
+            <span class="obj-name"><span class="dim">dbo.</span>{{ item.view_name }}</span>
+            <span class="go-link nowrap">Xem dữ liệu{{ icon('arrow-right', 14) }}</span>
+        </div>
+    </a>
     {% endfor %}
 </div>
 {% endblock %}
