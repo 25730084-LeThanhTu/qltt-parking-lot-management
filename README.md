@@ -90,7 +90,7 @@ Hệ thống được thiết kế xuất phát từ các vấn đề nhức nh�
 - **Giải pháp trong project:**
   - Thủ tục `sp_BaoMatThe`: Lập tức chuyển trạng thái thẻ trong `THE_XE` thành `N'Mất'`.
   - Trigger `trg_LogLichSuSuCo`: Tự động kích hoạt khi phát hiện thẻ đổi sang trạng thái `Mất`, tự chèn một biên bản điều tra sự cố vào bảng `LICHSU_SU_CO` kèm mức tiền phạt 50.000 ₫.
-  - Trigger `trg_KiemTraCheckIn`: Khi kẻ gian quẹt thẻ đã bị báo mất tại cổng, trigger lập tức chặn đứng barrier và trả về mã lỗi bảo mật `50001: Thẻ xe đang bị khóa hoặc đã báo mất!`.
+  - Trigger `trg_KiemTraCheckIn`: Khi kẻ gian quẹt thẻ đã bị báo mất tại cổng, trigger lập tức chặn đứng barrier và trả về mã lỗi bảo mật `50002: Thẻ xe đang bị khóa hoặc đã báo mất!`.
 
 ### 🗺️ Bài toán 5: Giám sát Sơ đồ Mặt bằng & Quản trị Công suất Thời gian thực (Realtime Lot Capacity & Overbooking Prevention)
 - **Vấn đề thực tế:**
@@ -98,7 +98,8 @@ Hệ thống được thiết kế xuất phát từ các vấn đề nhức nh�
   - Người quản lý không nắm được tầng nào, khu vực nào còn chỗ để điều phối nhân sự trực.
 - **Giải pháp trong project:**
   - Ràng buộc toàn vẹn `CHECK (SoLuongHienTai <= SucChua)` trên bảng `BAI_DO_XE`.
-  - Trigger `trg_KiemTraCheckIn`: Chặn xe vào ngay khi `SoLuongHienTai >= SucChua` (mã lỗi `50002: Bãi đỗ xe đã đầy công suất!`).
+  - Trigger `trg_KiemTraCheckIn`: Chặn xe vào khi số lượt đang mở vượt `SucChua` (mã lỗi `50001: Bãi đỗ xe đã đầy công suất!`). Trigger đếm trực tiếp lượt chưa ra và được đặt chạy trước (`sp_settriggerorder ... 'First'`), nên xe cuối cùng khi bãi còn đúng 1 chỗ vẫn vào được.
+  - Cũng trong trigger này: thẻ đang có lượt chưa ra không check-in lần nữa (`50014`), ô đỗ phải thuộc đúng bãi và chỉ chứa 1 xe (`50015`), thẻ lượt chỉ dùng tại bãi phát hành (`50016`).
   - Hệ thống 3 Views sơ đồ realtime:
     - `v_SodoBai_ODoChiTiet`: Hiển thị từng vị trí đỗ, biển số xe, thời gian gửi và cảnh báo lệch trạng thái giữa ô đỗ với lượt gửi.
     - `v_SodoBai_TongHopKhuVuc`: Tổng hợp số ô trống/đã đỗ theo từng phân khu và tầng hầm.
@@ -243,6 +244,22 @@ Truy cập hệ thống trên trình duyệt:
 http://127.0.0.1:5001
 ```
 
+### 3.6. Chạy bằng Docker (Mac Apple Silicon M1/M2 + Colima)
+
+SQL Server 2022 chỉ có image `amd64`, nên Colima cần bật Rosetta để giả lập (tối thiểu 4 GB RAM):
+
+```bash
+colima start --vm-type vz --vz-rosetta --cpu 4 --memory 4
+
+docker compose up -d --build     # db (SQL Server) -> db-init (nạp full script lần đầu) -> app (Flask)
+docker compose ps                # db: healthy, db-init: Exited (0), app: Up
+```
+
+- Web: `http://127.0.0.1:5001` (cổng 5000 trên macOS bị AirPlay Receiver chiếm; đổi bằng biến `APP_PORT`).
+- SSMS / Azure Data Studio: server `localhost,1433`, user `sa`, mật khẩu `Parking@12345` (đổi bằng biến `MSSQL_SA_PASSWORD` trong shell hoặc `.env` trước lần chạy đầu tiên).
+- `db-init` chỉ nạp `sql/QL_BaiDoXe_FullScript.sql` khi CSDL chưa được dựng hoàn chỉnh, nên dữ liệu demo được giữ lại giữa các lần `up`. Muốn nạp lại: dùng trang `/setup`, hoặc xóa sạch volume bằng `docker compose down -v`.
+- Mã nguồn được mount vào container, Flask tự reload khi sửa code.
+
 ---
 
 ## 🎯 5. Danh mục 9 Kịch Bản Demo CSDL Chuẩn 5 Bước
@@ -253,10 +270,10 @@ Các kịch bản demo được tổ chức thành dạng **List Card** phân 4 
 | :--- | :--- | :--- | :--- | :--- |
 | **Procedure** | `sp-xe-vao-bai` | Check-In xe vào bãi | `sp_XeVaoBai`, `f_TimSlotTrong`, `trg_DongBoTrangThaiSlot` | Cấp phát slot trống tự động, tăng số lượng xe đang đỗ, đổi trạng thái ô đỗ sang `'Đã đỗ'`. |
 | **Procedure** | `sp-xe-ra-bai` | Check-Out xe & Thu phí | `sp_XeRaBai`, `f_TinhTienGuiXe`, `trg_DongBoTrangThaiSlot` | Tính phí theo số block giờ, giải phóng slot về `'Trống'`, giảm số xe bãi đỗ. |
-| **Procedure** | `sp-dang-ky-thanh-vien` | Đăng ký vé tháng an toàn | `sp_DangKyThanhVien` (TRANSACTION) | Đảm bảo tính toàn vẹn ACID: Tạo KH $\rightarrow$ Đổi loại thẻ $\rightarrow$ Cấp vé $\rightarrow$ Sinh hóa đơn. |
-| **Procedure** | `sp-gia-han-ve-thang` | Gia hạn vé tháng | `sp_GiaHanTheThang` | Cộng dồn thời hạn sử dụng vé và tự động sinh hóa đơn thanh toán. |
+| **Procedure** | `sp-dang-ky-thanh-vien` | Đăng ký vé tháng an toàn | `sp_DangKyThanhVien` (TRANSACTION) | Đảm bảo tính toàn vẹn ACID: Tạo KH $\rightarrow$ Đổi loại thẻ $\rightarrow$ Cấp vé $\rightarrow$ Sinh hóa đơn. Tự sinh mã `KH####` / `V####` / `HD` + ngày + STT; thiếu biểu phí báo lỗi 50017. |
+| **Procedure** | `sp-gia-han-ve-thang` | Gia hạn vé tháng | `sp_GiaHanTheThang` (TRANSACTION) | Cộng dồn thời hạn sử dụng vé và tự động sinh hóa đơn thanh toán. Vé gắn bãi chỉ thu tiền tại bãi áp dụng (50018), vé `ALL` thu tại bãi gia hạn (mặc định bãi phát hành thẻ), thẻ đã báo mất không gia hạn được (50019). |
 | **Procedure** | `sp-bao-mat-the` | Báo mất thẻ & Lập biên bản | `sp_BaoMatThe`, `trg_LogLichSuSuCo` | Khóa thẻ lập tức, tự động sinh biên bản sự cố và áp tiền phạt đền bù 50.000 ₫. |
-| **Trigger** | `trigger-chan-checkin-loi` | Chặn thẻ mất & Bãi đầy | `trg_KiemTraCheckIn` | Bẫy lỗi chủ động: Chặn thẻ bị khóa/mất (lỗi 50001) hoặc chặn khi bãi đầy 100% (lỗi 50002). |
+| **Trigger** | `trigger-chan-checkin-loi` | Chặn thẻ mất & Bãi đầy | `trg_KiemTraCheckIn` | Bẫy lỗi chủ động: Chặn thẻ bị khóa/mất (lỗi 50002), bãi đầy 100% (lỗi 50001), thẻ đang đỗ (50014), ô sai bãi / đã có xe (50015), thẻ lượt sai bãi (50016). |
 | **Trigger** | `trigger-chan-ve-het-han` | Chặn vé tháng quá hạn | `trg_ChanSuDungVeHetHan` | Từ chối mở barrier khi vé tháng đã hết hạn sử dụng (lỗi 50003). |
 | **Function** | `function-tinh-tien-slot` | Tính tiền giờ & Dò slot | `f_TinhTienGuiXe`, `f_TimSlotTrong`, `f_DanhSachXeTrongBai` | Kiểm chứng trực tiếp kết quả trả về của các hàm vô hướng và hàm trả về bảng. |
 | **Cursor** | `cursor-canh-bao-doanh-thu` | Quét hạn vé & Doanh thu chuỗi | `cur_CanhBaoHanTheThang`, `cur_TongKetDoanhThuChuoi` | Vận hành 2 con trỏ CSDL duyệt từng dòng dữ liệu tự động. |

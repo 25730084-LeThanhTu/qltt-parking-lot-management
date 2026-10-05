@@ -70,7 +70,7 @@ Mở trình duyệt truy cập: **`http://127.0.0.1:5001`**
 
 ## 🚀 PHẦN II: KỊCH BẢN THUYẾT TRÌNH CHI TIẾT 9 BƯỚC DEMO SONG HÀNH
 
-Tại màn hình **Tổng Quan (`/`)**, 9 kịch bản Demo được phân loại khoa học thành **dạng List Card chia theo 4 nhóm chuyên biệt**:
+Tại màn hình **Tổng Quan (`/`)**, 10 kịch bản Demo được phân loại khoa học thành **dạng List Card chia theo 4 nhóm chuyên biệt**:
 1. **⚙️ Nhóm Stored Procedures (5 kịch bản)**
 2. **⚡ Nhóm Database Triggers (2 kịch bản)**
 3. **📐 Nhóm Database Functions (1 kịch bản)**
@@ -85,7 +85,7 @@ Tại màn hình **Tổng Quan (`/`)**, 9 kịch bản Demo được phân loạ
 - **Nhóm đối tượng:** `⚙️ Procedure` | **Đường dẫn Web:** `/demo/sp-xe-vao-bai`
 - **Mục tiêu thuyết trình:** Chứng minh quy trình xe vào tự động: tiếp nhận thẻ chip $\rightarrow$ tự tìm ô trống khả dụng bằng function $\rightarrow$ tạo lượt gửi $\rightarrow$ Trigger tự động đổi màu ô đỗ và tăng công suất bãi.
 - **Các bước thực hiện:**
-  1. **Bước 1 (Giới thiệu bài toán):** Chỉ vào khung B1 trên Web: *"Khi xe máy biển số 59A-123.45 quét thẻ THE0001 vào bãi Lê Lai (Q1), hệ thống sẽ tìm slot trống và cấp phát."*
+  1. **Bước 1 (Giới thiệu bài toán):** Chỉ vào khung B1 trên Web: *"Khi xe máy biển số 59T1-888.88 quét thẻ THE0003 vào bãi Lê Lai (Q1), hệ thống sẽ tìm slot trống và cấp phát."*
   2. **Bước 2 (Kiểm tra dữ liệu ban đầu):**
      - Dưới SSMS: Chạy lệnh:
        ```sql
@@ -99,9 +99,9 @@ Tại màn hình **Tổng Quan (`/`)**, 9 kịch bản Demo được phân loạ
        ```sql
        SELECT TenBai, SoLuongHienTai FROM dbo.BAI_DO_XE WHERE MaBai = 'BAI_Q1'; -- Số lượng xe tăng thêm 1
        SELECT MaViTri, TrangThai FROM dbo.VI_TRI_DO WHERE MaViTri = 'Q1_XM_01'; -- Đã tự chuyển sang 'Đã đỗ'
-       SELECT TOP 1 * FROM dbo.LUOT_GUI WHERE MaThe = 'THE0001' ORDER BY MaLuot DESC;
+       SELECT TOP 1 * FROM dbo.LUOT_GUI WHERE MaThe = 'THE0003' ORDER BY MaLuot DESC;
        ```
-  5. **Điểm nhấn ăn điểm:** Mở tab menu **"🗺️ Sơ Đồ Mặt Bằng"** (`/map`), chọn bãi Quận 1 $\rightarrow$ Ô đỗ `Q1_XM_01` đã tự động chuyển sang màu **Đỏ (Đã đỗ)** kèm hiển thị biển số xe `59A-123.45`.
+  5. **Điểm nhấn ăn điểm:** Mở tab menu **"🗺️ Sơ Đồ Mặt Bằng"** (`/map`), chọn bãi Quận 1 $\rightarrow$ Ô đỗ `Q1_XM_01` đã tự động chuyển sang màu **Đỏ (Đã đỗ)** kèm hiển thị biển số xe `59T1-888.88`.
 
 ---
 
@@ -129,10 +129,10 @@ Tại màn hình **Tổng Quan (`/`)**, 9 kịch bản Demo được phân loạ
 - **Nhóm đối tượng:** `⚙️ Procedure` | **Đường dẫn Web:** `/demo/sp-dang-ky-thanh-vien`
 - **Mục tiêu thuyết trình:** Minh họa tính toàn vẹn dữ liệu qua cơ chế Transaction của CSDL.
 - **Quy trình 4 thao tác liên hoàn trong 1 Transaction:**
-  1. Tạo hồ sơ khách hàng mới (`KHACH_HANG`).
+  1. Tạo hồ sơ khách hàng mới (`KHACH_HANG`). Không truyền `@MaKH` thì thủ tục tìm khách theo CMND/CCCD, chưa có thì sinh mã `KH####` tiếp theo. Email có thể để trống (chỉ bắt buộc duy nhất khi có giá trị).
   2. Chuyển đổi trạng thái thẻ chip từ thẻ Lượt sang thẻ Tháng (`THE_XE`).
-  3. Sinh mã hợp đồng vé tháng mới và tính hạn dùng 3 tháng (`VE_THANG`).
-  4. Tính tiền và lập hóa đơn thu tiền tương ứng (`HOA_DON_VE_THANG`).
+  3. Sinh mã hợp đồng vé tháng `V####` tiếp theo (ví dụ `V0011`) và tính hạn dùng 3 tháng (`VE_THANG`).
+  4. Tính tiền và lập hóa đơn `HD` + ngày + STT (ví dụ `HD20261005011`) trong `HOA_DON_VE_THANG`. Loại xe chưa có biểu phí tại bãi tính giá sẽ báo lỗi 50017 và rollback toàn bộ.
 - **Thao tác:** Bấm nút thực thi trên Web $\rightarrow$ Cả 4 bảng đều đồng thời xuất hiện dòng dữ liệu mới ăn khớp nhau tuyệt đối. Nếu có bất kỳ lỗi nào xảy ra giữa chừng, toàn bộ 4 thao tác đều bị `ROLLBACK TRANSACTION`.
 
 ---
@@ -141,7 +141,8 @@ Tại màn hình **Tổng Quan (`/`)**, 9 kịch bản Demo được phân loạ
 - **Bài toán thực tế giải quyết:** *Bài toán 3 - Quản lý Thuê bao Vé tháng.*
 - **Nhóm đối tượng:** `⚙️ Procedure` | **Đường dẫn Web:** `/demo/sp-gia-han-ve-thang`
 - **Mục tiêu:** Khách hàng nộp tiền gia hạn thêm 2 tháng.
-- **Thao tác:** Bấm nút thực thi $\rightarrow$ So sánh cột `NgayHetHan`: Hạn sử dụng được cộng thêm đúng 60 ngày, và một hóa đơn mới được thêm vào `HOA_DON_VE_THANG`.
+- **Thao tác:** Bấm nút thực thi $\rightarrow$ So sánh cột `NgayHetHan`: Hạn sử dụng được cộng thêm đúng 2 tháng, và một hóa đơn mới được thêm vào `HOA_DON_VE_THANG`.
+- **Quy tắc thu tiền:** Vé gắn một bãi chỉ gia hạn tại bãi áp dụng (truyền bãi khác báo lỗi 50018); vé `ALL` thu tại `@MaBaiGiaHan`, mặc định bãi phát hành thẻ. Thẻ đã báo mất không gia hạn được (lỗi 50019).
 
 ---
 
@@ -172,6 +173,14 @@ Tại màn hình **Tổng Quan (`/`)**, 9 kịch bản Demo được phân loạ
 - **Nhóm đối tượng:** `⚡ Trigger` | **Đường dẫn Web:** `/demo/trigger-chan-ve-het-han`
 - **Mục tiêu:** Xe sử dụng thẻ tháng `THE0008` (vé `V0003` đã hết hạn) quét check-in.
 - **Kết quả:** Trigger phát hiện ngày hiện tại lớn hơn `NgayHetHan`, lập tức hủy giao dịch và ném mã lỗi `50003: Vé tháng đã hết hạn sử dụng!`.
+
+---
+
+### 🔹 Kịch bản 7b: Trigger chặn vé tháng gửi sai bãi (`trg_KiemTraBaiApDungVeThang`)
+- **Nhóm đối tượng:** `⚡ Trigger` | **Đường dẫn Web:** `/demo/trigger-chan-sai-bai`
+- **Mục tiêu:** Thẻ tháng `THE0017` (vé `V0006` chỉ áp dụng tại `BAI_TB` - Tân Sơn Nhất) quét check-in tại bãi Lê Lai (`BAI_Q1`).
+- **Kết quả:** Trigger so `MaBaiApDung` của vé với bãi đang check-in, hủy giao dịch và ném lỗi `50004`. Vé toàn chuỗi (`MaBaiApDung = 'ALL'`, ví dụ `V0004`) không bị chặn ở bất kỳ bãi nào.
+- **Ghi chú định giá:** Vé `ALL` tính giá và ghi doanh thu tại bãi bán vé (`@MaBaiBan` của `sp_DangKyThanhVien`, mặc định là bãi phát hành thẻ).
 
 ---
 
@@ -246,6 +255,10 @@ EXEC dbo.sp_DangNhap @TenDangNhap = 'baove_khoa', @MatKhauPlain = '123456';
 | `quanly_bt` | `123456` | Quản lý bãi Landmark 81 | Bãi Bình Thạnh (`BAI_BT`) | Hoạt động |
 | `baove_q1` | `123456` | Nhân viên bảo vệ trực cổng | Bãi Quận 1 (`BAI_Q1`) | Hoạt động |
 | `baove_khoa` | `123456` | Nhân viên bảo vệ | Bãi Quận 1 (`BAI_Q1`) | **Bị khóa** |
+| `quanly_tb` | `123456` | Quản lý bãi TCP Park - Sân bay Tân Sơn Nhất | Bãi Tân Bình (`BAI_TB`) | Hoạt động |
+| `quanly_q7` | `123456` | Quản lý bãi SC VivoCity | Bãi Quận 7 (`BAI_Q7`) | Hoạt động |
+| `baove_tb` | `123456` | Nhân viên bảo vệ trực cổng | Bãi Tân Bình (`BAI_TB`) | Hoạt động |
+| `baove_q7` | `123456` | Nhân viên bảo vệ trực cổng | Bãi Quận 7 (`BAI_Q7`) | Hoạt động |
 
 ---
 

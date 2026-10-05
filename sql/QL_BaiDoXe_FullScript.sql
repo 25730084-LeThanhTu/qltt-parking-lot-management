@@ -64,10 +64,13 @@ CREATE TABLE dbo.NHAN_VIEN (
     MaBai VARCHAR(10) NULL,
     CONSTRAINT PK_NHAN_VIEN PRIMARY KEY (MaNV),
     CONSTRAINT UQ_NhanVien_SDT UNIQUE (SDT),
-    CONSTRAINT UQ_NhanVien_Email UNIQUE (Email),
     CONSTRAINT FK_NhanVien_BaiDoXe FOREIGN KEY (MaBai) REFERENCES dbo.BAI_DO_XE(MaBai),
     CONSTRAINT CK_NhanVien_ChucVu CHECK (ChucVu IN (N'Giám đốc điều hành', N'Quản lý bãi', N'Bảo vệ'))
 );
+GO
+
+-- Email duy nhất khi có giá trị; cho phép nhiều nhân viên để trống (UNIQUE constraint chỉ nhận một NULL)
+CREATE UNIQUE INDEX UQ_NhanVien_Email ON dbo.NHAN_VIEN(Email) WHERE Email IS NOT NULL;
 GO
 
 -- 3. Bảng TAI_KHOAN: Tài khoản truy cập & Xác thực nhân viên (Phân hệ An toàn thông tin)
@@ -133,9 +136,12 @@ CREATE TABLE dbo.KHACH_HANG (
     CMND_CCCD VARCHAR(12) NOT NULL,
     CONSTRAINT PK_KHACH_HANG PRIMARY KEY (MaKH),
     CONSTRAINT UQ_KhachHang_SDT UNIQUE (SDT),
-    CONSTRAINT UQ_KhachHang_Email UNIQUE (Email),
     CONSTRAINT UQ_KhachHang_CMND UNIQUE (CMND_CCCD)
 );
+GO
+
+-- Email duy nhất khi có giá trị; cho phép nhiều khách hàng để trống (UNIQUE constraint chỉ nhận một NULL)
+CREATE UNIQUE INDEX UQ_KhachHang_Email ON dbo.KHACH_HANG(Email) WHERE Email IS NOT NULL;
 GO
 
 -- 8. Bảng VE_THANG: Quản lý vé gửi xe định kỳ hàng tháng
@@ -231,14 +237,22 @@ GO
 -- BƯỚC 2: NẠP DỮ LIỆU KHỞI TẠO MẪU (SAMPLE DATA CHO 11 BẢNG CHUẨN HÓA V6)
 -- ====================================================================================
 
--- 1. Nạp danh sách Bãi Đỗ Xe (3 chi nhánh)
+-- SINH TỰ ĐỘNG TỪ docs/QuanLyBaiDoXe_DuLieuMau.xlsx (NGUỒN CHUẨN CỦA DỮ LIỆU MẪU).
+-- Không sửa tay file này: sửa dữ liệu trong Excel (sheet KiemTra phải ĐẠT hết) rồi sinh lại.
+-- Các cột dẫn xuất (SucChua, SoLuongHienTai, VI_TRI_DO.TrangThai, TienGui, SoTien, NgayHetHan, MaHD...)
+-- được ghi đúng giá trị Excel đã tính, nên không cần UPDATE đồng bộ sau khi nạp.
+-- Dòng có mốc tương đối (xe đang đỗ, vé V0007) dùng DATEADD(..., GETDATE()) để luôn đúng tại thời điểm nạp.
+
+-- 1. Bãi Đỗ Xe (5 chi nhánh; SucChua = số ô đỗ, SoLuongHienTai = số xe đang đỗ)
 INSERT INTO dbo.BAI_DO_XE (MaBai, TenBai, DiaChi, SucChua, SoLuongHienTai) VALUES
-('BAI_Q1', N'Bãi xe Lê Lai - Bến Thành', N'Số 26 Lê Lai, Phường Bến Thành, Quận 1, TP.HCM', 15, 0),
-('BAI_Q3', N'Bãi xe Hai Bà Trưng', N'Số 180 Hai Bà Trưng, Phường Đa Kao, Quận 3, TP.HCM', 15, 0),
-('BAI_BT', N'Bãi xe Landmark 81', N'Số 208 Nguyễn Hữu Cảnh, Phường 22, Bình Thạnh, TP.HCM', 20, 0);
+('BAI_Q1', N'Bãi xe Lê Lai - Bến Thành', N'Số 26 Lê Lai, Phường Bến Thành, Quận 1, TP.HCM', 12, 2),
+('BAI_Q3', N'Bãi xe Hai Bà Trưng', N'Số 180 Hai Bà Trưng, Phường Đa Kao, Quận 3, TP.HCM', 10, 1),
+('BAI_BT', N'Bãi xe Landmark 81', N'Số 208 Nguyễn Hữu Cảnh, Phường 22, Bình Thạnh, TP.HCM', 12, 1),
+('BAI_TB', N'Bãi xe TCP Park - Sân bay Tân Sơn Nhất', N'Cạnh nhà ga quốc nội, Cảng HKQT Tân Sơn Nhất, Phường 2, Quận Tân Bình, TP.HCM', 14, 3),
+('BAI_Q7', N'Bãi xe SC VivoCity', N'Số 1058 Nguyễn Văn Linh, Phường Tân Phong, Quận 7, TP.HCM', 12, 2);
 GO
 
--- 2. Nạp Hồ sơ Nhân Viên (NHAN_VIEN: Ban giám đốc, Quản lý bãi, Bảo vệ ca trực)
+-- 2. Hồ sơ Nhân Viên (Ban giám đốc, Quản lý bãi, Bảo vệ ca trực)
 INSERT INTO dbo.NHAN_VIEN (MaNV, HoTen, ChucVu, SDT, Email, MaBai) VALUES
 ('NV001', N'Nguyễn Hữu Trí', N'Giám đốc điều hành', '0901000001', 'tri.nguyen@smartparking.vn', NULL),
 ('NV002', N'Trần Văn Hùng', N'Quản lý bãi', '0901000002', 'hung.tran@smartparking.vn', 'BAI_Q1'),
@@ -246,85 +260,133 @@ INSERT INTO dbo.NHAN_VIEN (MaNV, HoTen, ChucVu, SDT, Email, MaBai) VALUES
 ('NV004', N'Hoàng Đình Nam', N'Quản lý bãi', '0901000004', 'nam.hoang@smartparking.vn', 'BAI_BT'),
 ('NV005', N'Phạm Văn Cường', N'Bảo vệ', '0901000005', 'cuong.pham@smartparking.vn', 'BAI_Q1'),
 ('NV006', N'Đặng Minh Tuấn', N'Bảo vệ', '0901000006', 'tuan.dang@smartparking.vn', 'BAI_Q3'),
-('NV007', N'Vũ Đức Thắng', N'Bảo vệ', '0901000007', 'thang.vu@smartparking.vn', 'BAI_BT');
+('NV007', N'Vũ Đức Thắng', N'Bảo vệ', '0901000007', 'thang.vu@smartparking.vn', 'BAI_BT'),
+('NV008', N'Huỳnh Quốc Bảo', N'Quản lý bãi', '0901000008', 'bao.huynh@smartparking.vn', 'BAI_TB'),
+('NV009', N'Ngô Thị Thanh Hà', N'Quản lý bãi', '0901000009', 'ha.ngo@smartparking.vn', 'BAI_Q7'),
+('NV010', N'Trương Văn Lộc', N'Bảo vệ', '0901000010', 'loc.truong@smartparking.vn', 'BAI_TB'),
+('NV011', N'Bùi Thành Đạt', N'Bảo vệ', '0901000011', 'dat.bui@smartparking.vn', 'BAI_Q7');
 GO
 
--- 3. Nạp Tài Khoản Truy Cập & Mật khẩu mã hóa HASH SHA-256 (TAI_KHOAN)
--- Mật khẩu mặc định:
--- 'Admin@2026' cho admin -> HASH: CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', 'Admin@2026'), 2)
--- '123456' cho các tài khoản còn lại -> HASH: CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2)
+-- 3. Tài Khoản Truy Cập (mật khẩu băm SHA-256 từ cột MatKhauMau của Excel)
 INSERT INTO dbo.TAI_KHOAN (TenDangNhap, MatKhauHash, MaNV, TrangThai) VALUES
 ('admin', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', 'Admin@2026'), 2), 'NV001', N'Hoạt động'),
 ('quanly_q1', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV002', N'Hoạt động'),
 ('quanly_q3', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV003', N'Hoạt động'),
 ('quanly_bt', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV004', N'Hoạt động'),
+('baove_khoa', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV005', N'Bị khóa'),
 ('baove_q1', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV005', N'Hoạt động'),
 ('baove_q3', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV006', N'Hoạt động'),
 ('baove_bt', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV007', N'Hoạt động'),
-('baove_khoa', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV005', N'Bị khóa');
+('quanly_tb', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV008', N'Hoạt động'),
+('quanly_q7', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV009', N'Hoạt động'),
+('baove_tb', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV010', N'Hoạt động'),
+('baove_q7', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV011', N'Hoạt động');
 GO
 
--- 4. Nạp Phân Loại Phương Tiện & Biểu Phí theo từng Bãi Đỗ
+-- 4. Phân Loại Phương Tiện & Biểu Phí theo từng Bãi Đỗ
 INSERT INTO dbo.LOAI_XE (MaLoaiXe, MaBai, TenLoai, DonGiaGio, GiaVeThang) VALUES
-('XM', 'BAI_Q1', N'Xe máy', 6000, 180000),
+-- Bãi xe Lê Lai - Bến Thành (BAI_Q1) - 3 loại xe
 ('OT', 'BAI_Q1', N'Ô tô 4-7 chỗ', 25000, 1800000),
 ('XD', 'BAI_Q1', N'Xe đạp / Xe điện', 3000, 80000),
+('XM', 'BAI_Q1', N'Xe máy', 6000, 180000),
 
-('XM', 'BAI_Q3', N'Xe máy', 5000, 150000),
+-- Bãi xe Hai Bà Trưng (BAI_Q3) - 3 loại xe
 ('OT', 'BAI_Q3', N'Ô tô 4-7 chỗ', 20000, 1500000),
 ('XD', 'BAI_Q3', N'Xe đạp / Xe điện', 2000, 60000),
+('XM', 'BAI_Q3', N'Xe máy', 5000, 150000),
 
-('XM', 'BAI_BT', N'Xe máy', 7000, 200000),
+-- Bãi xe Landmark 81 (BAI_BT) - 3 loại xe
 ('OT', 'BAI_BT', N'Ô tô 4-7 chỗ', 30000, 2200000),
-('XD', 'BAI_BT', N'Xe đạp / Xe điện', 4000, 90000);
+('XD', 'BAI_BT', N'Xe đạp / Xe điện', 4000, 90000),
+('XM', 'BAI_BT', N'Xe máy', 7000, 200000),
+
+-- Bãi xe TCP Park - Sân bay Tân Sơn Nhất (BAI_TB) - 3 loại xe
+('OT', 'BAI_TB', N'Ô tô 4-7 chỗ', 25000, 1600000),
+('XD', 'BAI_TB', N'Xe đạp / Xe điện', 3000, 80000),
+('XM', 'BAI_TB', N'Xe máy', 5000, 200000),
+
+-- Bãi xe SC VivoCity (BAI_Q7) - 3 loại xe
+('OT', 'BAI_Q7', N'Ô tô 4-7 chỗ', 20000, 1700000),
+('XD', 'BAI_Q7', N'Xe đạp / Xe điện', 2000, 70000),
+('XM', 'BAI_Q7', N'Xe máy', 5000, 170000);
 GO
 
--- 5. Nạp danh mục Vị Trí Ô Đỗ Xe Vật Lý (34 vị trí trên 3 bãi)
+-- 5. Vị Trí Ô Đỗ Xe (60 vị trí; TrangThai = 'Đã đỗ' khi có lượt đang mở)
 INSERT INTO dbo.VI_TRI_DO (MaViTri, KhuVuc, TrangThai, MaLoaiXe, MaBai) VALUES
--- Bãi Quận 1 (12 vị trí)
-('Q1_XM_01', N'Khu A - Tầng 1', N'Trống', 'XM', 'BAI_Q1'),
-('Q1_XM_02', N'Khu A - Tầng 1', N'Trống', 'XM', 'BAI_Q1'),
-('Q1_XM_03', N'Khu A - Tầng 1', N'Trống', 'XM', 'BAI_Q1'),
-('Q1_XM_04', N'Khu A - Tầng 1', N'Trống', 'XM', 'BAI_Q1'),
-('Q1_XM_05', N'Khu A - Tầng 2', N'Trống', 'XM', 'BAI_Q1'),
-('Q1_XM_06', N'Khu A - Tầng 2', N'Trống', 'XM', 'BAI_Q1'),
+-- Bãi xe Lê Lai - Bến Thành (BAI_Q1) - 12 vị trí
 ('Q1_OT_01', N'Khu B - Ngoài trời', N'Trống', 'OT', 'BAI_Q1'),
 ('Q1_OT_02', N'Khu B - Ngoài trời', N'Trống', 'OT', 'BAI_Q1'),
 ('Q1_OT_03', N'Khu B - Có mái che', N'Trống', 'OT', 'BAI_Q1'),
 ('Q1_OT_04', N'Khu B - Có mái che', N'Trống', 'OT', 'BAI_Q1'),
 ('Q1_XD_01', N'Khu C - Cửa vào', N'Trống', 'XD', 'BAI_Q1'),
 ('Q1_XD_02', N'Khu C - Cửa vào', N'Trống', 'XD', 'BAI_Q1'),
+('Q1_XM_01', N'Khu A - Tầng 1', N'Trống', 'XM', 'BAI_Q1'),
+('Q1_XM_02', N'Khu A - Tầng 1', N'Đã đỗ', 'XM', 'BAI_Q1'),
+('Q1_XM_03', N'Khu A - Tầng 1', N'Đã đỗ', 'XM', 'BAI_Q1'),
+('Q1_XM_04', N'Khu A - Tầng 1', N'Trống', 'XM', 'BAI_Q1'),
+('Q1_XM_05', N'Khu A - Tầng 2', N'Trống', 'XM', 'BAI_Q1'),
+('Q1_XM_06', N'Khu A - Tầng 2', N'Trống', 'XM', 'BAI_Q1'),
 
--- Bãi Quận 3 (10 vị trí)
-('Q3_XM_01', N'Khu Máy A', N'Trống', 'XM', 'BAI_Q3'),
-('Q3_XM_02', N'Khu Máy A', N'Trống', 'XM', 'BAI_Q3'),
-('Q3_XM_03', N'Khu Máy A', N'Trống', 'XM', 'BAI_Q3'),
-('Q3_XM_04', N'Khu Máy B', N'Trống', 'XM', 'BAI_Q3'),
-('Q3_XM_05', N'Khu Máy B', N'Trống', 'XM', 'BAI_Q3'),
+-- Bãi xe Hai Bà Trưng (BAI_Q3) - 10 vị trí
 ('Q3_OT_01', N'Khu Ô tô Sân 1', N'Trống', 'OT', 'BAI_Q3'),
 ('Q3_OT_02', N'Khu Ô tô Sân 1', N'Trống', 'OT', 'BAI_Q3'),
 ('Q3_OT_03', N'Khu Ô tô Sân 2', N'Trống', 'OT', 'BAI_Q3'),
 ('Q3_XD_01', N'Khu Xe đạp 1', N'Trống', 'XD', 'BAI_Q3'),
 ('Q3_XD_02', N'Khu Xe đạp 2', N'Trống', 'XD', 'BAI_Q3'),
+('Q3_XM_01', N'Khu Máy A', N'Trống', 'XM', 'BAI_Q3'),
+('Q3_XM_02', N'Khu Máy A', N'Đã đỗ', 'XM', 'BAI_Q3'),
+('Q3_XM_03', N'Khu Máy A', N'Trống', 'XM', 'BAI_Q3'),
+('Q3_XM_04', N'Khu Máy B', N'Trống', 'XM', 'BAI_Q3'),
+('Q3_XM_05', N'Khu Máy B', N'Trống', 'XM', 'BAI_Q3'),
 
--- Bãi Bình Thạnh (12 vị trí)
+-- Bãi xe Landmark 81 (BAI_BT) - 12 vị trí
+('BT_OT_01', N'Hầm B2 - Zone A', N'Đã đỗ', 'OT', 'BAI_BT'),
+('BT_OT_02', N'Hầm B2 - Zone A', N'Trống', 'OT', 'BAI_BT'),
+('BT_OT_03', N'Hầm B2 - Zone B', N'Trống', 'OT', 'BAI_BT'),
+('BT_OT_04', N'Hầm B2 - Zone B', N'Trống', 'OT', 'BAI_BT'),
+('BT_XD_01', N'Hầm B1 - Zone E', N'Trống', 'XD', 'BAI_BT'),
+('BT_XD_02', N'Hầm B1 - Zone E', N'Trống', 'XD', 'BAI_BT'),
 ('BT_XM_01', N'Hầm B1 - Zone 1', N'Trống', 'XM', 'BAI_BT'),
 ('BT_XM_02', N'Hầm B1 - Zone 1', N'Trống', 'XM', 'BAI_BT'),
 ('BT_XM_03', N'Hầm B1 - Zone 2', N'Trống', 'XM', 'BAI_BT'),
 ('BT_XM_04', N'Hầm B1 - Zone 2', N'Trống', 'XM', 'BAI_BT'),
 ('BT_XM_05', N'Hầm B1 - Zone 3', N'Trống', 'XM', 'BAI_BT'),
 ('BT_XM_06', N'Hầm B1 - Zone 3', N'Trống', 'XM', 'BAI_BT'),
-('BT_OT_01', N'Hầm B2 - Zone A', N'Trống', 'OT', 'BAI_BT'),
-('BT_OT_02', N'Hầm B2 - Zone A', N'Trống', 'OT', 'BAI_BT'),
-('BT_OT_03', N'Hầm B2 - Zone B', N'Trống', 'OT', 'BAI_BT'),
-('BT_OT_04', N'Hầm B2 - Zone B', N'Trống', 'OT', 'BAI_BT'),
-('BT_XD_01', N'Hầm B1 - Zone E', N'Trống', 'XD', 'BAI_BT'),
-('BT_XD_02', N'Hầm B1 - Zone E', N'Trống', 'XD', 'BAI_BT');
+
+-- Bãi xe TCP Park - Sân bay Tân Sơn Nhất (BAI_TB) - 14 vị trí
+('TB_OT_01', N'Tầng 2 - Khu ô tô', N'Đã đỗ', 'OT', 'BAI_TB'),
+('TB_OT_02', N'Tầng 2 - Khu ô tô', N'Trống', 'OT', 'BAI_TB'),
+('TB_OT_03', N'Tầng 2 - Khu ô tô', N'Trống', 'OT', 'BAI_TB'),
+('TB_OT_04', N'Tầng 3 - Khu ô tô', N'Trống', 'OT', 'BAI_TB'),
+('TB_OT_05', N'Tầng 3 - Khu ô tô', N'Trống', 'OT', 'BAI_TB'),
+('TB_OT_06', N'Tầng 3 - Khu ô tô', N'Trống', 'OT', 'BAI_TB'),
+('TB_XD_01', N'Tầng 1 - Cổng vào', N'Trống', 'XD', 'BAI_TB'),
+('TB_XD_02', N'Tầng 1 - Cổng vào', N'Trống', 'XD', 'BAI_TB'),
+('TB_XM_01', N'Tầng 1 - Khu xe máy', N'Trống', 'XM', 'BAI_TB'),
+('TB_XM_02', N'Tầng 1 - Khu xe máy', N'Đã đỗ', 'XM', 'BAI_TB'),
+('TB_XM_03', N'Tầng 1 - Khu xe máy', N'Đã đỗ', 'XM', 'BAI_TB'),
+('TB_XM_04', N'Tầng 1 - Khu xe máy', N'Trống', 'XM', 'BAI_TB'),
+('TB_XM_05', N'Tầng lửng - Xe máy', N'Trống', 'XM', 'BAI_TB'),
+('TB_XM_06', N'Tầng lửng - Xe máy', N'Trống', 'XM', 'BAI_TB'),
+
+-- Bãi xe SC VivoCity (BAI_Q7) - 12 vị trí
+('Q7_OT_01', N'Hầm B2 - Zone A', N'Đã đỗ', 'OT', 'BAI_Q7'),
+('Q7_OT_02', N'Hầm B2 - Zone A', N'Trống', 'OT', 'BAI_Q7'),
+('Q7_OT_03', N'Hầm B2 - Zone A', N'Trống', 'OT', 'BAI_Q7'),
+('Q7_OT_04', N'Hầm B2 - Zone B', N'Trống', 'OT', 'BAI_Q7'),
+('Q7_OT_05', N'Hầm B2 - Zone B', N'Trống', 'OT', 'BAI_Q7'),
+('Q7_XD_01', N'Hầm B1 - Khu xe đạp', N'Trống', 'XD', 'BAI_Q7'),
+('Q7_XD_02', N'Hầm B1 - Khu xe đạp', N'Trống', 'XD', 'BAI_Q7'),
+('Q7_XM_01', N'Hầm B1 - Khu xe máy', N'Đã đỗ', 'XM', 'BAI_Q7'),
+('Q7_XM_02', N'Hầm B1 - Khu xe máy', N'Trống', 'XM', 'BAI_Q7'),
+('Q7_XM_03', N'Hầm B1 - Khu xe máy', N'Trống', 'XM', 'BAI_Q7'),
+('Q7_XM_04', N'Hầm B1 - Khu xe máy', N'Trống', 'XM', 'BAI_Q7'),
+('Q7_XM_05', N'Hầm B1 - Khu xe máy', N'Trống', 'XM', 'BAI_Q7');
 GO
 
--- 6. Nạp Kho Thẻ Xe (THE_XE)
+-- 6. Kho Thẻ Xe theo bãi phát hành
 INSERT INTO dbo.THE_XE (MaThe, MaBai, LoaiThe, TrangThai, NgayCap) VALUES
--- Thẻ Quận 1
+-- Bãi xe Lê Lai - Bến Thành (BAI_Q1) - 6 thẻ
 ('THE0001', 'BAI_Q1', N'Lượt', N'Hoạt động', '2026-01-01'),
 ('THE0002', 'BAI_Q1', N'Tháng', N'Hoạt động', '2026-01-01'),
 ('THE0003', 'BAI_Q1', N'Lượt', N'Hoạt động', '2026-01-05'),
@@ -332,73 +394,108 @@ INSERT INTO dbo.THE_XE (MaThe, MaBai, LoaiThe, TrangThai, NgayCap) VALUES
 ('THE0005', 'BAI_Q1', N'Lượt', N'Bị khóa', '2026-01-12'),
 ('THE0006', 'BAI_Q1', N'Lượt', N'Mất', '2026-01-15'),
 
--- Thẻ Quận 3
+-- Bãi xe Hai Bà Trưng (BAI_Q3) - 4 thẻ
 ('THE0007', 'BAI_Q3', N'Lượt', N'Hoạt động', '2026-01-01'),
 ('THE0008', 'BAI_Q3', N'Tháng', N'Hoạt động', '2026-01-03'),
 ('THE0009', 'BAI_Q3', N'Lượt', N'Hoạt động', '2026-01-05'),
 ('THE0010', 'BAI_Q3', N'Tháng', N'Hoạt động', '2026-01-08'),
 
--- Thẻ Bình Thạnh
+-- Bãi xe Landmark 81 (BAI_BT) - 5 thẻ
 ('THE0011', 'BAI_BT', N'Lượt', N'Hoạt động', '2026-01-01'),
 ('THE0012', 'BAI_BT', N'Tháng', N'Hoạt động', '2026-01-02'),
 ('THE0013', 'BAI_BT', N'Lượt', N'Hoạt động', '2026-01-05'),
 ('THE0014', 'BAI_BT', N'Tháng', N'Hoạt động', '2026-01-06'),
-('THE0015', 'BAI_BT', N'Lượt', N'Hoạt động', '2026-01-10');
+('THE0015', 'BAI_BT', N'Lượt', N'Hoạt động', '2026-01-10'),
+
+-- Bãi xe TCP Park - Sân bay Tân Sơn Nhất (BAI_TB) - 5 thẻ
+('THE0016', 'BAI_TB', N'Lượt', N'Hoạt động', '2026-02-01'),
+('THE0017', 'BAI_TB', N'Tháng', N'Hoạt động', '2026-03-01'),
+('THE0018', 'BAI_TB', N'Lượt', N'Hoạt động', '2026-02-01'),
+('THE0019', 'BAI_TB', N'Tháng', N'Hoạt động', CAST(DATEADD(DAY, -28, GETDATE()) AS DATE)),
+('THE0020', 'BAI_TB', N'Lượt', N'Bị khóa', '2026-02-10'),
+
+-- Bãi xe SC VivoCity (BAI_Q7) - 5 thẻ
+('THE0021', 'BAI_Q7', N'Lượt', N'Hoạt động', '2026-01-15'),
+('THE0022', 'BAI_Q7', N'Tháng', N'Hoạt động', '2026-01-15'),
+('THE0023', 'BAI_Q7', N'Lượt', N'Hoạt động', '2026-01-15'),
+('THE0024', 'BAI_Q7', N'Tháng', N'Hoạt động', '2026-06-01'),
+('THE0025', 'BAI_Q7', N'Lượt', N'Mất', '2026-01-20');
 GO
 
--- 7. Nạp Hồ sơ Khách Hàng (KHACH_HANG)
+-- 7. Hồ sơ Khách Hàng
 INSERT INTO dbo.KHACH_HANG (MaKH, HoTen, SDT, Email, CMND_CCCD) VALUES
 ('KH0001', N'Nguyễn Văn An', '0903112233', 'nguyenvanan@gmail.com', '079090001111'),
 ('KH0002', N'Trần Thị Mai', '0912445566', 'tranmai.hcm@gmail.com', '079090002222'),
 ('KH0003', N'Lê Hoàng Long', '0988776655', 'long.lehoang@yahoo.com', '079090003333'),
 ('KH0004', N'Phạm Thu Trang', '0934556677', 'trangpham@outlook.com', '079090004444'),
-('KH0005', N'Võ Minh Quân', '0977112244', 'quan.vominh@gmail.com', '079090005555');
+('KH0005', N'Võ Minh Quân', '0977112244', 'quan.vominh@gmail.com', '079090005555'),
+('KH0006', N'Đỗ Thanh Phong', '0908246810', 'phong.dothanh@gmail.com', '079090006666'),
+('KH0007', N'Lý Ngọc Hân', '0938135790', 'han.lyngoc@gmail.com', '079090007777'),
+('KH0008', N'Châu Minh Khang', '0917258036', 'khang.chau@outlook.com', '079090018888'),
+('KH0009', N'Tạ Thị Kim Oanh', '0966369147', 'oanh.takim@yahoo.com', '079090009999'),
+('KH0010', N'Phan Gia Huy', '0945112233', 'huy.phangia@gmail.com', '079090010101');
 GO
 
--- 8. Nạp Đăng Ký Vé Tháng (VE_THANG)
+-- 8. Vé Tháng (NgayHetHan = NgayDangKy + tổng số tháng trên hóa đơn)
 INSERT INTO dbo.VE_THANG (MaVe, MaThe, MaKH, BienSo, MaLoaiXe, NgayDangKy, NgayHetHan, TrangThai, MaBaiApDung) VALUES
-('V0001', 'THE0002', 'KH0001', '59A-123.45', 'XM', '2026-01-01', '2026-12-31', N'Hoạt động', 'BAI_Q1'),
+('V0001', 'THE0002', 'KH0001', '59A-123.45', 'XM', '2026-01-01', '2027-01-01', N'Hoạt động', 'BAI_Q1'),
 ('V0002', 'THE0004', 'KH0002', '51G-888.99', 'OT', '2026-01-10', '2026-10-10', N'Hoạt động', 'BAI_Q1'),
 ('V0003', 'THE0008', 'KH0003', '59B-456.78', 'XM', '2026-01-03', '2026-02-03', N'Hết hạn', 'BAI_Q3'),
 ('V0004', 'THE0010', 'KH0004', '51H-999.11', 'OT', '2026-01-08', '2026-11-08', N'Hoạt động', 'ALL'),
-('V0005', 'THE0012', 'KH0005', '59C-678.90', 'XM', '2026-01-02', '2026-12-31', N'Hoạt động', 'BAI_BT');
+('V0005', 'THE0012', 'KH0005', '59C-678.90', 'XM', '2026-01-02', '2027-01-02', N'Hoạt động', 'BAI_BT'),
+('V0006', 'THE0017', 'KH0006', '51K-246.80', 'OT', '2026-03-01', '2027-03-01', N'Hoạt động', 'BAI_TB'),
+('V0007', 'THE0019', 'KH0007', '59P-357.91', 'XM', CAST(DATEADD(DAY, -28, GETDATE()) AS DATE), DATEADD(MONTH, 1, CAST(DATEADD(DAY, -28, GETDATE()) AS DATE)), N'Hoạt động', 'BAI_TB'),
+('V0008', 'THE0022', 'KH0008', '59N-147.25', 'XM', '2026-01-15', '2026-07-15', N'Hết hạn', 'BAI_Q7'),
+('V0009', 'THE0024', 'KH0009', '51L-802.46', 'OT', '2026-06-01', '2026-12-01', N'Hoạt động', 'BAI_Q7'),
+('V0010', 'THE0014', 'KH0010', '51M-135.24', 'OT', '2026-01-06', '2027-01-06', N'Hoạt động', 'BAI_BT');
 GO
 
--- 9. Nạp Lịch Sử Thu Tiền Vé Tháng (HOA_DON_VE_THANG)
+-- 9. Hóa Đơn Vé Tháng (SoTien = số tháng x giá vé tháng tại bãi tính giá)
 INSERT INTO dbo.HOA_DON_VE_THANG (MaHD, MaVe, NgayThanhToan, SoThangGiaHan, SoTien, MaBai) VALUES
-('HD20260101001', 'V0001', '2026-01-01 08:30:00', 12, 2160000, 'BAI_Q1'),
-('HD20260110002', 'V0002', '2026-01-10 09:15:00', 9, 16200000, 'BAI_Q1'),
-('HD20260103003', 'V0003', '2026-01-03 14:00:00', 1, 150000, 'BAI_Q3'),
-('HD20260108004', 'V0004', '2026-01-08 10:20:00', 10, 15000000, 'BAI_Q3'),
-('HD20260102005', 'V0005', '2026-01-02 16:45:00', 12, 2400000, 'BAI_BT');
+('HD20260101001', 'V0001', '2026-01-01 00:00:00', 12, 2160000, 'BAI_Q1'),
+('HD20260110002', 'V0002', '2026-01-10 00:00:00', 9, 16200000, 'BAI_Q1'),
+('HD20260103003', 'V0003', '2026-01-03 00:00:00', 1, 150000, 'BAI_Q3'),
+('HD20260108004', 'V0004', '2026-01-08 00:00:00', 10, 15000000, 'BAI_Q3'),
+('HD20260102005', 'V0005', '2026-01-02 00:00:00', 12, 2400000, 'BAI_BT'),
+('HD20260301006', 'V0006', '2026-03-01 00:00:00', 12, 19200000, 'BAI_TB'),
+(CONCAT('HD', FORMAT(CAST(DATEADD(DAY, -28, GETDATE()) AS DATE), 'yyyyMMdd'), '007'), 'V0007', CAST(DATEADD(DAY, -28, GETDATE()) AS DATE), 1, 200000, 'BAI_TB'),
+('HD20260115008', 'V0008', '2026-01-15 00:00:00', 6, 1020000, 'BAI_Q7'),
+('HD20260601009', 'V0009', '2026-06-01 00:00:00', 6, 10200000, 'BAI_Q7'),
+('HD20260106010', 'V0010', '2026-01-06 00:00:00', 12, 26400000, 'BAI_BT');
 GO
 
--- 10. Nạp Nhật Ký Lượt Gửi Xe (LUOT_GUI)
--- Một số lượt đã check-out
+-- 10. Nhật Ký Lượt Gửi Xe (MaLuot IDENTITY theo thứ tự dòng; TienGui theo f_TinhTienGuiXe, thẻ tháng = 0)
+-- Lượt đã check-out
 INSERT INTO dbo.LUOT_GUI (MaThe, BienSo, ThoiGianVao, ThoiGianRa, MaViTri, TienGui, MaBai) VALUES
 ('THE0001', '59A-111.22', '2026-09-07 07:15:00', '2026-09-07 11:15:00', 'Q1_XM_01', 24000, 'BAI_Q1'),
 ('THE0003', '51G-222.33', '2026-09-07 08:00:00', '2026-09-07 14:00:00', 'Q1_OT_01', 150000, 'BAI_Q1'),
 ('THE0007', '59B-333.44', '2026-09-07 09:30:00', '2026-09-07 12:30:00', 'Q3_XM_01', 15000, 'BAI_Q3'),
-('THE0011', '59C-444.55', '2026-09-07 06:45:00', '2026-09-07 17:45:00', 'BT_XM_01', 77000, 'BAI_BT');
+('THE0011', '59C-444.55', '2026-09-07 06:45:00', '2026-09-07 17:45:00', 'BT_XM_01', 77000, 'BAI_BT'),
+('THE0016', '59D-234.56', '2026-09-07 05:30:00', '2026-09-07 08:10:00', 'TB_XM_01', 15000, 'BAI_TB'),
+('THE0018', '51F-135.79', '2026-09-07 10:00:00', '2026-09-07 15:20:00', 'TB_OT_04', 150000, 'BAI_TB'),
+('THE0017', '51K-246.80', '2026-09-08 06:00:00', '2026-09-08 18:00:00', 'TB_OT_02', 0, 'BAI_TB'),
+('THE0021', '59T-111.22', '2026-09-07 18:00:00', '2026-09-07 21:45:00', 'Q7_XM_02', 20000, 'BAI_Q7'),
+('THE0023', '51H-246.13', '2026-09-07 11:00:00', '2026-09-07 11:10:00', 'Q7_OT_03', 0, 'BAI_Q7');
 
--- Một số lượt hiện đang đỗ (ThoiGianRa IS NULL)
+-- Lượt hiện đang đỗ (ThoiGianRa IS NULL)
 INSERT INTO dbo.LUOT_GUI (MaThe, BienSo, ThoiGianVao, ThoiGianRa, MaViTri, TienGui, MaBai) VALUES
-('THE0001', '59K-987.65', DATEADD(HOUR, -2, GETDATE()), NULL, 'Q1_XM_02', 0, 'BAI_Q1'),
-('THE0002', '59A-123.45', DATEADD(HOUR, -4, GETDATE()), NULL, 'Q1_XM_03', 0, 'BAI_Q1'),
-('THE0007', '59E-555.66', DATEADD(HOUR, -1, GETDATE()), NULL, 'Q3_XM_02', 0, 'BAI_Q3'),
-('THE0013', '51A-777.88', DATEADD(HOUR, -3, GETDATE()), NULL, 'BT_OT_01', 0, 'BAI_BT');
-
--- Cập nhật đồng bộ ô đỗ tương ứng sang 'Đã đỗ' và bãi đỗ tăng xe
-UPDATE dbo.VI_TRI_DO SET TrangThai = N'Đã đỗ' WHERE MaViTri IN ('Q1_XM_02', 'Q1_XM_03', 'Q3_XM_02', 'BT_OT_01');
-UPDATE dbo.BAI_DO_XE SET SoLuongHienTai = 2 WHERE MaBai = 'BAI_Q1';
-UPDATE dbo.BAI_DO_XE SET SoLuongHienTai = 1 WHERE MaBai = 'BAI_Q3';
-UPDATE dbo.BAI_DO_XE SET SoLuongHienTai = 1 WHERE MaBai = 'BAI_BT';
+('THE0001', '59K-987.65', DATEADD(MINUTE, -120, GETDATE()), NULL, 'Q1_XM_02', 0, 'BAI_Q1'),
+('THE0002', '59A-123.45', DATEADD(MINUTE, -240, GETDATE()), NULL, 'Q1_XM_03', 0, 'BAI_Q1'),
+('THE0007', '59E-555.66', DATEADD(MINUTE, -60, GETDATE()), NULL, 'Q3_XM_02', 0, 'BAI_Q3'),
+('THE0013', '51A-777.88', DATEADD(MINUTE, -180, GETDATE()), NULL, 'BT_OT_01', 0, 'BAI_BT'),
+('THE0016', '59D-678.12', DATEADD(MINUTE, -90, GETDATE()), NULL, 'TB_XM_02', 0, 'BAI_TB'),
+('THE0019', '59P-357.91', DATEADD(MINUTE, -300, GETDATE()), NULL, 'TB_XM_03', 0, 'BAI_TB'),
+('THE0018', '51G-468.02', DATEADD(MINUTE, -120, GETDATE()), NULL, 'TB_OT_01', 0, 'BAI_TB'),
+('THE0024', '51L-802.46', DATEADD(MINUTE, -360, GETDATE()), NULL, 'Q7_OT_01', 0, 'BAI_Q7'),
+('THE0021', '59T-579.13', DATEADD(MINUTE, -60, GETDATE()), NULL, 'Q7_XM_01', 0, 'BAI_Q7');
 GO
 
--- 11. Nạp Nhật Ký Sự Cố (LICHSU_SU_CO)
+-- 11. Nhật Ký Sự Cố (sự cố mất thẻ áp phí phạt PhatMatThe)
 INSERT INTO dbo.LICHSU_SU_CO (MaThe, BienSo, ThoiGianSuCo, MoTa, TienPhat, TrangThaiXuLy, MaBai) VALUES
 ('THE0006', '59X-999.01', '2026-01-15 11:00:00', N'Khách hàng làm rơi thẻ xe tại quầy nước, lập biên bản báo mất thẻ chip', 50000, N'Đã giải quyết', 'BAI_Q1'),
-(NULL, '51B-123.45', '2026-02-10 18:30:00', N'Va quẹt nhẹ gương chiếu hậu khi lùi xe vào ô đỗ Q3_OT_01', 200000, N'Đã giải quyết', 'BAI_Q3');
+(NULL, '51B-123.45', '2026-02-10 18:30:00', N'Va quẹt nhẹ gương chiếu hậu khi lùi xe vào ô đỗ Q3_OT_01', 200000, N'Đã giải quyết', 'BAI_Q3'),
+(NULL, '51F-135.79', '2026-09-07 10:05:00', N'Ô tô cọ quẹt trụ bê tông tại dốc lên Tầng 3, trầy sơn hông xe, đang chờ đối chiếu camera', 300000, N'Đang giải quyết', 'BAI_TB'),
+('THE0025', NULL, '2026-08-20 20:15:00', N'Khách hàng báo mất thẻ chip THE0025 (Loại: Lượt). Hệ thống tự động khóa thẻ và áp phí phạt đền bù thẻ vật lý.', 50000, N'Đã giải quyết', 'BAI_Q7');
 GO
 
 
@@ -498,13 +595,13 @@ RETURN
 GO
 
 
--- ==================== BẮT ĐẦU: 04_triggers.sql (5 DATABASE TRIGGERS) ====================
+-- ==================== BẮT ĐẦU: 04_triggers.sql (8 DATABASE TRIGGERS) ====================
 -- ====================================================================================
 -- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
--- BƯỚC 4: DATABASE TRIGGERS (6 TRIGGERS NGHIỆP VỤ TỰ ĐỘNG)
+-- BƯỚC 4: DATABASE TRIGGERS (8 TRIGGERS NGHIỆP VỤ TỰ ĐỘNG)
 -- ====================================================================================
 
--- 1. Trigger trg_KiemTraCheckIn: Chặn xe vào nếu thẻ bị khóa/mất hoặc bãi xe đầy
+-- 1. Trigger trg_KiemTraCheckIn: Chặn xe vào nếu thẻ bị khóa/mất, bãi xe đầy, thẻ/ô đỗ đang được dùng hoặc sai bãi
 CREATE OR ALTER TRIGGER dbo.trg_KiemTraCheckIn
 ON dbo.LUOT_GUI
 AFTER INSERT
@@ -525,19 +622,63 @@ BEGIN
         RETURN;
     END;
 
-    -- Kiểm tra bãi đỗ xe đã đầy công suất chưa
+    -- Kiểm tra bãi đỗ xe đã đầy công suất chưa: đếm trực tiếp số lượt chưa ra (đã gồm lượt vừa chèn),
+    -- không đọc SoLuongHienTai để không phụ thuộc thứ tự chạy với trg_DongBoTrangThaiSlot
     IF EXISTS (
         SELECT 1
-        FROM inserted i
-        INNER JOIN dbo.BAI_DO_XE b ON i.MaBai = b.MaBai
-        WHERE b.SoLuongHienTai >= b.SucChua
+        FROM dbo.BAI_DO_XE b
+        WHERE b.MaBai IN (SELECT MaBai FROM inserted)
+          AND (SELECT COUNT(*) FROM dbo.LUOT_GUI lg WHERE lg.MaBai = b.MaBai AND lg.ThoiGianRa IS NULL) > b.SucChua
     )
     BEGIN
         ROLLBACK TRANSACTION;
         THROW 50001, N'Lỗi: Bãi đỗ xe đã đầy công suất! Vui lòng điều phối xe sang bãi khác.', 1;
         RETURN;
     END;
+
+    -- Mỗi thẻ chỉ có tối đa 1 lượt đang đỗ
+    IF EXISTS (
+        SELECT 1
+        FROM inserted i
+        WHERE (SELECT COUNT(*) FROM dbo.LUOT_GUI lg WHERE lg.MaThe = i.MaThe AND lg.ThoiGianRa IS NULL) > 1
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50014, N'Lỗi: Thẻ xe đang có lượt gửi chưa check-out. Không thể check-in lần nữa!', 1;
+        RETURN;
+    END;
+
+    -- Ô đỗ phải thuộc bãi của lượt gửi và chỉ chứa tối đa 1 xe
+    IF EXISTS (
+        SELECT 1
+        FROM inserted i
+        INNER JOIN dbo.VI_TRI_DO vt ON i.MaViTri = vt.MaViTri
+        WHERE vt.MaBai <> i.MaBai
+           OR (SELECT COUNT(*) FROM dbo.LUOT_GUI lg WHERE lg.MaViTri = i.MaViTri AND lg.ThoiGianRa IS NULL) > 1
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50015, N'Lỗi: Ô đỗ không thuộc bãi này hoặc đang có xe khác đỗ!', 1;
+        RETURN;
+    END;
+
+    -- Thẻ lượt chỉ dùng tại bãi phát hành thẻ
+    IF EXISTS (
+        SELECT 1
+        FROM inserted i
+        INNER JOIN dbo.THE_XE tx ON i.MaThe = tx.MaThe
+        WHERE tx.LoaiThe = N'Lượt' AND tx.MaBai <> i.MaBai
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50016, N'Lỗi: Thẻ lượt chỉ sử dụng được tại bãi đã phát hành thẻ!', 1;
+        RETURN;
+    END;
 END;
+GO
+
+-- Chạy kiểm tra check-in trước các trigger AFTER INSERT khác (trg_DongBoTrangThaiSlot) để lỗi trả về luôn rõ ràng
+EXEC sp_settriggerorder @triggername = N'dbo.trg_KiemTraCheckIn', @order = N'First', @stmttype = N'INSERT';
 GO
 
 -- 2. Trigger trg_ChanSuDungVeHetHan: Chặn quét thẻ tháng đã quá hạn đóng tiền
@@ -701,8 +842,9 @@ GO
 
 -- 6. Trigger trg_KiemTraLoaiXe_VeThang: Đảm bảo toàn vẹn tham chiếu (MaLoaiXe, MaBaiApDung) -> LOAI_XE
 -- Không dùng FOREIGN KEY thuần vì MaBaiApDung = 'ALL' là giá trị đặc biệt hợp lệ (vé áp dụng
--- toàn chuỗi, xem sp_DangKyThanhVien) không tồn tại trong LOAI_XE/BAI_DO_XE. Trigger bỏ qua
--- kiểm tra khi 'ALL', và chặn khi mã bãi cụ thể không khớp loại xe/bãi thực tế.
+-- toàn chuỗi, xem sp_DangKyThanhVien) không tồn tại trong LOAI_XE/BAI_DO_XE.
+-- Vé gắn bãi: loại xe phải có tại bãi áp dụng và thẻ phải do chính bãi đó phát hành.
+-- Vé 'ALL': loại xe phải có ở ít nhất một bãi trong chuỗi.
 CREATE OR ALTER TRIGGER dbo.trg_KiemTraLoaiXe_VeThang
 ON dbo.VE_THANG
 AFTER INSERT, UPDATE
@@ -713,15 +855,45 @@ BEGIN
     IF EXISTS (
         SELECT 1
         FROM inserted i
-        WHERE i.MaBaiApDung <> 'ALL'
-          AND NOT EXISTS (
-              SELECT 1 FROM dbo.LOAI_XE lx
-              WHERE lx.MaLoaiXe = i.MaLoaiXe AND lx.MaBai = i.MaBaiApDung
-          )
+        WHERE (i.MaBaiApDung <> 'ALL'
+               AND NOT EXISTS (
+                   SELECT 1 FROM dbo.LOAI_XE lx
+                   WHERE lx.MaLoaiXe = i.MaLoaiXe AND lx.MaBai = i.MaBaiApDung
+               ))
+           OR (i.MaBaiApDung = 'ALL'
+               AND NOT EXISTS (SELECT 1 FROM dbo.LOAI_XE lx WHERE lx.MaLoaiXe = i.MaLoaiXe))
+           OR (i.MaBaiApDung <> 'ALL'
+               AND EXISTS (SELECT 1 FROM dbo.THE_XE tx WHERE tx.MaThe = i.MaThe AND tx.MaBai <> i.MaBaiApDung))
     )
     BEGIN
         ROLLBACK TRANSACTION;
-        THROW 50007, N'Lỗi: Loại xe không tồn tại tại bãi áp dụng của vé tháng (hoặc mã bãi không hợp lệ)!', 1;
+        THROW 50007, N'Lỗi: Loại xe không tồn tại tại bãi áp dụng của vé tháng, mã bãi không hợp lệ hoặc thẻ không thuộc bãi áp dụng!', 1;
+        RETURN;
+    END;
+END;
+GO
+
+-- 7. Trigger trg_KiemTraBaiApDungVeThang: Chặn thẻ tháng check-in tại bãi không thuộc phạm vi vé
+-- Vé gắn một bãi cụ thể (MaBaiApDung = 'BAI_xx') chỉ gửi được tại bãi đó; vé toàn chuỗi ('ALL') gửi được mọi bãi.
+CREATE OR ALTER TRIGGER dbo.trg_KiemTraBaiApDungVeThang
+ON dbo.LUOT_GUI
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF EXISTS (
+        SELECT 1
+        FROM inserted i
+        INNER JOIN dbo.THE_XE tx ON i.MaThe = tx.MaThe
+        INNER JOIN dbo.VE_THANG vt ON tx.MaThe = vt.MaThe
+        WHERE tx.LoaiThe = N'Tháng'
+          AND vt.MaBaiApDung <> 'ALL'
+          AND vt.MaBaiApDung <> i.MaBai
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50004, N'Lỗi: Vé tháng chỉ áp dụng tại bãi đã đăng ký, không dùng được tại bãi này (vé toàn chuỗi phải đăng ký MaBaiApDung = ALL)!', 1;
         RETURN;
     END;
 END;
@@ -870,7 +1042,7 @@ GO
 -- 3. Procedure sp_DangKyThanhVien: Đăng ký vé tháng an toàn trong TRANSACTION
 CREATE OR ALTER PROCEDURE dbo.sp_DangKyThanhVien
 (
-    @MaKH VARCHAR(10),
+    @MaKH VARCHAR(10) = NULL, -- NULL: tìm khách theo CMND/CCCD, chưa có thì sinh mã KH#### tiếp theo
     @HoTen NVARCHAR(100),
     @SDT VARCHAR(15),
     @CMND VARCHAR(12),
@@ -879,15 +1051,25 @@ CREATE OR ALTER PROCEDURE dbo.sp_DangKyThanhVien
     @MaLoaiXe VARCHAR(10),
     @MaBaiApDung VARCHAR(10),
     @SoThangDongTruoc INT = 1,
-    @Email VARCHAR(100) = NULL
+    @Email VARCHAR(100) = NULL,
+    @MaBaiBan VARCHAR(10) = NULL -- Bãi bán vé / thu tiền (dùng cho vé toàn chuỗi 'ALL')
 )
 AS
 BEGIN
     SET NOCOUNT ON;
+    SET @Email = NULLIF(LTRIM(RTRIM(@Email)), ''); -- Email rỗng lưu NULL (UQ_KhachHang_Email chỉ áp dụng khi có email)
     BEGIN TRANSACTION;
 
     BEGIN TRY
         -- 1. Lưu thông tin khách hàng (nếu chưa có thì thêm, có rồi thì cập nhật)
+        IF @MaKH IS NULL
+            SELECT @MaKH = MaKH FROM dbo.KHACH_HANG WITH (UPDLOCK, HOLDLOCK) WHERE CMND_CCCD = @CMND;
+
+        IF @MaKH IS NULL
+            SELECT @MaKH = CONCAT('KH', RIGHT(CONCAT('0000', ISNULL(MAX(CAST(SUBSTRING(MaKH, 3, 8) AS INT)), 0) + 1), 4))
+            FROM dbo.KHACH_HANG WITH (UPDLOCK, HOLDLOCK)
+            WHERE MaKH LIKE 'KH[0-9][0-9][0-9][0-9]%' AND SUBSTRING(MaKH, 3, 8) NOT LIKE '%[^0-9]%';
+
         IF NOT EXISTS (SELECT 1 FROM dbo.KHACH_HANG WHERE MaKH = @MaKH)
         BEGIN
             INSERT INTO dbo.KHACH_HANG (MaKH, HoTen, SDT, Email, CMND_CCCD)
@@ -900,29 +1082,52 @@ BEGIN
             WHERE MaKH = @MaKH;
         END;
 
-        -- 2. Chuyển đổi trạng thái thẻ sang Thẻ Tháng
+        -- 2. Xác định bãi tính giá và đơn giá trước khi ghi vé
+        -- Vé gắn một bãi: tính giá và ghi doanh thu tại bãi đó.
+        -- Vé toàn chuỗi 'ALL': tính giá và ghi doanh thu tại bãi bán vé (@MaBaiBan), mặc định là bãi phát hành thẻ.
+        DECLARE @MaBaiTinhGia VARCHAR(10) = CASE
+            WHEN @MaBaiApDung = 'ALL' THEN COALESCE(@MaBaiBan, (SELECT MaBai FROM dbo.THE_XE WHERE MaThe = @MaThe))
+            ELSE @MaBaiApDung
+        END;
+
+        IF NOT EXISTS (SELECT 1 FROM dbo.BAI_DO_XE WHERE MaBai = @MaBaiTinhGia)
+        BEGIN
+            THROW 50008, N'Lỗi: Bãi bán vé / bãi tính giá vé tháng không hợp lệ!', 1;
+        END;
+
+        DECLARE @DonGiaThang DECIMAL(18,2);
+        SELECT @DonGiaThang = GiaVeThang
+        FROM dbo.LOAI_XE
+        WHERE MaLoaiXe = @MaLoaiXe AND MaBai = @MaBaiTinhGia;
+
+        IF @DonGiaThang IS NULL
+        BEGIN
+            THROW 50017, N'Lỗi: Loại xe chưa có biểu phí vé tháng tại bãi tính giá!', 1;
+        END;
+
+        -- 3. Chuyển đổi trạng thái thẻ sang Thẻ Tháng
         UPDATE dbo.THE_XE
         SET LoaiThe = N'Tháng', TrangThai = N'Hoạt động'
         WHERE MaThe = @MaThe;
 
-        -- 3. Sinh mã vé tháng mới và tính hạn dùng
-        DECLARE @MaVe VARCHAR(10) = CONCAT('V', FORMAT(GETDATE(), 'yyMMddHHmm'));
+        -- 4. Sinh mã vé tháng V#### tiếp theo và tính hạn dùng
+        DECLARE @MaVe VARCHAR(10);
+        SELECT @MaVe = CONCAT('V', RIGHT(CONCAT('0000', ISNULL(MAX(CAST(SUBSTRING(MaVe, 2, 9) AS INT)), 0) + 1), 4))
+        FROM dbo.VE_THANG WITH (UPDLOCK, HOLDLOCK)
+        WHERE MaVe LIKE 'V[0-9][0-9][0-9][0-9]%' AND SUBSTRING(MaVe, 2, 9) NOT LIKE '%[^0-9]%';
+
         DECLARE @NgayHetHan DATE = DATEADD(MONTH, @SoThangDongTruoc, CAST(GETDATE() AS DATE));
 
         INSERT INTO dbo.VE_THANG (MaVe, MaThe, MaKH, BienSo, MaLoaiXe, NgayDangKy, NgayHetHan, TrangThai, MaBaiApDung)
         VALUES (@MaVe, @MaThe, @MaKH, @BienSo, @MaLoaiXe, CAST(GETDATE() AS DATE), @NgayHetHan, N'Hoạt động', @MaBaiApDung);
 
-        -- 4. Tính tiền và xuất hóa đơn
-        DECLARE @DonGiaThang DECIMAL(18,2);
-        DECLARE @MaBaiTinhGia VARCHAR(10) = CASE WHEN @MaBaiApDung = 'ALL' THEN (SELECT TOP 1 MaBai FROM dbo.BAI_DO_XE ORDER BY MaBai) ELSE @MaBaiApDung END;
-
-        SELECT @DonGiaThang = GiaVeThang
-        FROM dbo.LOAI_XE
-        WHERE MaLoaiXe = @MaLoaiXe AND MaBai = @MaBaiTinhGia;
-
-        IF @DonGiaThang IS NULL SET @DonGiaThang = 180000;
+        -- 5. Tính tiền và xuất hóa đơn, mã HD + yyyyMMdd + số thứ tự (tối thiểu 3 chữ số)
         DECLARE @TongTien DECIMAL(18,2) = @DonGiaThang * @SoThangDongTruoc;
-        DECLARE @MaHD VARCHAR(15) = CONCAT('HD', FORMAT(GETDATE(), 'yyyyMMddHHmmss'));
+        DECLARE @MaHD VARCHAR(15);
+        SELECT @MaHD = CONCAT('HD', FORMAT(GETDATE(), 'yyyyMMdd'),
+                              RIGHT(CONCAT('000', ISNULL(MAX(CAST(SUBSTRING(MaHD, 11, 5) AS INT)), 0) + 1), 3))
+        FROM dbo.HOA_DON_VE_THANG WITH (UPDLOCK, HOLDLOCK)
+        WHERE MaHD LIKE 'HD[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND SUBSTRING(MaHD, 3, 13) NOT LIKE '%[^0-9]%';
 
         INSERT INTO dbo.HOA_DON_VE_THANG (MaHD, MaVe, NgayThanhToan, SoThangGiaHan, SoTien, MaBai)
         VALUES (@MaHD, @MaVe, GETDATE(), @SoThangDongTruoc, @TongTien, @MaBaiTinhGia);
@@ -941,7 +1146,7 @@ BEGIN
             N'Đăng ký vé tháng thành công' AS TrangThai;
     END TRY
     BEGIN CATCH
-        ROLLBACK TRANSACTION;
+        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
         THROW;
     END CATCH;
 END;
@@ -952,7 +1157,7 @@ CREATE OR ALTER PROCEDURE dbo.sp_GiaHanTheThang
 (
     @MaVe VARCHAR(10),
     @SoThangGiaHan INT = 1,
-    @MaBaiGiaHan VARCHAR(10) = 'BAI_Q1'
+    @MaBaiGiaHan VARCHAR(10) = NULL -- Bãi thu tiền: vé gắn bãi chỉ thu tại bãi áp dụng; vé 'ALL' mặc định là bãi phát hành thẻ
 )
 AS
 BEGIN
@@ -964,52 +1169,100 @@ BEGIN
         RETURN;
     END;
 
-    DECLARE @NgayHetHanCu DATE;
-    DECLARE @MaThe VARCHAR(10);
-    DECLARE @MaLoaiXe VARCHAR(10);
+    BEGIN TRANSACTION;
 
-    SELECT
-        @NgayHetHanCu = NgayHetHan,
-        @MaThe = MaThe,
-        @MaLoaiXe = MaLoaiXe
-    FROM dbo.VE_THANG
-    WHERE MaVe = @MaVe;
+    BEGIN TRY
+        DECLARE @NgayHetHanCu DATE;
+        DECLARE @MaThe VARCHAR(10);
+        DECLARE @MaLoaiXe VARCHAR(10);
+        DECLARE @MaBaiApDung VARCHAR(10);
+        DECLARE @MaBaiThe VARCHAR(10);
+        DECLARE @TrangThaiThe NVARCHAR(20);
 
-    -- Nếu vé còn hạn thì cộng dồn tiếp, nếu đã quá hạn thì tính từ ngày hôm nay
-    DECLARE @MocTinh DATE = CASE WHEN @NgayHetHanCu > CAST(GETDATE() AS DATE) THEN @NgayHetHanCu ELSE CAST(GETDATE() AS DATE) END;
-    DECLARE @NgayHetHanMoi DATE = DATEADD(MONTH, @SoThangGiaHan, @MocTinh);
+        SELECT
+            @NgayHetHanCu = vt.NgayHetHan,
+            @MaThe = vt.MaThe,
+            @MaLoaiXe = vt.MaLoaiXe,
+            @MaBaiApDung = vt.MaBaiApDung,
+            @MaBaiThe = tx.MaBai,
+            @TrangThaiThe = tx.TrangThai
+        FROM dbo.VE_THANG vt WITH (UPDLOCK)
+        INNER JOIN dbo.THE_XE tx ON vt.MaThe = tx.MaThe
+        WHERE vt.MaVe = @MaVe;
 
-    -- Cập nhật vé tháng và mở khóa thẻ xe
-    UPDATE dbo.VE_THANG
-    SET NgayHetHan = @NgayHetHanMoi,
-        TrangThai = N'Hoạt động'
-    WHERE MaVe = @MaVe;
+        -- Thẻ đã báo mất: không gia hạn (không tự mở khóa thẻ mất)
+        IF @TrangThaiThe = N'Mất'
+        BEGIN
+            THROW 50019, N'Lỗi: Thẻ của vé tháng đã báo mất. Cần cấp thẻ mới trước khi gia hạn!', 1;
+        END;
 
-    UPDATE dbo.THE_XE
-    SET TrangThai = N'Hoạt động'
-    WHERE MaThe = @MaThe;
+        -- Xác định bãi thu tiền / tính giá
+        IF @MaBaiApDung <> 'ALL' AND @MaBaiGiaHan IS NOT NULL AND @MaBaiGiaHan <> @MaBaiApDung
+        BEGIN
+            THROW 50018, N'Lỗi: Vé tháng gắn một bãi chỉ được gia hạn và thu tiền tại bãi áp dụng của vé!', 1;
+        END;
 
-    -- Tính tiền và tạo hóa đơn
-    DECLARE @DonGiaThang DECIMAL(18,2);
-    SELECT @DonGiaThang = GiaVeThang
-    FROM dbo.LOAI_XE
-    WHERE MaLoaiXe = @MaLoaiXe AND MaBai = @MaBaiGiaHan;
+        DECLARE @MaBaiTinhGia VARCHAR(10) = CASE
+            WHEN @MaBaiApDung = 'ALL' THEN COALESCE(@MaBaiGiaHan, @MaBaiThe)
+            ELSE @MaBaiApDung
+        END;
 
-    IF @DonGiaThang IS NULL SET @DonGiaThang = 180000;
-    DECLARE @SoTien DECIMAL(18,2) = @DonGiaThang * @SoThangGiaHan;
-    DECLARE @MaHD VARCHAR(15) = CONCAT('HDGH', FORMAT(GETDATE(), 'yyMMddHHmmss'));
+        IF NOT EXISTS (SELECT 1 FROM dbo.BAI_DO_XE WHERE MaBai = @MaBaiTinhGia)
+        BEGIN
+            THROW 50008, N'Lỗi: Bãi bán vé / bãi tính giá vé tháng không hợp lệ!', 1;
+        END;
 
-    INSERT INTO dbo.HOA_DON_VE_THANG (MaHD, MaVe, NgayThanhToan, SoThangGiaHan, SoTien, MaBai)
-    VALUES (@MaHD, @MaVe, GETDATE(), @SoThangGiaHan, @SoTien, @MaBaiGiaHan);
+        DECLARE @DonGiaThang DECIMAL(18,2);
+        SELECT @DonGiaThang = GiaVeThang
+        FROM dbo.LOAI_XE
+        WHERE MaLoaiXe = @MaLoaiXe AND MaBai = @MaBaiTinhGia;
 
-    SELECT
-        @MaVe AS MaVe,
-        @MaThe AS MaThe,
-        @NgayHetHanCu AS HanCu,
-        @NgayHetHanMoi AS HanMoi,
-        @MaHD AS MaHoaDon,
-        @SoTien AS SoTienGiaHan,
-        N'Gia hạn vé tháng thành công' AS ThongBao;
+        IF @DonGiaThang IS NULL
+        BEGIN
+            THROW 50017, N'Lỗi: Loại xe chưa có biểu phí vé tháng tại bãi tính giá!', 1;
+        END;
+
+        -- Nếu vé còn hạn thì cộng dồn tiếp, nếu đã quá hạn thì tính từ ngày hôm nay
+        DECLARE @MocTinh DATE = CASE WHEN @NgayHetHanCu > CAST(GETDATE() AS DATE) THEN @NgayHetHanCu ELSE CAST(GETDATE() AS DATE) END;
+        DECLARE @NgayHetHanMoi DATE = DATEADD(MONTH, @SoThangGiaHan, @MocTinh);
+
+        -- Cập nhật vé tháng và mở khóa thẻ xe
+        UPDATE dbo.VE_THANG
+        SET NgayHetHan = @NgayHetHanMoi,
+            TrangThai = N'Hoạt động'
+        WHERE MaVe = @MaVe;
+
+        UPDATE dbo.THE_XE
+        SET TrangThai = N'Hoạt động'
+        WHERE MaThe = @MaThe AND TrangThai <> N'Hoạt động';
+
+        -- Tạo hóa đơn, mã HD + yyyyMMdd + số thứ tự (tối thiểu 3 chữ số)
+        DECLARE @SoTien DECIMAL(18,2) = @DonGiaThang * @SoThangGiaHan;
+        DECLARE @MaHD VARCHAR(15);
+        SELECT @MaHD = CONCAT('HD', FORMAT(GETDATE(), 'yyyyMMdd'),
+                              RIGHT(CONCAT('000', ISNULL(MAX(CAST(SUBSTRING(MaHD, 11, 5) AS INT)), 0) + 1), 3))
+        FROM dbo.HOA_DON_VE_THANG WITH (UPDLOCK, HOLDLOCK)
+        WHERE MaHD LIKE 'HD[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND SUBSTRING(MaHD, 3, 13) NOT LIKE '%[^0-9]%';
+
+        INSERT INTO dbo.HOA_DON_VE_THANG (MaHD, MaVe, NgayThanhToan, SoThangGiaHan, SoTien, MaBai)
+        VALUES (@MaHD, @MaVe, GETDATE(), @SoThangGiaHan, @SoTien, @MaBaiTinhGia);
+
+        COMMIT TRANSACTION;
+
+        SELECT
+            @MaVe AS MaVe,
+            @MaThe AS MaThe,
+            @NgayHetHanCu AS HanCu,
+            @NgayHetHanMoi AS HanMoi,
+            @MaHD AS MaHoaDon,
+            @MaBaiTinhGia AS MaBaiThuTien,
+            @SoTien AS SoTienGiaHan,
+            N'Gia hạn vé tháng thành công' AS ThongBao;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 
