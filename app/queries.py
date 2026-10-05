@@ -100,7 +100,7 @@ DEMO_CASES = {
     # --------------------------------------------------------------------------------
     "sp-xe-vao-bai": {
         "title": "Demo Stored Procedure: Check-In xe vào cổng bãi (sp_XeVaoBai)",
-        "problem": "Xe máy quét thẻ THE0001 vào bãi xe Lê Lai (BAI_Q1). Thủ tục tự động gọi Function f_TimSlotTrong tìm ô trống khả dụng, ghi nhận lượt gửi mới và kích hoạt Trigger chuyển trạng thái ô đỗ sang 'Đã đỗ' đồng thời tăng số lượng xe trong bãi.",
+        "problem": "Xe máy quét thẻ THE0003 vào bãi xe Lê Lai (BAI_Q1). Thủ tục tự động gọi Function f_TimSlotTrong tìm ô trống khả dụng, ghi nhận lượt gửi mới và kích hoạt Trigger chuyển trạng thái ô đỗ sang 'Đã đỗ' đồng thời tăng số lượng xe trong bãi.",
         "before_sql": """
 SELECT MaBai, TenBai, SucChua, SoLuongHienTai FROM dbo.BAI_DO_XE WHERE MaBai = 'BAI_Q1';
 SELECT TOP 10 MaViTri, KhuVuc, TrangThai, MaLoaiXe FROM dbo.VI_TRI_DO WHERE MaBai = 'BAI_Q1' ORDER BY TrangThai DESC, MaViTri ASC;
@@ -115,8 +115,8 @@ SELECT TOP 5 MaLuot, MaThe, BienSo, ThoiGianVao, MaViTri FROM dbo.LUOT_GUI WHERE
 DECLARE @MaViTri VARCHAR(20);
 DECLARE @MaLuot INT;
 EXEC dbo.sp_XeVaoBai 
-    @MaThe = 'THE0001', 
-    @BienSo = '59A-123.45', 
+    @MaThe = 'THE0003', 
+    @BienSo = '59T1-888.88', 
     @MaBai = 'BAI_Q1',
     @MaLoaiXe = 'XM', 
     @MaViTri = @MaViTri OUTPUT, 
@@ -201,9 +201,8 @@ SELECT TOP 5 MaHD, MaVe, SoThangGiaHan, SoTien, NgayThanhToan FROM dbo.HOA_DON_V
             {"name": "Hóa đơn thu tiền vé tháng", "description": "Lịch sử thu tiền trước thao tác."},
         ],
         "execute_sql": """
-DECLARE @MaKH VARCHAR(10) = CONCAT('KH', FORMAT(GETDATE(), 'ssfff'));
-EXEC dbo.sp_DangKyThanhVien 
-    @MaKH = @MaKH, 
+-- Không truyền @MaKH: thủ tục tự sinh mã KH#### tiếp theo (mã vé V####, mã hóa đơn HD + ngày + STT)
+EXEC dbo.sp_DangKyThanhVien
     @HoTen = N'Trần Đình Trọng', 
     @SDT = '0908889999', 
     @CMND = '079090008888', 
@@ -361,6 +360,49 @@ SELECT TOP 5 * FROM dbo.LUOT_GUI WHERE MaThe = 'THE0008' ORDER BY MaLuot DESC;
     },
 
     # --------------------------------------------------------------------------------
+    # CASE: trg_KiemTraBaiApDungVeThang
+    # --------------------------------------------------------------------------------
+    "trigger-chan-sai-bai": {
+        "title": "Demo Trigger: Chặn vé tháng gửi sai bãi áp dụng (trg_KiemTraBaiApDungVeThang)",
+        "problem": "Ô tô vé tháng V0006 (thẻ THE0017) chỉ đăng ký gửi tại bãi TCP Park - Tân Sơn Nhất (BAI_TB) nhưng quét thẻ vào bãi Lê Lai (BAI_Q1). Trigger trg_KiemTraBaiApDungVeThang hủy giao dịch và ném lỗi 50004. Ngược lại, vé toàn chuỗi V0004 (MaBaiApDung = 'ALL') được gửi tại mọi bãi.",
+        "before_sql": """
+SELECT vt.MaVe, vt.MaThe, vt.BienSo, vt.MaLoaiXe, vt.NgayHetHan, vt.TrangThai, vt.MaBaiApDung,
+       CASE WHEN vt.MaBaiApDung = 'ALL' THEN N'Gửi được mọi bãi' ELSE N'Chỉ gửi tại ' + b.TenBai END AS PhamViGui
+FROM dbo.VE_THANG vt
+LEFT JOIN dbo.BAI_DO_XE b ON vt.MaBaiApDung = b.MaBai
+WHERE vt.MaVe IN ('V0006', 'V0004');
+SELECT MaBai, TenBai, SucChua, SoLuongHienTai FROM dbo.BAI_DO_XE WHERE MaBai = 'BAI_Q1';
+""",
+        "before_labels": [
+            {"name": "Phạm vi áp dụng của 2 vé tháng", "description": "V0006 gắn bãi BAI_TB; V0004 là vé toàn chuỗi 'ALL'."},
+            {"name": "Bãi Lê Lai trước khi quét thẻ", "description": "Số xe hiện tại của bãi BAI_Q1."},
+        ],
+        "execute_sql": """
+-- Thẻ tháng của bãi Tân Sơn Nhất cố tình check-in tại bãi Lê Lai
+DECLARE @MaViTri VARCHAR(20);
+DECLARE @MaLuot INT;
+EXEC dbo.sp_XeVaoBai
+    @MaThe = 'THE0017',
+    @BienSo = '51K-246.80',
+    @MaBai = 'BAI_Q1',
+    @MaLoaiXe = 'OT',
+    @MaViTri = @MaViTri OUTPUT,
+    @MaLuot = @MaLuot OUTPUT;
+""",
+        "execute_labels": [
+            {"name": "Kết quả", "description": "Lệnh check-in bị Trigger chặn lại do vé không áp dụng tại bãi này."}
+        ],
+        "after_sql": """
+SELECT MaBai, TenBai, SucChua, SoLuongHienTai FROM dbo.BAI_DO_XE WHERE MaBai = 'BAI_Q1';
+SELECT TOP 5 MaLuot, MaThe, BienSo, ThoiGianVao, ThoiGianRa, MaViTri, MaBai FROM dbo.LUOT_GUI WHERE MaThe = 'THE0017' ORDER BY MaLuot DESC;
+""",
+        "after_labels": [
+            {"name": "Bãi Lê Lai không tăng xe", "description": "Giao dịch bị rollback, bộ đếm giữ nguyên."},
+            {"name": "Không có lượt gửi mới tại BAI_Q1", "description": "Chỉ còn lịch sử gửi tại bãi BAI_TB của thẻ THE0017."},
+        ],
+    },
+
+    # --------------------------------------------------------------------------------
     # CASE 8: Functions
     # --------------------------------------------------------------------------------
     "function-tinh-tien-slot": {
@@ -442,7 +484,7 @@ SELECT * FROM dbo.vw_Report_DoanhThuTheoBai;
 }
 
 # ====================================================================================
-# PHÂN NHÓM 9 KỊCH BẢN DEMO CSDL (PROCEDURE | TRIGGER | FUNCTION | CURSOR)
+# PHÂN NHÓM 10 KỊCH BẢN DEMO CSDL (PROCEDURE | TRIGGER | FUNCTION | CURSOR)
 # ====================================================================================
 DEMO_GROUPS = [
     {
@@ -468,10 +510,11 @@ DEMO_GROUPS = [
         "badge_class": "badge-danger",
         "color": "#ef4444",
         "icon": "⚡",
-        "desc": "Tự động kích hoạt khi có sự kiện ghi dữ liệu để bảo vệ toàn vẹn: Chặn check-in thẻ lỗi/báo mất hoặc bãi đầy, Chặn xe tháng hết hạn nộp tiền.",
+        "desc": "Tự động kích hoạt khi có sự kiện ghi dữ liệu để bảo vệ toàn vẹn: Chặn check-in thẻ lỗi/báo mất hoặc bãi đầy, Chặn xe tháng hết hạn nộp tiền, Chặn vé tháng gửi sai bãi áp dụng.",
         "case_keys": [
             "trigger-chan-checkin-loi",
             "trigger-chan-ve-het-han",
+            "trigger-chan-sai-bai",
         ],
     },
     {

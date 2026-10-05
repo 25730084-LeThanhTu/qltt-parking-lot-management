@@ -41,10 +41,13 @@ CREATE TABLE dbo.NHAN_VIEN (
     MaBai VARCHAR(10) NULL,
     CONSTRAINT PK_NHAN_VIEN PRIMARY KEY (MaNV),
     CONSTRAINT UQ_NhanVien_SDT UNIQUE (SDT),
-    CONSTRAINT UQ_NhanVien_Email UNIQUE (Email),
     CONSTRAINT FK_NhanVien_BaiDoXe FOREIGN KEY (MaBai) REFERENCES dbo.BAI_DO_XE(MaBai),
     CONSTRAINT CK_NhanVien_ChucVu CHECK (ChucVu IN (N'Giám đốc điều hành', N'Quản lý bãi', N'Bảo vệ'))
 );
+GO
+
+-- Email duy nhất khi có giá trị; cho phép nhiều nhân viên để trống (UNIQUE constraint chỉ nhận một NULL)
+CREATE UNIQUE INDEX UQ_NhanVien_Email ON dbo.NHAN_VIEN(Email) WHERE Email IS NOT NULL;
 GO
 
 -- 3. Bảng TAI_KHOAN: Tài khoản truy cập & Xác thực nhân viên (Phân hệ An toàn thông tin)
@@ -110,9 +113,12 @@ CREATE TABLE dbo.KHACH_HANG (
     CMND_CCCD VARCHAR(12) NOT NULL,
     CONSTRAINT PK_KHACH_HANG PRIMARY KEY (MaKH),
     CONSTRAINT UQ_KhachHang_SDT UNIQUE (SDT),
-    CONSTRAINT UQ_KhachHang_Email UNIQUE (Email),
     CONSTRAINT UQ_KhachHang_CMND UNIQUE (CMND_CCCD)
 );
+GO
+
+-- Email duy nhất khi có giá trị; cho phép nhiều khách hàng để trống (UNIQUE constraint chỉ nhận một NULL)
+CREATE UNIQUE INDEX UQ_KhachHang_Email ON dbo.KHACH_HANG(Email) WHERE Email IS NOT NULL;
 GO
 
 -- 8. Bảng VE_THANG: Quản lý vé gửi xe định kỳ hàng tháng

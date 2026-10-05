@@ -139,7 +139,7 @@ GO
 -- 3. Procedure sp_DangKyThanhVien: Đăng ký vé tháng an toàn trong TRANSACTION
 CREATE OR ALTER PROCEDURE dbo.sp_DangKyThanhVien
 (
-    @MaKH VARCHAR(10),
+    @MaKH VARCHAR(10) = NULL, -- NULL: tìm khách theo CMND/CCCD, chưa có thì sinh mã KH#### tiếp theo
     @HoTen NVARCHAR(100),
     @SDT VARCHAR(15),
     @CMND VARCHAR(12),
@@ -148,15 +148,25 @@ CREATE OR ALTER PROCEDURE dbo.sp_DangKyThanhVien
     @MaLoaiXe VARCHAR(10),
     @MaBaiApDung VARCHAR(10),
     @SoThangDongTruoc INT = 1,
-    @Email VARCHAR(100) = NULL
+    @Email VARCHAR(100) = NULL,
+    @MaBaiBan VARCHAR(10) = NULL -- Bãi bán vé / thu tiền (dùng cho vé toàn chuỗi 'ALL')
 )
 AS
 BEGIN
     SET NOCOUNT ON;
+    SET @Email = NULLIF(LTRIM(RTRIM(@Email)), ''); -- Email rỗng lưu NULL (UQ_KhachHang_Email chỉ áp dụng khi có email)
     BEGIN TRANSACTION;
 
     BEGIN TRY
         -- 1. Lưu thông tin khách hàng (nếu chưa có thì thêm, có rồi thì cập nhật)
+        IF @MaKH IS NULL
+            SELECT @MaKH = MaKH FROM dbo.KHACH_HANG WITH (UPDLOCK, HOLDLOCK) WHERE CMND_CCCD = @CMND;
+
+        IF @MaKH IS NULL
+            SELECT @MaKH = CONCAT('KH', RIGHT(CONCAT('0000', ISNULL(MAX(CAST(SUBSTRING(MaKH, 3, 8) AS INT)), 0) + 1), 4))
+            FROM dbo.KHACH_HANG WITH (UPDLOCK, HOLDLOCK)
+            WHERE MaKH LIKE 'KH[0-9][0-9][0-9][0-9]%' AND SUBSTRING(MaKH, 3, 8) NOT LIKE '%[^0-9]%';
+
         IF NOT EXISTS (SELECT 1 FROM dbo.KHACH_HANG WHERE MaKH = @MaKH)
         BEGIN
             INSERT INTO dbo.KHACH_HANG (MaKH, HoTen, SDT, Email, CMND_CCCD)
@@ -169,36 +179,59 @@ BEGIN
             WHERE MaKH = @MaKH;
         END;
 
-        -- 2. Chuyển đổi trạng thái thẻ sang Thẻ Tháng
+        -- 2. Xác định bãi tính giá và đơn giá trước khi ghi vé
+        -- Vé gắn một bãi: tính giá và ghi doanh thu tại bãi đó.
+        -- Vé toàn chuỗi 'ALL': tính giá và ghi doanh thu tại bãi bán vé (@MaBaiBan), mặc định là bãi phát hành thẻ.
+        DECLARE @MaBaiTinhGia VARCHAR(10) = CASE
+            WHEN @MaBaiApDung = 'ALL' THEN COALESCE(@MaBaiBan, (SELECT MaBai FROM dbo.THE_XE WHERE MaThe = @MaThe))
+            ELSE @MaBaiApDung
+        END;
+
+        IF NOT EXISTS (SELECT 1 FROM dbo.BAI_DO_XE WHERE MaBai = @MaBaiTinhGia)
+        BEGIN
+            THROW 50008, N'Lỗi: Bãi bán vé / bãi tính giá vé tháng không hợp lệ!', 1;
+        END;
+
+        DECLARE @DonGiaThang DECIMAL(18,2);
+        SELECT @DonGiaThang = GiaVeThang
+        FROM dbo.LOAI_XE
+        WHERE MaLoaiXe = @MaLoaiXe AND MaBai = @MaBaiTinhGia;
+
+        IF @DonGiaThang IS NULL
+        BEGIN
+            THROW 50017, N'Lỗi: Loại xe chưa có biểu phí vé tháng tại bãi tính giá!', 1;
+        END;
+
+        -- 3. Chuyển đổi trạng thái thẻ sang Thẻ Tháng
         UPDATE dbo.THE_XE
         SET LoaiThe = N'Tháng', TrangThai = N'Hoạt động'
         WHERE MaThe = @MaThe;
 
-        -- 3. Sinh mã vé tháng mới và tính hạn dùng
-        DECLARE @MaVe VARCHAR(10) = CONCAT('V', FORMAT(GETDATE(), 'yyMMddHHmm'));
+        -- 4. Sinh mã vé tháng V#### tiếp theo và tính hạn dùng
+        DECLARE @MaVe VARCHAR(10);
+        SELECT @MaVe = CONCAT('V', RIGHT(CONCAT('0000', ISNULL(MAX(CAST(SUBSTRING(MaVe, 2, 9) AS INT)), 0) + 1), 4))
+        FROM dbo.VE_THANG WITH (UPDLOCK, HOLDLOCK)
+        WHERE MaVe LIKE 'V[0-9][0-9][0-9][0-9]%' AND SUBSTRING(MaVe, 2, 9) NOT LIKE '%[^0-9]%';
+
         DECLARE @NgayHetHan DATE = DATEADD(MONTH, @SoThangDongTruoc, CAST(GETDATE() AS DATE));
 
         INSERT INTO dbo.VE_THANG (MaVe, MaThe, MaKH, BienSo, MaLoaiXe, NgayDangKy, NgayHetHan, TrangThai, MaBaiApDung)
         VALUES (@MaVe, @MaThe, @MaKH, @BienSo, @MaLoaiXe, CAST(GETDATE() AS DATE), @NgayHetHan, N'Hoạt động', @MaBaiApDung);
 
-        -- 4. Tính tiền và xuất hóa đơn
-        DECLARE @DonGiaThang DECIMAL(18,2);
-        DECLARE @MaBaiTinhGia VARCHAR(10) = CASE WHEN @MaBaiApDung = 'ALL' THEN (SELECT TOP 1 MaBai FROM dbo.BAI_DO_XE ORDER BY MaBai) ELSE @MaBaiApDung END;
-
-        SELECT @DonGiaThang = GiaVeThang
-        FROM dbo.LOAI_XE
-        WHERE MaLoaiXe = @MaLoaiXe AND MaBai = @MaBaiTinhGia;
-
-        IF @DonGiaThang IS NULL SET @DonGiaThang = 180000;
+        -- 5. Tính tiền và xuất hóa đơn, mã HD + yyyyMMdd + số thứ tự (tối thiểu 3 chữ số)
         DECLARE @TongTien DECIMAL(18,2) = @DonGiaThang * @SoThangDongTruoc;
-        DECLARE @MaHD VARCHAR(15) = CONCAT('HD', FORMAT(GETDATE(), 'yyyyMMddHHmmss'));
+        DECLARE @MaHD VARCHAR(15);
+        SELECT @MaHD = CONCAT('HD', FORMAT(GETDATE(), 'yyyyMMdd'),
+                              RIGHT(CONCAT('000', ISNULL(MAX(CAST(SUBSTRING(MaHD, 11, 5) AS INT)), 0) + 1), 3))
+        FROM dbo.HOA_DON_VE_THANG WITH (UPDLOCK, HOLDLOCK)
+        WHERE MaHD LIKE 'HD[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND SUBSTRING(MaHD, 3, 13) NOT LIKE '%[^0-9]%';
 
         INSERT INTO dbo.HOA_DON_VE_THANG (MaHD, MaVe, NgayThanhToan, SoThangGiaHan, SoTien, MaBai)
         VALUES (@MaHD, @MaVe, GETDATE(), @SoThangDongTruoc, @TongTien, @MaBaiTinhGia);
 
         COMMIT TRANSACTION;
 
-        SELECT 
+        SELECT
             @MaVe AS MaVe,
             @MaKH AS MaKH,
             @HoTen AS HoTenKhachHang,
@@ -210,7 +243,7 @@ BEGIN
             N'Đăng ký vé tháng thành công' AS TrangThai;
     END TRY
     BEGIN CATCH
-        ROLLBACK TRANSACTION;
+        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
         THROW;
     END CATCH;
 END;
@@ -221,7 +254,7 @@ CREATE OR ALTER PROCEDURE dbo.sp_GiaHanTheThang
 (
     @MaVe VARCHAR(10),
     @SoThangGiaHan INT = 1,
-    @MaBaiGiaHan VARCHAR(10) = 'BAI_Q1'
+    @MaBaiGiaHan VARCHAR(10) = NULL -- Bãi thu tiền: vé gắn bãi chỉ thu tại bãi áp dụng; vé 'ALL' mặc định là bãi phát hành thẻ
 )
 AS
 BEGIN
@@ -233,52 +266,100 @@ BEGIN
         RETURN;
     END;
 
-    DECLARE @NgayHetHanCu DATE;
-    DECLARE @MaThe VARCHAR(10);
-    DECLARE @MaLoaiXe VARCHAR(10);
+    BEGIN TRANSACTION;
 
-    SELECT 
-        @NgayHetHanCu = NgayHetHan,
-        @MaThe = MaThe,
-        @MaLoaiXe = MaLoaiXe
-    FROM dbo.VE_THANG
-    WHERE MaVe = @MaVe;
+    BEGIN TRY
+        DECLARE @NgayHetHanCu DATE;
+        DECLARE @MaThe VARCHAR(10);
+        DECLARE @MaLoaiXe VARCHAR(10);
+        DECLARE @MaBaiApDung VARCHAR(10);
+        DECLARE @MaBaiThe VARCHAR(10);
+        DECLARE @TrangThaiThe NVARCHAR(20);
 
-    -- Nếu vé còn hạn thì cộng dồn tiếp, nếu đã quá hạn thì tính từ ngày hôm nay
-    DECLARE @MocTinh DATE = CASE WHEN @NgayHetHanCu > CAST(GETDATE() AS DATE) THEN @NgayHetHanCu ELSE CAST(GETDATE() AS DATE) END;
-    DECLARE @NgayHetHanMoi DATE = DATEADD(MONTH, @SoThangGiaHan, @MocTinh);
+        SELECT
+            @NgayHetHanCu = vt.NgayHetHan,
+            @MaThe = vt.MaThe,
+            @MaLoaiXe = vt.MaLoaiXe,
+            @MaBaiApDung = vt.MaBaiApDung,
+            @MaBaiThe = tx.MaBai,
+            @TrangThaiThe = tx.TrangThai
+        FROM dbo.VE_THANG vt WITH (UPDLOCK)
+        INNER JOIN dbo.THE_XE tx ON vt.MaThe = tx.MaThe
+        WHERE vt.MaVe = @MaVe;
 
-    -- Cập nhật vé tháng và mở khóa thẻ xe
-    UPDATE dbo.VE_THANG
-    SET NgayHetHan = @NgayHetHanMoi,
-        TrangThai = N'Hoạt động'
-    WHERE MaVe = @MaVe;
+        -- Thẻ đã báo mất: không gia hạn (không tự mở khóa thẻ mất)
+        IF @TrangThaiThe = N'Mất'
+        BEGIN
+            THROW 50019, N'Lỗi: Thẻ của vé tháng đã báo mất. Cần cấp thẻ mới trước khi gia hạn!', 1;
+        END;
 
-    UPDATE dbo.THE_XE
-    SET TrangThai = N'Hoạt động'
-    WHERE MaThe = @MaThe;
+        -- Xác định bãi thu tiền / tính giá
+        IF @MaBaiApDung <> 'ALL' AND @MaBaiGiaHan IS NOT NULL AND @MaBaiGiaHan <> @MaBaiApDung
+        BEGIN
+            THROW 50018, N'Lỗi: Vé tháng gắn một bãi chỉ được gia hạn và thu tiền tại bãi áp dụng của vé!', 1;
+        END;
 
-    -- Tính tiền và tạo hóa đơn
-    DECLARE @DonGiaThang DECIMAL(18,2);
-    SELECT @DonGiaThang = GiaVeThang
-    FROM dbo.LOAI_XE
-    WHERE MaLoaiXe = @MaLoaiXe AND MaBai = @MaBaiGiaHan;
+        DECLARE @MaBaiTinhGia VARCHAR(10) = CASE
+            WHEN @MaBaiApDung = 'ALL' THEN COALESCE(@MaBaiGiaHan, @MaBaiThe)
+            ELSE @MaBaiApDung
+        END;
 
-    IF @DonGiaThang IS NULL SET @DonGiaThang = 180000;
-    DECLARE @SoTien DECIMAL(18,2) = @DonGiaThang * @SoThangGiaHan;
-    DECLARE @MaHD VARCHAR(15) = CONCAT('HDGH', FORMAT(GETDATE(), 'yyMMddHHmmss'));
+        IF NOT EXISTS (SELECT 1 FROM dbo.BAI_DO_XE WHERE MaBai = @MaBaiTinhGia)
+        BEGIN
+            THROW 50008, N'Lỗi: Bãi bán vé / bãi tính giá vé tháng không hợp lệ!', 1;
+        END;
 
-    INSERT INTO dbo.HOA_DON_VE_THANG (MaHD, MaVe, NgayThanhToan, SoThangGiaHan, SoTien, MaBai)
-    VALUES (@MaHD, @MaVe, GETDATE(), @SoThangGiaHan, @SoTien, @MaBaiGiaHan);
+        DECLARE @DonGiaThang DECIMAL(18,2);
+        SELECT @DonGiaThang = GiaVeThang
+        FROM dbo.LOAI_XE
+        WHERE MaLoaiXe = @MaLoaiXe AND MaBai = @MaBaiTinhGia;
 
-    SELECT 
-        @MaVe AS MaVe,
-        @MaThe AS MaThe,
-        @NgayHetHanCu AS HanCu,
-        @NgayHetHanMoi AS HanMoi,
-        @MaHD AS MaHoaDon,
-        @SoTien AS SoTienGiaHan,
-        N'Gia hạn vé tháng thành công' AS ThongBao;
+        IF @DonGiaThang IS NULL
+        BEGIN
+            THROW 50017, N'Lỗi: Loại xe chưa có biểu phí vé tháng tại bãi tính giá!', 1;
+        END;
+
+        -- Nếu vé còn hạn thì cộng dồn tiếp, nếu đã quá hạn thì tính từ ngày hôm nay
+        DECLARE @MocTinh DATE = CASE WHEN @NgayHetHanCu > CAST(GETDATE() AS DATE) THEN @NgayHetHanCu ELSE CAST(GETDATE() AS DATE) END;
+        DECLARE @NgayHetHanMoi DATE = DATEADD(MONTH, @SoThangGiaHan, @MocTinh);
+
+        -- Cập nhật vé tháng và mở khóa thẻ xe
+        UPDATE dbo.VE_THANG
+        SET NgayHetHan = @NgayHetHanMoi,
+            TrangThai = N'Hoạt động'
+        WHERE MaVe = @MaVe;
+
+        UPDATE dbo.THE_XE
+        SET TrangThai = N'Hoạt động'
+        WHERE MaThe = @MaThe AND TrangThai <> N'Hoạt động';
+
+        -- Tạo hóa đơn, mã HD + yyyyMMdd + số thứ tự (tối thiểu 3 chữ số)
+        DECLARE @SoTien DECIMAL(18,2) = @DonGiaThang * @SoThangGiaHan;
+        DECLARE @MaHD VARCHAR(15);
+        SELECT @MaHD = CONCAT('HD', FORMAT(GETDATE(), 'yyyyMMdd'),
+                              RIGHT(CONCAT('000', ISNULL(MAX(CAST(SUBSTRING(MaHD, 11, 5) AS INT)), 0) + 1), 3))
+        FROM dbo.HOA_DON_VE_THANG WITH (UPDLOCK, HOLDLOCK)
+        WHERE MaHD LIKE 'HD[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND SUBSTRING(MaHD, 3, 13) NOT LIKE '%[^0-9]%';
+
+        INSERT INTO dbo.HOA_DON_VE_THANG (MaHD, MaVe, NgayThanhToan, SoThangGiaHan, SoTien, MaBai)
+        VALUES (@MaHD, @MaVe, GETDATE(), @SoThangGiaHan, @SoTien, @MaBaiTinhGia);
+
+        COMMIT TRANSACTION;
+
+        SELECT
+            @MaVe AS MaVe,
+            @MaThe AS MaThe,
+            @NgayHetHanCu AS HanCu,
+            @NgayHetHanMoi AS HanMoi,
+            @MaHD AS MaHoaDon,
+            @MaBaiTinhGia AS MaBaiThuTien,
+            @SoTien AS SoTienGiaHan,
+            N'Gia hạn vé tháng thành công' AS ThongBao;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
 END;
 GO
 

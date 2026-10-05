@@ -54,7 +54,7 @@ Lưu trữ thông tin nhân viên bảo vệ, quản lý chi nhánh và ban qu�
 - **`HoTen`** `NVARCHAR(100)` `NOT NULL`: Họ và tên đầy đủ của nhân viên.
 - **`ChucVu`** `NVARCHAR(50)` `NOT NULL`: Chức vụ (*Giám đốc*, *Quản lý bãi*, *Bảo vệ*).
 - **`SDT`** `VARCHAR(15)` `NOT NULL` `UNIQUE`: Số điện thoại liên lạc.
-- **`Email`** `VARCHAR(100)` `NULL` `UNIQUE`: Hòm thư điện tử nội bộ.
+- **`Email`** `VARCHAR(100)` `NULL` `UNIQUE` (filtered index `WHERE Email IS NOT NULL`, cho phép nhiều dòng để trống): Hòm thư điện tử nội bộ.
 - **`MaBai`** `VARCHAR(10)` `NULL` **[FK]**: Liên kết `BAI_DO_XE(MaBai)`. Nhân viên quản lý chi nhánh/bảo vệ được gắn với bãi cụ thể; Admin/Giám đốc để `NULL` (quản trị toàn hệ thống).
 
 #### 3. Bảng `TAI_KHOAN` (Tài khoản truy cập & Xác thực)
@@ -93,7 +93,7 @@ Lưu trữ thông tin khách hàng mua thuê bao đỗ xe định kỳ.
 - **`MaKH`** `VARCHAR(10)` **[PK]**: Mã số khách hàng (`KH0001`, `KH0002`).
 - **`HoTen`** `NVARCHAR(100)` `NOT NULL`: Họ tên chủ phương tiện.
 - **`SDT`** `VARCHAR(15)` `NOT NULL` `UNIQUE`: Số điện thoại nhận tin thông báo gia hạn.
-- **`Email`** `VARCHAR(100)` `NULL` `UNIQUE`: Địa chỉ email nhận hóa đơn điện tử.
+- **`Email`** `VARCHAR(100)` `NULL` `UNIQUE` (filtered index `WHERE Email IS NOT NULL`, cho phép nhiều dòng để trống): Địa chỉ email nhận hóa đơn điện tử.
 - **`CMND_CCCD`** `VARCHAR(12)` `NOT NULL` `UNIQUE`: Số định danh cá nhân phục vụ công tác an ninh.
 
 #### 8. Bảng `VE_THANG` (Bản đăng ký vé tháng)
@@ -282,13 +282,13 @@ Hệ thống cung cấp đầy đủ các khối lệnh lập trình thủ tục
 ### 1. Danh Mục Stored Procedures (`sql/03_procedures.sql`)
 - **`sp_XeVaoBai`**: Quét thẻ vào cổng barrier, kiểm tra thẻ hợp lệ, gọi hàm `f_TimSlotTrong` để tự động xếp slot, tạo lượt đỗ mới trong `LUOT_GUI` và cập nhật slot sang `'Đã đỗ'`.
 - **`sp_XeRaBai`**: Quét thẻ ra cổng barrier, gọi hàm `f_TinhTienGuiXe` để tính tiền gửi dựa theo đơn giá chi nhánh, ghi nhận `ThoiGianRa`, giải phóng ô đỗ về trạng thái `'Trống'`.
-- **`sp_DangKyThanhVien`**: Đăng ký khách hàng mới, phát hành vé tháng, xuất hóa đơn tháng đầu trong một khối **TRANSACTION** bảo đảm tính nguyên tử (Atomicity).
-- **`sp_GiaHanTheThang`**: Cộng thêm số ngày sử dụng cho vé tháng và tự sinh hóa đơn thanh toán trong `HOA_DON_VE_THANG`.
+- **`sp_DangKyThanhVien`**: Đăng ký khách hàng mới, phát hành vé tháng, xuất hóa đơn tháng đầu trong một khối **TRANSACTION** bảo đảm tính nguyên tử (Atomicity). Tự sinh mã `KH####` (khi không truyền), `V####`, `HD` + yyyyMMdd + STT; thiếu biểu phí báo lỗi 50017.
+- **`sp_GiaHanTheThang`**: Cộng thêm số tháng sử dụng cho vé tháng và tự sinh hóa đơn thanh toán trong `HOA_DON_VE_THANG` (trong TRANSACTION). Vé gắn bãi chỉ thu tại bãi áp dụng (50018); vé `ALL` thu tại bãi gia hạn, mặc định bãi phát hành thẻ; thẻ đã báo mất không gia hạn (50019); thiếu biểu phí báo 50017.
 - **`sp_BaoMatThe`**: Khóa thẻ bị mất, tự động lập biên bản sự cố trong `LICHSU_SU_CO` và áp mức phạt bồi thường thẻ 50.000đ.
 - **`sp_DangNhap`**: Xác thực đăng nhập hệ thống dựa trên tên đăng nhập và mật khẩu băm SHA-256, trả về thông tin nhân viên, chức vụ và bãi xe phụ trách.
 
 ### 2. Danh Mục Triggers (`sql/04_triggers.sql`)
-- **`trg_KiemTraCheckIn`**: Chặn xe vào nếu thẻ bị khóa hoặc bãi đỗ đã đạt 100% sức chứa (`SoLuongHienTai >= SucChua`).
+- **`trg_KiemTraCheckIn`** (chạy trước tiên, `sp_settriggerorder 'First'`): Chặn xe vào nếu thẻ bị khóa/mất (50002), số lượt đang mở vượt sức chứa (50001), thẻ đang có lượt chưa ra (50014), ô đỗ không thuộc bãi hoặc đã có xe (50015), thẻ lượt dùng ngoài bãi phát hành (50016).
 - **`trg_ChanSuDungVeHetHan`**: Chặn quẹt thẻ tháng nếu vé đăng ký đã quá ngày hết hạn (`NgayHetHan < GETDATE()`).
 - **`trg_DongBoTrangThaiSlot`**: Tự động tăng/giảm `SoLuongHienTai` của bãi xe và cập nhật trạng thái ô đỗ trong `VI_TRI_DO` khi bản ghi `LUOT_GUI` được chèn hoặc cập nhật giờ ra.
 - **`trg_LogLichSuSuCo`**: Tự động tạo bản ghi biên bản sự cố trong `LICHSU_SU_CO` khi trạng thái thẻ trong `THE_XE` chuyển thành `'Mất'`.
@@ -390,7 +390,7 @@ Cấu trúc gói nộp bài chuẩn bị sẵn sàng bàn giao cho giảng viên
   - `01_schema.sql`: Script khởi tạo 11 bảng.
   - `02_sample_data.sql`: Dữ liệu mẫu thực tế.
   - `03_procedures.sql`: 6 Stored Procedures nghiệp vụ.
-  - `04_triggers.sql`: 5 Triggers an ninh & toàn vẹn dữ liệu.
+  - `04_triggers.sql`: 8 Triggers an ninh & toàn vẹn dữ liệu.
   - `05_functions.sql`: 3 Functions tính phí và tìm slot.
   - `06_cursors.sql`: 2 Cursors duyệt tự động.
   - `07_views.sql`: 15 Views vận hành, bốt cổng, sơ đồ realtime & báo cáo BI.
