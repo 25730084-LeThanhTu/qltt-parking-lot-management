@@ -263,3 +263,157 @@ INSERT INTO dbo.LICHSU_SU_CO (MaThe, BienSo, ThoiGianSuCo, MoTa, TienPhat, Trang
 (NULL, '51F-135.79', '2026-09-07 10:05:00', N'Ô tô cọ quẹt trụ bê tông tại dốc lên Tầng 3, trầy sơn hông xe, đang chờ đối chiếu camera', 300000, N'Đang giải quyết', 'BAI_TB'),
 ('THE0025', NULL, '2026-08-20 20:15:00', N'Khách hàng báo mất thẻ chip THE0025 (Loại: Lượt). Hệ thống tự động khóa thẻ và áp phí phạt đền bù thẻ vật lý.', 50000, N'Đã giải quyết', 'BAI_Q7');
 GO
+-- ====================================================================================
+-- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
+-- NÂNG CẤP V7 - BƯỚC 11: DỮ LIỆU MẪU CỔNG KHÁCH HÀNG (UPGRADE_PLAN.md MỤC 11)
+--
+-- TẠM THỜI VIẾT TAY: script sinh seed từ docs/QuanLyBaiDoXe_DuLieuMau.xlsx chưa có trong repo (N8).
+-- Khi có script, chuyển dữ liệu dưới đây vào các sheet tương ứng của Excel master (D11) và sinh lại file này.
+--
+-- Quy ước giống 02_sample_data.sql:
+-- - Chạy một lần trên CSDL vừa nạp 01 -> 10 (không idempotent, giống 02).
+-- - Cột dẫn xuất ghi giá trị đã tính sẵn: VI_DIEN_TU.SoDu, GIAO_DICH.SoDuTruoc / SoDuSau (file này chạy TRƯỚC
+--   khi trigger sổ cái ở bước 14 được tạo, nên không dựa vào trigger để tính số dư).
+-- - Mốc thời gian tương đối dùng DATEADD(..., GETDATE()) để luôn đúng khi nạp lại.
+-- - Mật khẩu mẫu của mọi tài khoản khách: 'Khach@2026', salt cố định (giá trị tổng hợp cho demo) để seed tái lập được.
+--   Biểu thức hash trùng với dbo.f_BamMatKhau: HASHBYTES('SHA2_512', salt + CAST(<mật khẩu VARCHAR> AS VARBINARY(100))).
+-- - Các lượt gửi lịch sử chèn ở đây đi qua trigger V6 của LUOT_GUI nên chỉ dùng vé còn hạn, đúng bãi, thẻ hoạt động.
+-- ====================================================================================
+
+-- 1. Tài khoản cổng khách hàng (8 tài khoản; KH0005 và KH0008 chưa có tài khoản - dùng cho demo đăng ký)
+-- TK0005 (KH0006) đang tạm khóa để màn hình nhân viên có dữ liệu "Mở khóa".
+INSERT INTO dbo.TAI_KHOAN_KH (MaTK, MaKH, TenDangNhap, MatKhauHash, MatKhauSalt, TrangThai, SoLanSaiLienTiep, KhoaDen, NgayTao, LanDangNhapCuoi) VALUES
+('TK0001', 'KH0001', '0903112233', HASHBYTES('SHA2_512', 0x1F8A3C5E7B9D2F4061A3C5E7092B4D6F + CAST('Khach@2026' AS VARBINARY(100))), 0x1F8A3C5E7B9D2F4061A3C5E7092B4D6F, N'Hoạt động', 0, NULL, DATEADD(DAY, -60, GETDATE()), DATEADD(HOUR, -20, GETDATE())),
+('TK0002', 'KH0002', '0912445566', HASHBYTES('SHA2_512', 0x2E9B4D6F8CAE3051728495A6B7C8D9E0 + CAST('Khach@2026' AS VARBINARY(100))), 0x2E9B4D6F8CAE3051728495A6B7C8D9E0, N'Hoạt động', 0, NULL, DATEADD(DAY, -45, GETDATE()), DATEADD(HOUR, -5, GETDATE())),
+('TK0003', 'KH0003', '0988776655', HASHBYTES('SHA2_512', 0x3DAC5E7091BF416283A5C7E90B2D4F61 + CAST('Khach@2026' AS VARBINARY(100))), 0x3DAC5E7091BF416283A5C7E90B2D4F61, N'Hoạt động', 0, NULL, DATEADD(DAY, -40, GETDATE()), DATEADD(DAY, -12, GETDATE())),
+('TK0004', 'KH0004', '0934556677', HASHBYTES('SHA2_512', 0x4CBD6F81A2C05273940B6D8FA1C3E507 + CAST('Khach@2026' AS VARBINARY(100))), 0x4CBD6F81A2C05273940B6D8FA1C3E507, N'Hoạt động', 0, NULL, DATEADD(DAY, -42, GETDATE()), DATEADD(DAY, -2, GETDATE())),
+('TK0005', 'KH0006', '0908246810', HASHBYTES('SHA2_512', 0x5BCE7092B3D16384A51C7E90B2D4F618 + CAST('Khach@2026' AS VARBINARY(100))), 0x5BCE7092B3D16384A51C7E90B2D4F618, N'Tạm khóa', 5, DATEADD(MINUTE, 10, GETDATE()), DATEADD(DAY, -62, GETDATE()), DATEADD(DAY, -3, GETDATE())),
+('TK0006', 'KH0007', '0938135790', HASHBYTES('SHA2_512', 0x6ADF81A3C4E27495B62D8FA1C3E50729 + CAST('Khach@2026' AS VARBINARY(100))), 0x6ADF81A3C4E27495B62D8FA1C3E50729, N'Hoạt động', 0, NULL, DATEADD(DAY, -27, GETDATE()), DATEADD(DAY, -1, GETDATE())),
+('TK0007', 'KH0009', '0966369147', HASHBYTES('SHA2_512', 0x79E092B4D5F385A6C73E90B2D4F6183A + CAST('Khach@2026' AS VARBINARY(100))), 0x79E092B4D5F385A6C73E90B2D4F6183A, N'Hoạt động', 0, NULL, DATEADD(DAY, -21, GETDATE()), DATEADD(DAY, -4, GETDATE())),
+('TK0008', 'KH0010', '0945112233', HASHBYTES('SHA2_512', 0x88F1A3C5E60496B7D84FA1C3E507294B + CAST('Khach@2026' AS VARBINARY(100))), 0x88F1A3C5E60496B7D84FA1C3E507294B, N'Hoạt động', 0, NULL, DATEADD(DAY, -6, GETDATE()), DATEADD(DAY, -5, GETDATE()));
+GO
+
+-- 2. Nhật ký đăng nhập (TK0005 sai 5 lần trong 15 phút gần nhất -> đang tạm khóa)
+INSERT INTO dbo.NHAT_KY_DANG_NHAP (MaTK, TenDangNhapNhap, ThoiGian, KetQua, DiaChiIP, ThietBi) VALUES
+('TK0001', '0903112233', DATEADD(HOUR, -20, GETDATE()), N'Thành công', '113.161.45.10', N'Chrome / Windows'),
+('TK0002', '0912445566', DATEADD(HOUR, -5, GETDATE()), N'Thành công', '14.169.22.81', N'Safari / iOS'),
+('TK0004', '0934556677', DATEADD(DAY, -2, GETDATE()), N'Thành công', '27.72.98.140', N'Chrome / Android'),
+('TK0006', '0938135790', DATEADD(DAY, -1, GETDATE()), N'Thành công', '171.244.10.55', N'Chrome / macOS'),
+(NULL, '0900000000', DATEADD(HOUR, -3, GETDATE()), N'Không tồn tại', '45.124.84.12', N'curl/8.4'),
+('TK0005', '0908246810', DATEADD(MINUTE, -9, GETDATE()), N'Sai mật khẩu', '45.124.84.12', N'curl/8.4'),
+('TK0005', '0908246810', DATEADD(MINUTE, -8, GETDATE()), N'Sai mật khẩu', '45.124.84.12', N'curl/8.4'),
+('TK0005', '0908246810', DATEADD(MINUTE, -7, GETDATE()), N'Sai mật khẩu', '45.124.84.12', N'curl/8.4'),
+('TK0005', '0908246810', DATEADD(MINUTE, -6, GETDATE()), N'Sai mật khẩu', '45.124.84.12', N'curl/8.4'),
+('TK0005', '0908246810', DATEADD(MINUTE, -5, GETDATE()), N'Sai mật khẩu', '45.124.84.12', N'curl/8.4');
+GO
+
+-- 3. Ví điện tử (SoDu = tổng sổ cái các giao dịch 'Thành công' / 'Đã hoàn' ở mục 4)
+INSERT INTO dbo.VI_DIEN_TU (MaVi, MaKH, SoDu, NgayTao) VALUES
+('VI0001', 'KH0001', 300000, DATEADD(DAY, -60, GETDATE())),
+('VI0002', 'KH0002', 3000000, DATEADD(DAY, -45, GETDATE())),
+('VI0003', 'KH0003', 0, DATEADD(DAY, -40, GETDATE())),
+('VI0004', 'KH0004', 50000, DATEADD(DAY, -42, GETDATE())),
+('VI0005', 'KH0006', 2600000, DATEADD(DAY, -62, GETDATE())),
+('VI0006', 'KH0007', 300000, DATEADD(DAY, -27, GETDATE())),
+('VI0007', 'KH0009', 5000000, DATEADD(DAY, -21, GETDATE())),
+('VI0008', 'KH0010', 100000, DATEADD(DAY, -6, GETDATE()));
+GO
+
+-- 4. Sổ cái giao dịch (theo thứ tự thời gian trong từng ví; SoDuTruoc / SoDuSau liên tục)
+-- VI0001: 0 -> +480.000 (MoMo) -> -180.000 (gia hạn V0001 online) = 300.000; 1 lệnh VNPay thất bại
+-- VI0002: 0 -> +3.000.000 (tiền mặt tại quầy) = 3.000.000; 1 lệnh chuyển khoản treo 2 giờ (cursor đối soát sẽ chuyển Thất bại)
+-- VI0004: 0 -> +1.550.000 (thẻ) -> -1.500.000 (gia hạn V0004 online, giá bãi phát hành thẻ BAI_Q3) = 50.000
+-- VI0005: 0 -> +2.600.000 -> -1.600.000 (gia hạn V0006) -> +1.600.000 -> -1.600.000 (trừ trùng, đã hoàn) -> +1.600.000 (hoàn) = 2.600.000
+-- VI0006: +300.000 (ZaloPay, trước khi cổng tạm ngưng) | VI0007: +5.000.000 | VI0008: +100.000
+INSERT INTO dbo.GIAO_DICH (MaGD, MaVi, LoaiGD, HuongTien, SoTien, PhiGiaoDich, SoDuTruoc, SoDuSau, MaPTTT, MaThamChieu, TrangThai, MaVe, MaGDGoc, NguoiThucHien, MaNV, ThoiGianTao, ThoiGianHoanTat, GhiChu) VALUES
+('GD260900000001', 'VI0001', N'Nạp tiền', 1, 480000, 7200, 0, 480000, 'MOMO', 'MOMO-SEED-0001', N'Thành công', NULL, NULL, N'Khách hàng', NULL, DATEADD(DAY, -25, GETDATE()), DATEADD(DAY, -25, GETDATE()), N'Cổng thanh toán xác nhận thành công'),
+('GD260900000002', 'VI0001', N'Thanh toán vé tháng', -1, 180000, 0, 480000, 300000, 'SO_DU_VI', NULL, N'Thành công', 'V0001', NULL, N'Khách hàng', NULL, DATEADD(DAY, -24, GETDATE()), DATEADD(DAY, -24, GETDATE()), N'Gia hạn online 1 tháng'),
+('GD260900000003', 'VI0001', N'Nạp tiền', 1, 200000, 2200, NULL, NULL, 'VNPAY', 'VNPAY-SEED-0003', N'Thất bại', NULL, NULL, N'Khách hàng', NULL, DATEADD(DAY, -10, GETDATE()), DATEADD(DAY, -10, GETDATE()), N'Cổng thanh toán báo thất bại'),
+('GD260900000004', 'VI0002', N'Nạp tiền', 1, 3000000, 0, 0, 3000000, 'TIEN_MAT', NULL, N'Thành công', NULL, NULL, N'Nhân viên', 'NV002', DATEADD(DAY, -30, GETDATE()), DATEADD(DAY, -30, GETDATE()), N'Nạp tiền mặt tại quầy'),
+('GD260900000005', 'VI0002', N'Nạp tiền', 1, 1000000, 0, NULL, NULL, 'CHUYEN_KHOAN', NULL, N'Chờ xử lý', NULL, NULL, N'Khách hàng', NULL, DATEADD(MINUTE, -120, GETDATE()), NULL, N'Chờ kết quả từ cổng thanh toán'),
+('GD260900000006', 'VI0004', N'Nạp tiền', 1, 1550000, 31000, 0, 1550000, 'THE_NH', 'THENH-SEED-0006', N'Thành công', NULL, NULL, N'Khách hàng', NULL, DATEADD(DAY, -40, GETDATE()), DATEADD(DAY, -40, GETDATE()), N'Cổng thanh toán xác nhận thành công'),
+('GD260900000007', 'VI0004', N'Thanh toán vé tháng', -1, 1500000, 0, 1550000, 50000, 'SO_DU_VI', NULL, N'Thành công', 'V0004', NULL, N'Khách hàng', NULL, DATEADD(DAY, -39, GETDATE()), DATEADD(DAY, -39, GETDATE()), N'Gia hạn online 1 tháng'),
+('GD260900000008', 'VI0005', N'Nạp tiền', 1, 2600000, 28600, 0, 2600000, 'VNPAY', 'VNPAY-SEED-0008', N'Thành công', NULL, NULL, N'Khách hàng', NULL, DATEADD(DAY, -60, GETDATE()), DATEADD(DAY, -60, GETDATE()), N'Cổng thanh toán xác nhận thành công'),
+('GD260900000009', 'VI0005', N'Thanh toán vé tháng', -1, 1600000, 0, 2600000, 1000000, 'SO_DU_VI', NULL, N'Thành công', 'V0006', NULL, N'Khách hàng', NULL, DATEADD(DAY, -59, GETDATE()), DATEADD(DAY, -59, GETDATE()), N'Gia hạn online 1 tháng'),
+('GD260900000010', 'VI0005', N'Nạp tiền', 1, 1600000, 24000, 1000000, 2600000, 'MOMO', 'MOMO-SEED-0010', N'Thành công', NULL, NULL, N'Khách hàng', NULL, DATEADD(DAY, -31, GETDATE()), DATEADD(DAY, -31, GETDATE()), N'Cổng thanh toán xác nhận thành công'),
+('GD260900000011', 'VI0005', N'Thanh toán vé tháng', -1, 1600000, 0, 2600000, 1000000, 'SO_DU_VI', NULL, N'Đã hoàn', 'V0006', NULL, N'Khách hàng', NULL, DATEADD(DAY, -30, GETDATE()), DATEADD(DAY, -30, GETDATE()), N'Trừ trùng do lỗi kết nối | Đã hoàn tiền bởi GD260900000012'),
+('GD260900000012', 'VI0005', N'Hoàn tiền', 1, 1600000, 0, 1000000, 2600000, 'SO_DU_VI', NULL, N'Thành công', 'V0006', 'GD260900000011', N'Nhân viên', 'NV008', DATEADD(DAY, -29, GETDATE()), DATEADD(DAY, -29, GETDATE()), N'Hoàn tiền giao dịch trừ trùng'),
+('GD260900000013', 'VI0006', N'Nạp tiền', 1, 300000, 3600, 0, 300000, 'ZALOPAY', 'ZALO-SEED-0013', N'Thành công', NULL, NULL, N'Khách hàng', NULL, DATEADD(DAY, -27, GETDATE()), DATEADD(DAY, -27, GETDATE()), N'Cổng thanh toán xác nhận thành công'),
+('GD260900000014', 'VI0007', N'Nạp tiền', 1, 5000000, 0, 0, 5000000, 'CHUYEN_KHOAN', 'BANK-SEED-0014', N'Thành công', NULL, NULL, N'Khách hàng', NULL, DATEADD(DAY, -20, GETDATE()), DATEADD(DAY, -20, GETDATE()), N'Cổng thanh toán xác nhận thành công'),
+('GD260900000015', 'VI0008', N'Nạp tiền', 1, 100000, 1500, 0, 100000, 'MOMO', 'MOMO-SEED-0015', N'Thành công', NULL, NULL, N'Khách hàng', NULL, DATEADD(DAY, -5, GETDATE()), DATEADD(DAY, -5, GETDATE()), N'Cổng thanh toán xác nhận thành công');
+GO
+
+-- Mã giao dịch sinh mới bắt đầu sau dải mã seed
+ALTER SEQUENCE dbo.seq_GiaoDich RESTART WITH 1000;
+GO
+
+-- 5. Hai vé tháng mới có mốc tương đối (giống V0007): đăng ký 1 tháng cách thời điểm nạp 29 ngày,
+--    nên luôn còn <= 3 ngày khi demo cursor tự động gia hạn.
+INSERT INTO dbo.THE_XE (MaThe, MaBai, LoaiThe, TrangThai, NgayCap) VALUES
+('THE0026', 'BAI_Q7', N'Tháng', N'Hoạt động', CAST(DATEADD(DAY, -29, GETDATE()) AS DATE)),
+('THE0027', 'BAI_BT', N'Tháng', N'Hoạt động', CAST(DATEADD(DAY, -29, GETDATE()) AS DATE));
+GO
+
+INSERT INTO dbo.VE_THANG (MaVe, MaThe, MaKH, BienSo, MaLoaiXe, NgayDangKy, NgayHetHan, TrangThai, MaBaiApDung, TuDongGiaHan, SoThangTuDongGiaHan) VALUES
+('V0011', 'THE0026', 'KH0009', '51L-913.57', 'OT', CAST(DATEADD(DAY, -29, GETDATE()) AS DATE), DATEADD(MONTH, 1, CAST(DATEADD(DAY, -29, GETDATE()) AS DATE)), N'Hoạt động', 'BAI_Q7', 1, 1),
+('V0012', 'THE0027', 'KH0010', '51M-468.20', 'OT', CAST(DATEADD(DAY, -29, GETDATE()) AS DATE), DATEADD(MONTH, 1, CAST(DATEADD(DAY, -29, GETDATE()) AS DATE)), N'Hoạt động', 'BAI_BT', 1, 1);
+GO
+
+-- Bật tự động gia hạn cho V0007 (mốc tương đối sẵn có trong seed V6)
+UPDATE dbo.VE_THANG SET TuDongGiaHan = 1, SoThangTuDongGiaHan = 1 WHERE MaVe = 'V0007';
+GO
+
+-- 6. Hóa đơn: 2 hóa đơn tại quầy của V0011 / V0012 và 3 hóa đơn online gắn giao dịch ví
+-- (10 hóa đơn V6 tự nhận MaPTTT = 'TIEN_MAT', KenhThanhToan = 'Tại quầy' từ DEFAULT ở bước 10)
+INSERT INTO dbo.HOA_DON_VE_THANG (MaHD, MaVe, NgayThanhToan, SoThangGiaHan, SoTien, MaBai, MaPTTT, KenhThanhToan, MaGD, MaNVThu) VALUES
+(CONCAT('HD', FORMAT(CAST(DATEADD(DAY, -29, GETDATE()) AS DATE), 'yyyyMMdd'), '011'), 'V0011', CAST(DATEADD(DAY, -29, GETDATE()) AS DATE), 1, 1700000, 'BAI_Q7', 'TIEN_MAT', N'Tại quầy', NULL, 'NV009'),
+(CONCAT('HD', FORMAT(CAST(DATEADD(DAY, -29, GETDATE()) AS DATE), 'yyyyMMdd'), '012'), 'V0012', CAST(DATEADD(DAY, -29, GETDATE()) AS DATE), 1, 2200000, 'BAI_BT', 'TIEN_MAT', N'Tại quầy', NULL, 'NV004'),
+(CONCAT('HD', FORMAT(DATEADD(DAY, -24, GETDATE()), 'yyyyMMdd'), '013'), 'V0001', DATEADD(DAY, -24, GETDATE()), 1, 180000, 'BAI_Q1', 'SO_DU_VI', N'Online', 'GD260900000002', NULL),
+(CONCAT('HD', FORMAT(DATEADD(DAY, -39, GETDATE()), 'yyyyMMdd'), '014'), 'V0004', DATEADD(DAY, -39, GETDATE()), 1, 1500000, 'BAI_Q3', 'SO_DU_VI', N'Online', 'GD260900000007', NULL),
+(CONCAT('HD', FORMAT(DATEADD(DAY, -59, GETDATE()), 'yyyyMMdd'), '015'), 'V0006', DATEADD(DAY, -59, GETDATE()), 1, 1600000, 'BAI_TB', 'SO_DU_VI', N'Online', 'GD260900000009', NULL);
+GO
+
+-- Hạn dùng của 3 vé được gia hạn online tăng thêm 1 tháng (chuỗi hạn dùng nối theo hóa đơn, giống Excel master)
+UPDATE dbo.VE_THANG
+SET NgayHetHan = DATEADD(MONTH, 1, NgayHetHan)
+WHERE MaVe IN ('V0001', 'V0004', 'V0006');
+GO
+
+-- 7. Ủy quyền: KH0001 chia sẻ V0001 cho tài khoản KH0002 với vai trò chỉ xem lịch sử
+INSERT INTO dbo.UY_QUYEN_VE (MaVe, MaTKDuocUyQuyen, MaVaiTro, NgayBatDau, NgayKetThuc, TrangThai, MaTKCap, NgayTao) VALUES
+('V0001', 'TK0002', 'XEM_LICH_SU', CAST(DATEADD(DAY, -10, GETDATE()) AS DATE), NULL, N'Hiệu lực', 'TK0001', DATEADD(DAY, -10, GETDATE()));
+GO
+
+-- 8. Thông báo mẫu (mỗi khách có tài khoản có ít nhất 1 thông báo chưa đọc)
+INSERT INTO dbo.THONG_BAO (MaKH, LoaiTB, TieuDe, NoiDung, MaVe, MaGD, DaDoc, ThoiGianTao) VALUES
+('KH0001', N'Giao dịch', N'Gia hạn vé tháng online thành công', N'Vé V0001 đã được gia hạn thêm 1 tháng bằng số dư ví (180.000 đồng).', 'V0001', 'GD260900000002', 1, DATEADD(DAY, -24, GETDATE())),
+('KH0001', N'Ủy quyền', N'Đã chia sẻ vé tháng', N'Bạn đã chia sẻ vé V0001 cho tài khoản 0912445566 với vai trò Chỉ xem lịch sử.', 'V0001', NULL, 0, DATEADD(DAY, -10, GETDATE())),
+('KH0002', N'Giao dịch', N'Nạp tiền tại quầy thành công', N'Ví đã được cộng 3.000.000 đồng tiền mặt tại quầy (giao dịch GD260900000004).', NULL, 'GD260900000004', 1, DATEADD(DAY, -30, GETDATE())),
+('KH0002', N'Ủy quyền', N'Bạn được chia sẻ một vé tháng', N'Vé V0001 đã được chia sẻ cho bạn với vai trò Chỉ xem lịch sử (không thời hạn).', 'V0001', NULL, 0, DATEADD(DAY, -10, GETDATE())),
+('KH0003', N'Hệ thống', N'Chào mừng đến cổng khách hàng SmartPark', N'Tài khoản đã được tạo. Bạn có thể nạp tiền vào ví, tự gia hạn vé tháng và xem lịch sử đỗ xe.', NULL, NULL, 0, DATEADD(DAY, -40, GETDATE())),
+('KH0004', N'Giao dịch', N'Gia hạn vé tháng online thành công', N'Vé V0004 đã được gia hạn thêm 1 tháng bằng số dư ví (1.500.000 đồng).', 'V0004', 'GD260900000007', 0, DATEADD(DAY, -39, GETDATE())),
+('KH0006', N'Giao dịch', N'Hoàn tiền vào ví', N'Ví được hoàn 1.600.000 đồng cho giao dịch GD260900000011. Lý do: Hoàn tiền giao dịch trừ trùng.', 'V0006', 'GD260900000012', 1, DATEADD(DAY, -29, GETDATE())),
+('KH0006', N'Bảo mật', N'Tài khoản tạm khóa do đăng nhập sai nhiều lần', N'Phát hiện 5 lần nhập sai mật khẩu trong 15 phút. Tài khoản đang tạm khóa.', NULL, NULL, 0, DATEADD(MINUTE, -5, GETDATE())),
+('KH0007', N'Hệ thống', N'Chào mừng đến cổng khách hàng SmartPark', N'Tài khoản đã được tạo. Hãy bật tự động gia hạn để không bị gián đoạn khi gửi xe.', NULL, NULL, 0, DATEADD(DAY, -27, GETDATE())),
+('KH0009', N'Hệ thống', N'Chào mừng đến cổng khách hàng SmartPark', N'Tài khoản đã được tạo. Ví đã sẵn sàng để gia hạn vé tháng online.', NULL, NULL, 0, DATEADD(DAY, -21, GETDATE())),
+('KH0010', N'Hệ thống', N'Chào mừng đến cổng khách hàng SmartPark', N'Tài khoản đã được tạo. Ví đã sẵn sàng để gia hạn vé tháng online.', NULL, NULL, 0, DATEADD(DAY, -6, GETDATE()));
+GO
+
+-- 9. Lượt gửi lịch sử của xe vé tháng trong 30 ngày gần nhất (đã ra bãi, xe tháng miễn phí lượt gửi)
+INSERT INTO dbo.LUOT_GUI (MaThe, BienSo, ThoiGianVao, ThoiGianRa, MaViTri, TienGui, MaBai, MaVe) VALUES
+('THE0002', '59A-123.45', DATEADD(MINUTE, -(3 * 1440 + 620), GETDATE()), DATEADD(MINUTE, -(3 * 1440 + 80), GETDATE()), 'Q1_XM_01', 0, 'BAI_Q1', 'V0001'),
+('THE0002', '59A-123.45', DATEADD(MINUTE, -(6 * 1440 + 610), GETDATE()), DATEADD(MINUTE, -(6 * 1440 + 95), GETDATE()), 'Q1_XM_04', 0, 'BAI_Q1', 'V0001'),
+('THE0002', '59A-123.45', DATEADD(MINUTE, -(9 * 1440 + 600), GETDATE()), DATEADD(MINUTE, -(9 * 1440 + 70), GETDATE()), 'Q1_XM_05', 0, 'BAI_Q1', 'V0001'),
+('THE0012', '59C-678.90', DATEADD(MINUTE, -(2 * 1440 + 540), GETDATE()), DATEADD(MINUTE, -(2 * 1440 + 30), GETDATE()), 'BT_XM_02', 0, 'BAI_BT', 'V0005'),
+('THE0012', '59C-678.90', DATEADD(MINUTE, -(7 * 1440 + 560), GETDATE()), DATEADD(MINUTE, -(7 * 1440 + 45), GETDATE()), 'BT_XM_02', 0, 'BAI_BT', 'V0005'),
+('THE0017', '51K-246.80', DATEADD(MINUTE, -(4 * 1440 + 480), GETDATE()), DATEADD(MINUTE, -(4 * 1440 + 120), GETDATE()), 'TB_OT_03', 0, 'BAI_TB', 'V0006'),
+('THE0017', '51K-246.80', DATEADD(MINUTE, -(12 * 1440 + 500), GETDATE()), DATEADD(MINUTE, -(12 * 1440 + 60), GETDATE()), 'TB_OT_03', 0, 'BAI_TB', 'V0006'),
+('THE0014', '51M-135.24', DATEADD(MINUTE, -(1 * 1440 + 600), GETDATE()), DATEADD(MINUTE, -(1 * 1440 + 50), GETDATE()), 'BT_OT_02', 0, 'BAI_BT', 'V0010'),
+('THE0014', '51M-135.24', DATEADD(MINUTE, -(5 * 1440 + 620), GETDATE()), DATEADD(MINUTE, -(5 * 1440 + 40), GETDATE()), 'BT_OT_02', 0, 'BAI_BT', 'V0010'),
+('THE0019', '59P-357.91', DATEADD(MINUTE, -(3 * 1440 + 400), GETDATE()), DATEADD(MINUTE, -(3 * 1440 + 100), GETDATE()), 'TB_XM_04', 0, 'BAI_TB', 'V0007'),
+('THE0019', '59P-357.91', DATEADD(MINUTE, -(10 * 1440 + 420), GETDATE()), DATEADD(MINUTE, -(10 * 1440 + 90), GETDATE()), 'TB_XM_04', 0, 'BAI_TB', 'V0007'),
+('THE0010', '51H-999.11', DATEADD(MINUTE, -(2 * 1440 + 500), GETDATE()), DATEADD(MINUTE, -(2 * 1440 + 100), GETDATE()), 'Q1_OT_02', 0, 'BAI_Q1', 'V0004'),
+('THE0010', '51H-999.11', DATEADD(MINUTE, -(9 * 1440 + 480), GETDATE()), DATEADD(MINUTE, -(9 * 1440 + 60), GETDATE()), 'Q3_OT_02', 0, 'BAI_Q3', 'V0004'),
+('THE0026', '51L-913.57', DATEADD(MINUTE, -(6 * 1440 + 300), GETDATE()), DATEADD(MINUTE, -(6 * 1440 + 60), GETDATE()), 'Q7_OT_02', 0, 'BAI_Q7', 'V0011'),
+('THE0027', '51M-468.20', DATEADD(MINUTE, -(8 * 1440 + 360), GETDATE()), DATEADD(MINUTE, -(8 * 1440 + 30), GETDATE()), 'BT_OT_03', 0, 'BAI_BT', 'V0012');
+GO

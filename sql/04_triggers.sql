@@ -1,5 +1,12 @@
 -- ====================================================================================
 -- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
+-- TRIGGERS V6 + V7 MERGED (2026-10-06)
+-- V6: 4 triggers (check-in, check-out, slot status, log history)
+-- V7: 8 triggers (sổ cái ví, ủy quyền, tài khoản, vé, thông báo) + edits
+-- ====================================================================================
+
+-- ====================================================================================
+-- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
 -- BƯỚC 4: DATABASE TRIGGERS (8 TRIGGERS NGHIỆP VỤ TỰ ĐỘNG)
 -- ====================================================================================
 
@@ -269,7 +276,7 @@ BEGIN
     )
     BEGIN
         ROLLBACK TRANSACTION;
-        THROW 50007, N'Lỗi: Loại xe không tồn tại tại bãi áp dụng của vé tháng, mã bãi không hợp lệ hoặc thẻ không thuộc bãi áp dụng!', 1;
+        THROW 50009, N'Lỗi: Loại xe không tồn tại tại bãi áp dụng của vé tháng, mã bãi không hợp lệ hoặc thẻ không thuộc bãi áp dụng!', 1;
         RETURN;
     END;
 END;
@@ -298,5 +305,380 @@ BEGIN
         THROW 50004, N'Lỗi: Vé tháng chỉ áp dụng tại bãi đã đăng ký, không dùng được tại bãi này (vé toàn chuỗi phải đăng ký MaBaiApDung = ALL)!', 1;
         RETURN;
     END;
+END;
+GO
+-- ==================== V7 TRIGGERS ADDITIONS ====================
+
+
+-- 1. trg_GiaoDich_CapNhatSoDu: Nguồn sự thật duy nhất cập nhật số dư ví (D4).
+-- Khi giao dịch chuyển sang 'Thành công' (INSERT trực tiếp hoặc UPDATE từ 'Chờ xử lý'): cộng / trừ ví,
+-- ghi SoDuTruoc / SoDuSau theo thứ tự thời gian. Số dư âm hoặc ví đóng băng -> hủy toàn bộ giao dịch.
+CREATE OR ALTER TRIGGER dbo.trg_GiaoDich_CapNhatSoDu
+ON dbo.GIAO_DICH
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM inserted)
+        RETURN;
+
+    DECLARE @Moi TABLE (
+        MaGD VARCHAR(16) PRIMARY KEY,
+        MaVi VARCHAR(12) NOT NULL,
+        BienDong DECIMAL(18,2) NOT NULL,
+        LuyKe DECIMAL(18,2) NOT NULL
+    );
+
+    INSERT INTO @Moi (MaGD, MaVi, BienDong, LuyKe)
+    SELECT
+        i.MaGD,
+        i.MaVi,
+        i.HuongTien * i.SoTien,
+        SUM(i.HuongTien * i.SoTien) OVER (PARTITION BY i.MaVi ORDER BY i.ThoiGianTao, i.MaGD ROWS UNBOUNDED PRECEDING)
+    FROM inserted i
+    LEFT JOIN deleted d ON d.MaGD = i.MaGD
+    WHERE i.TrangThai = N'Thành công'
+      AND (d.MaGD IS NULL OR d.TrangThai <> N'Thành công');
+
+    IF NOT EXISTS (SELECT 1 FROM @Moi)
+        RETURN;
+
+    IF EXISTS (
+        SELECT 1
+        FROM @Moi m
+        INNER JOIN dbo.VI_DIEN_TU v ON v.MaVi = m.MaVi
+        WHERE v.TrangThai <> N'Hoạt động'
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50033, N'Lỗi: Ví đang bị đóng băng, không thể ghi nhận biến động số dư!', 1;
+    END;
+
+    DECLARE @Vi TABLE (
+        MaVi VARCHAR(12) PRIMARY KEY,
+        SoDuCu DECIMAL(18,2) NOT NULL,
+        TongBienDong DECIMAL(18,2) NOT NULL
+    );
+
+    INSERT INTO @Vi (MaVi, SoDuCu, TongBienDong)
+    SELECT v.MaVi, v.SoDu, t.Tong
+    FROM dbo.VI_DIEN_TU v WITH (UPDLOCK, HOLDLOCK)
+    INNER JOIN (SELECT MaVi, SUM(BienDong) AS Tong FROM @Moi GROUP BY MaVi) t ON t.MaVi = v.MaVi;
+
+    -- Không cho số dư âm tại bất kỳ bước nào trong chuỗi giao dịch của câu lệnh này
+    IF EXISTS (
+        SELECT 1
+        FROM @Moi m
+        INNER JOIN @Vi v ON v.MaVi = m.MaVi
+        WHERE v.SoDuCu + m.LuyKe < 0
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50031, N'Lỗi: Số dư ví không đủ để thực hiện giao dịch!', 1;
+    END;
+
+    -- trg_ViDienTu_ChanSuaTrucTiep cho phép vì lệnh UPDATE này chạy bên trong trigger sổ cái
+    UPDATE v
+    SET v.SoDu = v.SoDu + t.TongBienDong
+    FROM dbo.VI_DIEN_TU v
+    INNER JOIN @Vi t ON t.MaVi = v.MaVi;
+
+    -- Safeguard cuối: Kiểm tra lại SoDu >= 0 sau UPDATE (phòng trường hợp bypass)
+    IF EXISTS (SELECT 1 FROM dbo.VI_DIEN_TU WHERE MaVi IN (SELECT MaVi FROM @Vi) AND SoDu < 0)
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50031, N'Lỗi: Số dư ví không thể âm. Giao dịch bị từ chối!', 1;
+    END;
+
+    -- Ghi số dư trước / sau lần đầu (trg_GiaoDich_BatBien cho phép đổi từ NULL sang giá trị)
+    UPDATE g
+    SET g.SoDuTruoc = v.SoDuCu + m.LuyKe - m.BienDong,
+        g.SoDuSau = v.SoDuCu + m.LuyKe,
+        g.ThoiGianHoanTat = ISNULL(g.ThoiGianHoanTat, GETDATE())
+    FROM dbo.GIAO_DICH g
+    INNER JOIN @Moi m ON m.MaGD = g.MaGD
+    INNER JOIN @Vi v ON v.MaVi = m.MaVi;
+END;
+GO
+
+-- 2. trg_GiaoDich_ChanXoa: Sổ cái chỉ ghi thêm, không bao giờ xóa (D3)
+CREATE OR ALTER TRIGGER dbo.trg_GiaoDich_ChanXoa
+ON dbo.GIAO_DICH
+INSTEAD OF DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF EXISTS (SELECT 1 FROM deleted)
+    BEGIN
+        -- ROLLBACK tường minh như các trigger khác: lỗi được bắt bằng TRY/CATCH không để lại transaction hỏng
+        ROLLBACK TRANSACTION;
+        THROW 50060, N'Lỗi: Không được xóa giao dịch khỏi sổ cái. Hãy dùng hoàn tiền (sp_NV_HoanTien) để tạo giao dịch đối ứng!', 1;
+    END;
+END;
+GO
+
+-- 3. trg_GiaoDich_BatBien: Chặn sửa trường tiền / tham chiếu sau khi đã ghi và chặn chuyển trạng thái sai.
+-- Máy trạng thái hợp lệ: 'Chờ xử lý' -> 'Thành công' | 'Thất bại'; 'Thành công' -> 'Đã hoàn'.
+-- Được phép: ghi SoDuTruoc / SoDuSau lần đầu (NULL -> giá trị), gán MaThamChieu lần đầu, ThoiGianHoanTat, GhiChu.
+CREATE OR ALTER TRIGGER dbo.trg_GiaoDich_BatBien
+ON dbo.GIAO_DICH
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF UPDATE(MaGD)
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50061, N'Lỗi: Không được đổi mã giao dịch trong sổ cái!', 1;
+    END;
+
+    IF EXISTS (
+        SELECT 1
+        FROM inserted i
+        INNER JOIN deleted d ON d.MaGD = i.MaGD
+        WHERE i.MaVi <> d.MaVi
+           OR i.LoaiGD <> d.LoaiGD
+           OR i.HuongTien <> d.HuongTien
+           OR i.SoTien <> d.SoTien
+           OR i.PhiGiaoDich <> d.PhiGiaoDich
+           OR i.MaPTTT <> d.MaPTTT
+           OR i.NguoiThucHien <> d.NguoiThucHien
+           OR i.ThoiGianTao <> d.ThoiGianTao
+           OR ISNULL(i.MaVe, '') <> ISNULL(d.MaVe, '')
+           OR ISNULL(i.MaGDGoc, '') <> ISNULL(d.MaGDGoc, '')
+           OR ISNULL(i.MaNV, '') <> ISNULL(d.MaNV, '')
+           OR (d.MaThamChieu IS NOT NULL AND ISNULL(i.MaThamChieu, '') <> d.MaThamChieu)
+           OR (d.SoDuTruoc IS NOT NULL AND (i.SoDuTruoc IS NULL OR i.SoDuTruoc <> d.SoDuTruoc))
+           OR (d.SoDuSau IS NOT NULL AND (i.SoDuSau IS NULL OR i.SoDuSau <> d.SoDuSau))
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50061, N'Lỗi: Sổ cái bất biến - không được sửa số tiền, ví, loại, phương thức hoặc số dư của giao dịch đã ghi!', 1;
+    END;
+
+    IF EXISTS (
+        SELECT 1
+        FROM inserted i
+        INNER JOIN deleted d ON d.MaGD = i.MaGD
+        WHERE i.TrangThai <> d.TrangThai
+          AND NOT (
+                (d.TrangThai = N'Chờ xử lý' AND i.TrangThai IN (N'Thành công', N'Thất bại'))
+             OR (d.TrangThai = N'Thành công' AND i.TrangThai = N'Đã hoàn')
+          )
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50061, N'Lỗi: Chuyển trạng thái giao dịch không hợp lệ (chỉ Chờ xử lý -> Thành công/Thất bại, Thành công -> Đã hoàn)!', 1;
+    END;
+END;
+GO
+
+-- Kiểm tra bất biến chạy trước trigger cập nhật số dư khi UPDATE
+EXEC sp_settriggerorder @triggername = N'dbo.trg_GiaoDich_BatBien', @order = N'First', @stmttype = N'UPDATE';
+GO
+
+-- 4. trg_ViDienTu_ChanSuaTrucTiep: Lớp chặn thứ hai cho D4.
+-- Ví mới phải có số dư 0; số dư chỉ được đổi bởi lệnh UPDATE bên trong trg_GiaoDich_CapNhatSoDu
+-- (TRIGGER_NESTLEVEL của trigger sổ cái > 0), kể cả khi ai đó có quyền UPDATE trên bảng.
+CREATE OR ALTER TRIGGER dbo.trg_ViDienTu_ChanSuaTrucTiep
+ON dbo.VI_DIEN_TU
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF TRIGGER_NESTLEVEL(OBJECT_ID(N'dbo.trg_GiaoDich_CapNhatSoDu'), 'AFTER', 'DML') > 0
+        RETURN;
+
+    IF EXISTS (
+        SELECT 1
+        FROM inserted i
+        LEFT JOIN deleted d ON d.MaVi = i.MaVi
+        WHERE (d.MaVi IS NULL AND i.SoDu <> 0)
+           OR (d.MaVi IS NOT NULL AND i.SoDu <> d.SoDu)
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50062, N'Lỗi: Không được sửa trực tiếp số dư ví. Mọi biến động số dư phải đi qua sổ cái GIAO_DICH!', 1;
+    END;
+END;
+GO
+
+-- 5. trg_NhatKyDangNhap_KhoaTaiKhoan: Sai mật khẩu 5 lần trong 15 phút -> khóa tạm 15 phút và gửi thông báo bảo mật
+-- (ngưỡng tương ứng tham số SoLanSaiToiDa / PhutKhoaTaiKhoan trong sheet ThamSo của Excel master)
+CREATE OR ALTER TRIGGER dbo.trg_NhatKyDangNhap_KhoaTaiKhoan
+ON dbo.NHAT_KY_DANG_NHAP
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM inserted WHERE KetQua = N'Sai mật khẩu' AND MaTK IS NOT NULL)
+        RETURN;
+
+    DECLARE @Khoa TABLE (MaTK VARCHAR(12), MaKH VARCHAR(10), KhoaDen DATETIME);
+
+    UPDATE tk
+    SET tk.TrangThai = N'Tạm khóa',
+        tk.KhoaDen = DATEADD(MINUTE, 15, GETDATE())
+    OUTPUT inserted.MaTK, inserted.MaKH, inserted.KhoaDen INTO @Khoa (MaTK, MaKH, KhoaDen)
+    FROM dbo.TAI_KHOAN_KH tk
+    WHERE tk.MaTK IN (SELECT MaTK FROM inserted WHERE KetQua = N'Sai mật khẩu' AND MaTK IS NOT NULL)
+      AND tk.TrangThai = N'Hoạt động'
+      AND tk.SoLanSaiLienTiep >= 5
+      AND (SELECT COUNT(*)
+           FROM dbo.NHAT_KY_DANG_NHAP n
+           WHERE n.MaTK = tk.MaTK
+             AND n.KetQua = N'Sai mật khẩu'
+             AND n.ThoiGian >= DATEADD(MINUTE, -15, GETDATE())) >= 5;
+
+    INSERT INTO dbo.THONG_BAO (MaKH, LoaiTB, TieuDe, NoiDung)
+    SELECT
+        k.MaKH,
+        N'Bảo mật',
+        N'Tài khoản tạm khóa do đăng nhập sai nhiều lần',
+        CONCAT(N'Phát hiện 5 lần nhập sai mật khẩu trong 15 phút. Tài khoản tạm khóa đến ',
+               FORMAT(k.KhoaDen, 'HH:mm dd/MM/yyyy'), N'. Nếu không phải bạn, hãy đổi mật khẩu sau khi mở khóa.')
+    FROM @Khoa k;
+END;
+GO
+
+-- 6. trg_UyQuyen_KiemTra: Quy tắc chia sẻ vé (sp_KH_UyQuyenVe kiểm tra trước; trigger là chốt chặn cuối)
+CREATE OR ALTER TRIGGER dbo.trg_UyQuyen_KiemTra
+ON dbo.UY_QUYEN_VE
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Không ủy quyền cho chính chủ vé
+    IF EXISTS (
+        SELECT 1
+        FROM inserted i
+        INNER JOIN dbo.VE_THANG v ON v.MaVe = i.MaVe
+        INNER JOIN dbo.TAI_KHOAN_KH tk ON tk.MaTK = i.MaTKDuocUyQuyen
+        WHERE i.TrangThai = N'Hiệu lực' AND tk.MaKH = v.MaKH
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50051, N'Lỗi: Không thể ủy quyền vé cho chính chủ vé!', 1;
+    END;
+
+    -- Người cấp quyền phải là chủ vé
+    IF EXISTS (
+        SELECT 1
+        FROM inserted i
+        INNER JOIN dbo.VE_THANG v ON v.MaVe = i.MaVe
+        INNER JOIN dbo.TAI_KHOAN_KH c ON c.MaTK = i.MaTKCap
+        WHERE i.TrangThai = N'Hiệu lực' AND c.MaKH <> v.MaKH
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50052, N'Lỗi: Chỉ chủ vé mới được chia sẻ vé!', 1;
+    END;
+
+    -- Vé hết hạn không được chia sẻ
+    IF EXISTS (
+        SELECT 1
+        FROM inserted i
+        INNER JOIN dbo.VE_THANG v ON v.MaVe = i.MaVe
+        WHERE i.TrangThai = N'Hiệu lực'
+          AND (v.TrangThai = N'Hết hạn' OR v.NgayHetHan < CAST(GETDATE() AS DATE))
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50054, N'Lỗi: Vé đã hết hạn, không thể chia sẻ!', 1;
+    END;
+
+    -- Tối đa 3 ủy quyền còn hiệu lực trên một vé
+    IF EXISTS (
+        SELECT 1
+        FROM (SELECT DISTINCT MaVe FROM inserted WHERE TrangThai = N'Hiệu lực') x
+        WHERE (SELECT COUNT(*) FROM dbo.UY_QUYEN_VE u WHERE u.MaVe = x.MaVe AND u.TrangThai = N'Hiệu lực') > 3
+    )
+    BEGIN
+        ROLLBACK TRANSACTION;
+        THROW 50053, N'Lỗi: Mỗi vé chỉ được chia sẻ tối đa 3 tài khoản cùng lúc!', 1;
+    END;
+END;
+GO
+
+-- 7. trg_HoaDon_ThongBaoKhachHang: Mọi hóa đơn vé tháng (quầy, online, tự động) đều tạo thông báo cho chủ vé
+CREATE OR ALTER TRIGGER dbo.trg_HoaDon_ThongBaoKhachHang
+ON dbo.HOA_DON_VE_THANG
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    INSERT INTO dbo.THONG_BAO (MaKH, LoaiTB, TieuDe, NoiDung, MaVe, MaGD)
+    SELECT
+        v.MaKH,
+        N'Giao dịch',
+        CASE i.KenhThanhToan
+            WHEN N'Tự động' THEN N'Vé tháng đã được tự động gia hạn'
+            WHEN N'Online' THEN N'Gia hạn vé tháng online thành công'
+            ELSE N'Đã thanh toán vé tháng tại quầy'
+        END,
+        CONCAT(N'Hóa đơn ', i.MaHD, N' - vé ', i.MaVe, N': ', i.SoThangGiaHan, N' tháng, ',
+               FORMAT(i.SoTien, 'N0'), N' đồng qua ', p.TenPTTT, N'. Hạn dùng mới: ',
+               FORMAT(v.NgayHetHan, 'dd/MM/yyyy'), N'.'),
+        i.MaVe,
+        i.MaGD
+    FROM inserted i
+    INNER JOIN dbo.VE_THANG v ON v.MaVe = i.MaVe
+    INNER JOIN dbo.PHUONG_THUC_THANH_TOAN p ON p.MaPTTT = i.MaPTTT;
+END;
+GO
+
+-- 7.5. trg_VeThang_CapNhatTrangThai: Tự động cập nhật trạng thái vé dựa trên NgayHetHan (State Machine)
+-- Khi NgayHetHan được cập nhật, trigger kiểm tra:
+-- - Nếu NgayHetHan >= hôm nay -> TrangThai = 'Hoạt động'
+-- - Nếu NgayHetHan < hôm nay -> TrangThai = 'Hết hạn'
+CREATE OR ALTER TRIGGER dbo.trg_VeThang_CapNhatTrangThai
+ON dbo.VE_THANG
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT UPDATE(NgayHetHan) AND @@NESTLEVEL > 1
+        RETURN;
+
+    UPDATE v
+    SET v.TrangThai = CASE
+        WHEN i.NgayHetHan >= CAST(GETDATE() AS DATE) THEN N'Hoạt động'
+        ELSE N'Hết hạn'
+    END
+    FROM dbo.VE_THANG v
+    INNER JOIN inserted i ON i.MaVe = v.MaVe
+    WHERE v.TrangThai <> CASE
+        WHEN i.NgayHetHan >= CAST(GETDATE() AS DATE) THEN N'Hoạt động'
+        ELSE N'Hết hạn'
+    END;
+END;
+GO
+
+-- 8. trg_VeThang_ThuHoiUyQuyenKhiDoiChu: Vé sang tên chủ khác -> thu hồi toàn bộ ủy quyền đang hiệu lực
+CREATE OR ALTER TRIGGER dbo.trg_VeThang_ThuHoiUyQuyenKhiDoiChu
+ON dbo.VE_THANG
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT UPDATE(MaKH)
+        RETURN;
+
+    UPDATE uq
+    SET uq.TrangThai = N'Đã thu hồi'
+    FROM dbo.UY_QUYEN_VE uq
+    INNER JOIN inserted i ON i.MaVe = uq.MaVe
+    INNER JOIN deleted d ON d.MaVe = i.MaVe
+    WHERE i.MaKH <> d.MaKH
+      AND uq.TrangThai = N'Hiệu lực';
 END;
 GO
