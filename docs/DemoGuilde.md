@@ -55,14 +55,162 @@ python run.py                # mở http://127.0.0.1:5001
 
 ## 🗺️ PHẦN II: LỘ TRÌNH DEMO ĐỀ XUẤT (25 – 30 PHÚT)
 
-| Thời lượng | Phần | Nội dung gợi ý |
-|:---:|---|---|
-| 3' | Mở đầu | Giới thiệu bài toán chuỗi 5 bãi; **Bốt cổng `/gate`**: quẹt `THE0001` (mở barrier) và `THE0006` (thẻ mất, từ chối) |
-| 8' | Procedure | `sp-xe-vao-bai` → mở `/map` thấy ô đổi màu; `sp-xe-ra-bai`; `sp-dang-ky-thanh-vien` (transaction); `sp-cap-lai-the` |
-| 5' | Trigger | `trigger-chan-checkin-loi`, `trigger-chan-ve-het-han`, `trigger-chan-sai-bai` |
-| 3' | Function + Cursor | `function-tinh-tien-slot`, `cursor-canh-bao-doanh-thu` |
-| 8' | Cổng khách hàng | Kịch bản `kh-nap-tien-2-pha`, `rls-co-lap-du-lieu-khach-hang`, `trigger-so-cai-bat-bien`; rồi demo trực tiếp trên `/kh` (Phần IV mục 8) |
-| còn lại | Hỏi đáp | Phần V; chạy câu lệnh giảng viên yêu cầu ở SQL Studio `/sql` |
+### Kế hoạch thời gian
+
+| Thời lượng | Phần | Mục tiêu | Kịch bản chính |
+|:---:|---|---|---|
+| **3'** | 🎬 Mở đầu | Bối cảnh bài toán, kiến trúc hệ thống | Bốt cổng: `THE0001` ✅ / `THE0006` ❌ |
+| **12'** | ⚙️ Nghiệp vụ bãi (Procedure + Trigger) | Check-in/out, ghi vé, gia hạn, báo mất | `sp-xe-vao-bai` (map đổi màu) → `sp-dang-ky-thanh-vien` → `trigger-chan-ve-het-han` |
+| **5'** | 📐 Tính toán & tự động (Function + Cursor) | Phí gửi, cảnh báo hạn, tự động gia hạn | `function-tinh-tien-slot` + `cursor-canh-bao-doanh-thu` |
+| **7'** | 👛 Cổng khách hàng (RLS + sổ cái) | Khách nạp tiền, gia hạn, thấy chỉ dữ liệu của mình | `/kh` login → nạp tiền 2 pha → gia hạn → demo RLS |
+| **3'** | ❓ Hỏi đáp | Câu hỏi ad-hoc về logic, security | SQL Studio `/sql` |
+
+### Chi tiết từng phần
+
+#### **3' - Mở đầu: Bối cảnh + Bốt cổng**
+- **Bài toán:** Chuỗi 5 bãi, quầy nhân viên, cổng khách hàng cần xử lý 3 khối: vào/ra bãi (barrier), quản lý vé tháng, ví điện tử.
+- **Demo:**
+  1. Vào `/gate` → quẹt **`THE0001`** (thẻ hoạt động)
+     - Kết quả: **🟢 MỞ BARRIER**, chiều quét kế tiếp *Ra*, gợi ý ô trống
+  2. Quẹt **`THE0006`** (thẻ báo mất)
+     - Kết quả: **🔴 TỪ CHỐI**, lý do: "Thẻ đã được báo mất", trigger sẽ chặn (50002)
+  3. Nhấn view hồ sơ → xem vé hiện hành, tài khoản online, tự động gia hạn
+- **View sử dụng:** `v_BotCong_TraCuuThe` (1 dòng/thẻ, vé hiện hành)
+
+---
+
+#### **12' - Nghiệp vụ bãi: Procedure + Trigger**
+
+##### **Phần 1: Check-In (5 phút)**
+- **Bài toán:** Khách vào bãi lần đầu, cần cấp ô đỗ tự động, cập nhật sơ đồ realtime.
+- **Bảng ảnh hưởng:** `LUOT_GUI` (tạo bản ghi check-in), `VI_TRI_DO` (đổi trạng thái ô), `BAI_DO_XE` (tăng số lượng)
+- **Procedure:** `sp_XeVaoBai`
+- **Function:** `f_TimSlotTrong` (tìm ô trống), `f_DanhSachXeTrongBai` (trả bảng)
+- **Trigger:** `trg_KiemTraCheckIn` (chặn thẻ mất/bị khóa, bãi đầy), `trg_DongBoTrangThaiSlot` (cập nhật ô + số lượng)
+- **Demo:**
+  1. Chạy `/demo/sp-xe-vao-bai`
+     - B3: Bảng `LUOT_GUI` trống, ô **A1** *Trống*, bãi 0/50 xe
+     - B4: Bấm *Kích hoạt* → thẻ `THE0003` vào bãi `BAI_Q1`
+     - B5: 
+       - ✅ `LUOT_GUI`: mở bản ghi mới (MaLuot, MaThe, ThoiGianVao, MaViTri, MaBai)
+       - ✅ `VI_TRI_DO`: **A1** chuyển *Đã đỗ* (trigger `trg_DongBoTrangThaiSlot`)
+       - ✅ `BAI_DO_XE`: bãi Quận 1 tăng từ 0 → **1 xe**
+  2. Mở `/map` → chọn bãi Quận 1 → ô **A1** xuất hiện màu đỏ kèm biển số `TEST0003`
+
+##### **Phần 2: Đăng ký vé tháng (4 phút)**
+- **Bài toán:** Khách mới đầu tiên đến quầy → toàn bộ hồ sơ (khách, thẻ tháng, vé, hóa đơn) phải ghi trong 1 transaction = ACID.
+- **Bảng ảnh hưởng:** `KHACH_HANG`, `THE_XE`, `VE_THANG`, `HOA_DON_VE_THANG` (ghi đồng thời hoặc ROLLBACK)
+- **Procedure:** `sp_DangKyThanhVien` (transaction 4 bước)
+- **Trigger:** `trg_KiemTraLoaiXe_VeThang` (kiểm tra loại xe hợp lệ, MaBaiApDung)
+- **Lỗi có thể:** 50017 (thiếu biểu phí), 50019 (thẻ báo mất), 50065 (thẻ còn vé đang dùng)
+- **Demo:**
+  1. Chạy `/demo/sp-dang-ky-thanh-vien`
+     - B3: Khách *Chưa tồn tại*, hóa đơn *Trống*
+     - B4: Bấm → thêm khách `KH0006`, thẻ `THE0022` chuyển loại *Tháng*, vé `V0009`, hóa đơn `HD + ngày`
+     - B5:
+       - ✅ `KHACH_HANG`: **KH0006** mới (Trần Thị C, 0904555555)
+       - ✅ `THE_XE`: **THE0022** loại *Tháng*, sở hữu bãi Quận 7
+       - ✅ `VE_THANG`: **V0009** hoạt động, hạn +1 tháng, bãi `BAI_Q7`, `MaBaiApDung = BAI_Q7`
+       - ✅ `HOA_DON_VE_THANG`: hóa đơn mới, 500.000 ₫, thanh toán tại quầy, `KenhThanhToan = "Tại quầy"`
+
+##### **Phần 3: Chặn vé hết hạn (3 phút)**
+- **Bài toán:** Khách quẹt vé tháng đã quá hạn → trigger chặn, ROLLBACK check-in (không ghi LUOT_GUI).
+- **Bảng ảnh hưởng:** `VE_THANG` (chỉ đọc kiểm tra), `LUOT_GUI` (ROLLBACK không ghi)
+- **Trigger:** `trg_ChanSuDungVeHetHan` sử dụng `f_VeHienHanhCuaThe` để lấy vé hiện hành
+- **Lỗi chặn:** 50003 (vé hết hạn)
+- **Demo:**
+  1. Chạy `/demo/trigger-chan-ve-het-han`
+     - B3: Vé **V0003** hết hạn 2 tháng trước (15/07/2026), trạng thái *Hết hạn*
+     - B4: Quẹt thẻ `THE0008` vào bãi
+     - B5: ❌ **Lỗi 50003** (khung đỏ), `LUOT_GUI` không ghi bản ghi mới → ROLLBACK thành công
+  2. Mở SSMS → SELECT từ `LUOT_GUI` đối chiếu: số dòng không đổi (ROLLBACK thành công)
+
+---
+
+#### **5' - Function + Cursor: Tính toán & Tự động**
+
+##### **Phần 1: Tính phí gửi xe (2 phút)**
+- **Bài toán:** Ô tô ở lại Landmark 81 (bãi Quận 1) 5 giờ 30 phút → tính phí block giờ (làm tròn lên).
+- **Bảng ảnh hưởng:** `LOAI_XE` (đơn giá), `VI_TRI_DO` (loại xe), `LUOT_GUI` (giờ vào/ra)
+- **Function:** `f_TinhTienGuiXe` (tính tiến), `f_TimSlotTrong` (ô trống)
+- **Demo:**
+  1. Chạy `/demo/function-tinh-tien-slot`
+  2. B5: `f_TinhTienGuiXe` trả **60.000 ₫**
+     - Logic: 
+       - Dưới 15 phút: miễn phí (đón trả nhanh)
+       - Làm tròn lên block giờ: (5h30' = 330 phút) → CEILING(330/60) = **6 giờ**
+       - Ô tô bãi Q1: 10.000 ₫/giờ → **6 × 10.000 = 60.000 ₫**
+
+##### **Phần 2: Cảnh báo hạn + Tự động gia hạn (3 phút)**
+- **Bài toán:** Cursor hàng ngày: (1) chuyển vé quá hạn → *Hết hạn*, (2) cảnh báo ≤ 3 ngày, (3) tự động gia hạn nếu ví đủ tiền.
+- **Bảng ảnh hưởng:** `VE_THANG` (đổi trạng thái), `THONG_BAO` (ghi cảnh báo), `HOA_DON_VE_THANG` (ghi hóa đơn), `VI_DIEN_TU` (trừ ví)
+- **Procedure:** `sp_DemoCanhBaoHanTheThang` (duyệt, cảnh báo), `sp_DemoTongKetDoanhThuChuoi` (tổng kết)
+- **Trigger:** `trg_GiaoDich_CapNhatSoDu` (cộng/trừ ví)
+- **Demo:**
+  1. Chạy `/demo/cursor-canh-bao-doanh-thu`
+  2. B5:
+     - ✅ 2 vé quá hạn → `VE_THANG` chuyển *Hết hạn*
+     - ✅ 1 vé còn ≤ 3 ngày → `THONG_BAO` ghi cảnh báo cho khách có tài khoản online
+     - ✅ Khách có `TuDongGiaHan = 1` + `VI_DIEN_TU.SoDu ≥ phí` → **tự động gia hạn**, `HOA_DON_VE_THANG` kênh *Tự động*
+
+---
+
+#### **7' - Cổng khách hàng: RLS + Sổ cái**
+
+##### **Phần 1: Nạp tiền 2 pha (3 phút)**
+- **Bài toán:** Khách chọn MoMo 500.000 ₫ → giao dịch chờ → cổng thanh toán callback → trigger cộng ví → callback lặp không cộng 2 lần (idempotent).
+- **Bảng ảnh hưởng:** `GIAO_DICH` (trạng thái), `VI_DIEN_TU` (số dư)
+- **Procedure:** `sp_KH_NapTien_KhoiTao` (pha 1), `sp_KH_NapTien_XacNhan` (pha 2 callback)
+- **Trigger:** `trg_GiaoDich_CapNhatSoDu` (cộng ví), `trg_GiaoDich_BatBien` (bảo vệ sổ cái)
+- **Demo:**
+  1. Mở `/kh` ở cửa sổ ẩn danh → đăng nhập **KH0001 (0903112233)**
+  2. Trang *Nạp tiền* → chọn MoMo, 500.000 ₫ → bấm *Thanh toán*
+     - B3: Giao dịch `GD + yyMM + 8 số` trạng thái **Chờ xử lý**, `VI_DIEN_TU` số dư chưa tăng
+  3. Mô phỏng callback → bấm *Thanh toán thành công*
+     - B5: 
+       - ✅ `GIAO_DICH`: chuyển **Thành công**, `HuongTien = 1` (nạp)
+       - ✅ `VI_DIEN_TU`: số dư KH0001 tăng từ 0 → **500.000 ₫** (trigger `trg_GiaoDich_CapNhatSoDu`)
+       - ✅ `GIAO_DICH`: ghi `SoDuTruoc = 0`, `SoDuSau = 500.000` (trigger)
+  4. Giả lập callback lặp → bấm *Thanh toán thành công* lần 2
+     - ❌ Lỗi 50039 (mã tham chiếu đã dùng) hoặc chỉ trả kết quả cũ (**idempotent**)
+
+##### **Phần 2: Gia hạn bằng ví (2 phút)**
+- **Bài toán:** KH0001 gia hạn **V0001** 1 tháng → trừ ví 500.000 ₫, hóa đơn kênh *Online*, gọi lõi chung gia hạn.
+- **Bảng ảnh hưởng:** `VI_DIEN_TU` (trừ), `VE_THANG` (hạn), `HOA_DON_VE_THANG` (kênh), `GIAO_DICH` (trừ ví)
+- **Procedure:** `sp_KH_GiaHanBangVi` (gọi lõi `sp_GiaHanVe_Core`)
+- **Function:** `f_KH_TinhPhiGiaHan` (tính phí)
+- **Trigger:** `trg_GiaoDich_CapNhatSoDu` (trừ ví), `trg_GiaoDich_BatBien` (bảo vệ)
+- **Demo:**
+  1. Trang *Vé của tôi* → chọn **V0001** → bấm *Gia hạn 1 tháng*
+     - Xem trước: phí 500.000 ₫, số dư sau 0 ₫, hạn mới +1 tháng
+  2. Bấm *Gia hạn* → thành công
+     - ✅ `VI_DIEN_TU` số dư KH0001: 500.000 → **0 ₫** (giao dịch *Thành công* trừ ví)
+     - ✅ `VE_THANG V0001`: `NgayHetHan` +1 tháng
+     - ✅ `HOA_DON_VE_THANG`: kênh *Online*, `MaGD` trỏ giao dịch nạp, `KenhThanhToan = "Online"`
+     - ✅ `THONG_BAO`: khách nhận "Gia hạn thành công"
+  3. Quay lại tab nhân viên `/khach-hang` → phần *Giao dịch* KH0001 → thấy 2 dòng: nạp +500K, gia hạn -500K
+
+##### **Phần 3: RLS - Khách chỉ thấy dữ liệu của mình (2 phút)**
+- **Bài toán:** SQL Server tự động lọc dữ liệu theo khách (RLS policy) + DENY bảng gốc → bảo vệ 3 lớp (RBAC, RLS, procedure).
+- **Bảng ảnh hưởng:** `GIAO_DICH` (apply RLS + DENY), `VI_DIEN_TU` (apply DENY)
+- **View:** `vw_KH_LichSuGiaoDich` (có RLS)
+- **RLS Policy:** `bao_mat.rls_KhachHang` lọc 7 bảng theo `SESSION_CONTEXT('MaKH')`
+- **Demo:**
+  1. Chạy `/demo/rls-co-lap-du-lieu-khach-hang`
+  2. B5 (bảng so sánh):
+     - Dòng 1: Câu SELECT từ `vw_KH_LichSuGiaoDich` session KH0001 → **2 dòng** (nạp + gia hạn của KH0001)
+     - Dòng 2: Cùng câu, session KH0002 → **0 dòng** (KH0002 không có giao dịch)
+     - Dòng 3: SELECT trực tiếp bảng `GIAO_DICH` user `r_KhachHang` → **lỗi 229** (DENY từ RBAC `r_BaoVe`)
+     - Dòng 4: SSMS session `dbo` (admin) SELECT `GIAO_DICH` → **tất cả giao dịch** (không lọc RLS vì admin)
+
+---
+
+#### **3' - Hỏi đáp**
+- Giảng viên / bộ môn yêu cầu chạy câu lệnh ad-hoc trên `/sql` (SQL Studio)
+- Ví dụ: 
+  - *"Liệt kê tất cả vé của khách SĐT 0904555555"*
+  - *"Tính doanh thu bãi Quận 1 tháng này, tách theo kênh"*
+  - *"Kiểm tra số dư ví khách KH0001 đúng không?"* → chạy câu `sp_DemoDoiSoatViDienTu`
 
 ---
 
@@ -72,34 +220,34 @@ Trang chủ `/` liệt kê 21 kịch bản theo 5 nhóm (lọc nhanh bằng chip
 
 ### Bảng tổng hợp
 
-| # | Mã kịch bản (`/demo/...`) | Đối tượng CSDL chính | Kết quả mong đợi |
-|:---:|---|---|---|
-| **⚙️ Procedure** ||||
-| 1 | `sp-xe-vao-bai` | `sp_XeVaoBai`, `f_TimSlotTrong`, `trg_DongBoTrangThaiSlot` | Cấp ô đỗ, ô chuyển *Đã đỗ*, bãi +1 xe |
-| 2 | `sp-xe-ra-bai` | `sp_XeRaBai`, `f_TinhTienGuiXe` | Tính tiền theo block giờ, giải phóng ô |
-| 3 | `sp-dang-ky-thanh-vien` | `sp_DangKyThanhVien` (transaction 4 bước) | Khách + thẻ tháng + vé + hóa đơn cùng lúc |
-| 4 | `sp-gia-han-ve-thang` | `sp_GiaHanTheThang` → `sp_GiaHanVe_Core` | Hạn +2 tháng, hóa đơn mới |
-| 5 | `sp-bao-mat-the` | `sp_BaoMatThe`, `trg_LogLichSuSuCo` | Thẻ *Mất*, biên bản phạt 50.000 ₫ |
-| 6 | `sp-cap-lai-the` | `sp_DangKyThanhVien`, `f_VeHienHanhCuaThe`, index có lọc | Thẻ cũ cấp cho vé mới; **50065**, **50066** |
-| 7 | `sp-dang-nhap-nhan-vien` | `sp_DangNhap`, `f_BamMatKhau` | Cùng mật khẩu khác hash; **50022**, **50021** |
-| **⚡ Trigger** ||||
-| 8 | `trigger-chan-checkin-loi` | `trg_KiemTraCheckIn` | **50002** (thẻ mất / bị khóa) |
-| 9 | `trigger-chan-ve-het-han` | `trg_ChanSuDungVeHetHan` | **50003** (vé tháng hết hạn) |
-| 10 | `trigger-chan-sai-bai` | `trg_KiemTraBaiApDungVeThang` | **50004** (vé gửi sai bãi) |
-| **📐 Function** ||||
-| 11 | `function-tinh-tien-slot` | `f_TinhTienGuiXe`, `f_TimSlotTrong`, `f_DanhSachXeTrongBai` | Bảng kết quả 3 hàm |
-| **🔄 Cursor** ||||
-| 12 | `cursor-canh-bao-doanh-thu` | `sp_DemoCanhBaoHanTheThang`, `sp_DemoTongKetDoanhThuChuoi` | Khóa vé quá hạn, tổng kết doanh thu theo bãi |
-| **👛 Cổng khách hàng** ||||
-| 13 | `kh-dang-ky-tai-khoan` | `sp_KH_DangKyTaiKhoan` | Tài khoản + ví 0 ₫; đăng ký lại **50032** |
-| 14 | `kh-dang-nhap-khoa-tai-khoan` | `sp_KH_DangNhap`, `trg_NhatKyDangNhap_KhoaTaiKhoan` | 5 lần **50040**, lần 6 **50041** |
-| 15 | `kh-nap-tien-2-pha` | `sp_KH_NapTien_KhoiTao` / `_XacNhan`, `trg_GiaoDich_CapNhatSoDu` | +500.000 ₫ đúng 1 lần dù callback lặp |
-| 16 | `kh-gia-han-bang-vi` | `sp_KH_GiaHanBangVi`, `f_KH_TinhPhiGiaHan` | Trừ ví, gia hạn, hóa đơn kênh *Online* |
-| 17 | `trigger-chan-so-du-am` | `trg_GiaoDich_CapNhatSoDu`, `CHECK SoDu >= 0` | **50031** ở cả 2 lớp, số dư không đổi |
-| 18 | `rls-co-lap-du-lieu-khach-hang` | `r_KhachHang`, policy `bao_mat.rls_KhachHang` | Bảng gốc bị từ chối (229), khách khác 0 dòng |
-| 19 | `kh-uy-quyen-ve` | `sp_KH_UyQuyenVe`, `f_KH_CoQuyen`, `trg_UyQuyen_KiemTra` | **50050**, người thứ 4 **50053** |
-| 20 | `cursor-tu-dong-gia-han` | `sp_DemoTuDongGiaHanVeThang` (cursor + savepoint) | 2 vé gia hạn, 1 vé thiếu tiền chỉ hoàn tác riêng |
-| 21 | `trigger-so-cai-bat-bien` | `trg_GiaoDich_BatBien`, `trg_GiaoDich_ChanXoa`, `sp_NV_HoanTien` | **50061**, **50060**, **50062**, **50063**; hoàn khoản trừ nhầm |
+| # | Mã kịch bản | Bài toán | Bảng ảnh hưởng | Kết quả mong đợi |
+|:---:|---|---|---|---|
+| **⚙️ Procedure** |||||
+| 1 | `sp-xe-vao-bai` | Khách vào bãi, cần cấp ô đỗ tự động | `LUOT_GUI`, `VI_TRI_DO`, `BAI_DO_XE` | Ô chuyển *Đã đỗ*, bãi +1 xe, `/map` đổi màu |
+| 2 | `sp-xe-ra-bai` | Xe ra, tính tiền theo thời gian gửi | `LUOT_GUI`, `LOAI_XE` | Tiền lượt được ghi, ô giải phóng |
+| 3 | `sp-dang-ky-thanh-vien` | Khách mới quầy, phải ghi 4 thứ cùng lúc (ACID) | `KHACH_HANG`, `THE_XE`, `VE_THANG`, `HOA_DON_VE_THANG` | Khách + thẻ tháng + vé + hóa đơn đồng thời hoặc ROLLBACK toàn |
+| 4 | `sp-gia-han-ve-thang` | Khách gia hạn tại quầy | `VE_THANG`, `HOA_DON_VE_THANG` | Hạn +2 tháng, hóa đơn mới kênh *Tại quầy* |
+| 5 | `sp-bao-mat-the` | Khách báo thẻ bị mất → khóa thẻ & vé | `THE_XE`, `VE_THANG`, `LICHSU_SU_CO` | Thẻ *Mất*, vé *Tạm khóa*, trigger ghi biên bản phạt |
+| 6 | `sp-cap-lai-the` | Khách cũ gia hạn vé mới → cấp lại thẻ cũ | `THE_XE`, `VE_THANG` | Thẻ gắn vé mới, vé cũ *Hết hạn*; kiểm tra **50065**, **50066** |
+| 7 | `sp-dang-nhap-nhan-vien` | Nhân viên quét mã, xác thực mật khẩu đúng | `NHAN_VIEN`, `TAI_KHOAN` | Mật khẩu SHA2_512 + salt khác nhau, hash dùng để so sánh; **50022**, **50021** |
+| **⚡ Trigger** |||||
+| 8 | `trigger-chan-checkin-loi` | Thẻ `THE0006` báo mất / bị khóa quẹt vào | `LUOT_GUI`, `THE_XE` | ❌ **50002**, ROLLBACK (không ghi LUOT_GUI) |
+| 9 | `trigger-chan-ve-het-han` | Vé `V0003` hết hạn quẹt vào (trước đó cấp lại thẻ cho vé mới) | `LUOT_GUI`, `VE_THANG` | ❌ **50003**, ROLLBACK; vé cũ của thẻ cấp lại không chặn vé mới |
+| 10 | `trigger-chan-sai-bai` | Vé `V0006` chỉ dùng `BAI_TB` quẹt ở `BAI_Q1` | `LUOT_GUI`, `VE_THANG` | ❌ **50004**, ROLLBACK; vé `ALL` đi được mọi bãi |
+| **📐 Function** |||||
+| 11 | `function-tinh-tien-slot` | Tính tiền ô tô 5h ở Quận 1; tìm ô trống xe máy | `LOAI_XE`, `VI_TRI_DO` | 3 hàm trả kết quả: tiền, ô gợi ý, danh sách xe |
+| **🔄 Cursor** |||||
+| 12 | `cursor-canh-bao-doanh-thu` | Hàng ngày: khóa vé hạn, cảnh báo, tự gia hạn | `VE_THANG`, `THONG_BAO`, `HOA_DON_VE_THANG`, `VI_DIEN_TU` | 2 vé hạn chuyển *Hết hạn*, 1 vé ≤3 ngày ghi cảnh báo, tự gia hạn nếu ví đủ |
+| **👛 Cổng khách hàng** |||||
+| 13 | `kh-dang-ky-tai-khoan` | Khách online tạo tài khoản từ SĐT + CCCD | `TAI_KHOAN_KH`, `VI_DIEN_TU` | Tài khoản + ví 0 ₫; đăng ký lại **50032** |
+| 14 | `kh-dang-nhap-khoa-tai-khoan` | Khách dò mật khẩu 5 lần → tự khóa 15 phút | `TAI_KHOAN_KH`, `NHAT_KY_DANG_NHAP` | 5 lần sai **50040**, lần 6 đúng vẫn **50041** (khóa); trigger kiểm tra |
+| 15 | `kh-nap-tien-2-pha` | Khách nạp 500K MoMo → giao dịch chờ → callback thanh toán → lặp callback | `GIAO_DICH`, `VI_DIEN_TU` | +500K đúng 1 lần dù callback lặp (idempotent, lock dòng + kiểm tra mã) |
+| 16 | `kh-gia-han-bang-vi` | Khách gia hạn vé bằng ví → trừ ví tức thì | `VI_DIEN_TU`, `VE_THANG`, `HOA_DON_VE_THANG`, `GIAO_DICH` | Ví trừ 500K, vé hạn +1 tháng, hóa đơn kênh *Online* |
+| 17 | `trigger-chan-so-du-am` | Ví 50K gia hạn 3 tháng (4.5M) → thiếu tiền | `VI_DIEN_TU`, `GIAO_DICH` | ❌ **50031** (lớp thủ tực), lớp 2 trigger cũng **50031** (ROLLBACK); ví không đổi |
+| 18 | `rls-co-lap-du-lieu-khach-hang` | KH0001 & KH0002 SELECT cùng view → kết quả khác nhau (RLS) | `GIAO_DICH`, `VI_DIEN_TU` (apply RLS+DENY) | KH0001 thấy 2 giao dịch, KH0002 thấy 0; truy cập bảng gốc **229** (DENY) |
+| 19 | `kh-uy-quyen-ve` | KH0004 chia sẻ vé cho KH0007 (3 người tối đa) | `UY_QUYEN_VE`, `f_KH_CoQuyen` | Chia sẻ thành công → người nhận không gia hạn được (**50050**); người 4 **50053** |
+| 20 | `cursor-tu-dong-gia-han` | Cursor xử lý 3 vé bật tự động hạn ≤3 ngày (savepoint riêng) | `VE_THANG`, `HOA_DON_VE_THANG`, `VI_DIEN_TU` | 2 vé gia hạn thành công, vé 3 thiếu tiền ROLLBACK riêng (không ảnh khác) |
+| 21 | `trigger-so-cai-bat-bien` | Cố sửa số tiền / xóa giao dịch / cộng ví trực tiếp | `GIAO_DICH`, `VI_DIEN_TU` | **50061** (sửa tiền), **50060** (xóa), **50062** (cộng trực tiếp); **50063** (hoàn khoản đã xuất hóa đơn) |
 
 ---
 
