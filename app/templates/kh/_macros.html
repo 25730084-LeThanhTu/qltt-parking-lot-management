@@ -1,0 +1,70 @@
+{% from '_icons.html' import icon, vehicle_icon %}
+
+{#- Thanh hạn còn lại của vé: quy đổi trên 30 ngày, màu theo mức khẩn -#}
+{% macro han_con_lai(so_ngay) -%}
+{%- set pct = [[(so_ngay or 0) * 100 // 30, 0]|max, 100]|min -%}
+{%- set tone = 'danger' if (so_ngay or 0) <= 3 else ('warning' if so_ngay <= 7 else 'success') -%}
+<div class="kh-days kh-days-{{ tone }}" role="img" aria-label="Còn {{ so_ngay }} ngày">
+    <div class="kh-days-bar"><span style="width: {{ pct }}%;"></span></div>
+    <span class="kh-days-text">{% if so_ngay is none %}—{% elif so_ngay < 0 %}Quá hạn {{ -so_ngay }} ngày{% elif so_ngay == 0 %}Hết hạn hôm nay{% else %}Còn {{ so_ngay }} ngày{% endif %}</span>
+</div>
+{%- endmacro %}
+
+{% macro badge(value) -%}
+<span class="badge {{ value|status_badge_class }}"><span class="badge-dot"></span>{{ value }}</span>
+{%- endmacro %}
+
+{% macro ticket_card(v, quyen) -%}
+<article class="card kh-ticket">
+    <div class="row between">
+        <span class="plate plate-lg">{{ v.BienSo }}</span>
+        {{ badge(v.TrangThai) }}
+    </div>
+    <div class="kh-ticket-meta">
+        <span class="row">{{ vehicle_icon(v.MaLoaiXe, 15) }}{{ v.LoaiPhuongTien or v.MaLoaiXe }}</span>
+        <span class="row">{{ icon('map-pin', 15) }}{{ v.PhamViApDung }}</span>
+    </div>
+    <div class="kv">
+        <div class="kv-row"><span class="kv-k">Mã vé</span><span class="kv-v mono">{{ v.MaVe }}</span></div>
+        <div class="kv-row"><span class="kv-k">Hạn dùng</span><span class="kv-v">{{ v.NgayHetHan.strftime('%d/%m/%Y') }}</span></div>
+        <div class="kv-row"><span class="kv-k">Vai trò của tôi</span>
+            <span class="kv-v"><span class="badge {{ 'badge-primary' if v.MaVaiTroCuaToi == 'CHU_SO_HUU' else 'badge-violet' }}">{{ v.VaiTroCuaToi }}</span></span></div>
+        {% if v.MaVaiTroCuaToi != 'CHU_SO_HUU' %}
+        <div class="kv-row"><span class="kv-k">Chủ vé</span><span class="kv-v">{{ v.ChuVe }}</span></div>
+        {% endif %}
+    </div>
+    {{ han_con_lai(v.SoNgayConLai) }}
+    <div class="row wrap between">
+        {% if v.TuDongGiaHan %}<span class="badge badge-success">{{ icon('repeat', 12) }}Tự động gia hạn {{ v.SoThangTuDongGiaHan }} tháng</span>{% else %}<span></span>{% endif %}
+        <div class="row" style="gap: 6px;">
+            <a href="{{ url_for('kh.chi_tiet_ve', ma_ve=v.MaVe) }}" class="btn btn-outline btn-sm">{{ icon('eye', 14) }}Chi tiết</a>
+            {% if 'VE.GIAHAN' in quyen %}
+            <a href="{{ url_for('kh.gia_han', ma_ve=v.MaVe) }}" class="btn btn-primary btn-sm">{{ icon('refresh', 14) }}Gia hạn</a>
+            {% endif %}
+        </div>
+    </div>
+</article>
+{%- endmacro %}
+
+{% macro parking_table(rows, show_ticket=true, compact=false) -%}
+<div class="table-wrap">
+    <table class="data-table">
+        <thead><tr>{% if show_ticket %}<th>Vé</th>{% endif %}<th>Bãi</th>{% if not compact %}<th>Ô đỗ</th>{% endif %}<th>Vào</th>{% if not compact %}<th>Ra</th><th>Thời lượng</th>{% endif %}<th>Trạng thái</th></tr></thead>
+        <tbody>
+        {% for l in rows %}
+        <tr class="{% if l.TrangThai == 'Đang đỗ' %}kh-row-live{% endif %}">
+            {% if show_ticket %}<td class="nowrap"><span class="plate">{{ l.BienSo }}</span>{% if not compact %} <span class="subtle xs mono">{{ l.MaVe }}</span>{% endif %}</td>{% endif %}
+            <td>{{ l.TenBai }}</td>
+            {% if not compact %}<td class="mono">{{ l.MaViTri }}</td>{% endif %}
+            <td class="nowrap">{{ l.ThoiGianVao.strftime('%d/%m %H:%M') }}</td>
+            {% if not compact %}
+            <td class="nowrap">{{ l.ThoiGianRa.strftime('%d/%m %H:%M') if l.ThoiGianRa else '—' }}</td>
+            <td class="nowrap">{{ l.SoPhutGui // 60 }} giờ {{ l.SoPhutGui % 60 }} phút</td>
+            {% endif %}
+            <td>{{ badge(l.TrangThai) }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{%- endmacro %}

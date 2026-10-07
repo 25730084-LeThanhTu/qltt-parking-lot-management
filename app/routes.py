@@ -4,6 +4,7 @@ from pathlib import Path
 from flask import Blueprint, flash, redirect, render_template, request, send_from_directory, url_for
 
 from .db import execute_query, execute_script_return_sets, get_connection, run_sql_file
+from .errors import friendly_error
 from .queries import (
     ALL_VIEWS,
     DEMO_CASES,
@@ -99,7 +100,23 @@ def index():
         bai_list = execute_query("SELECT MaBai, TenBai, DiaChi, SucChua, SoLuongHienTai FROM dbo.BAI_DO_XE ORDER BY MaBai;")
     except Exception:
         bai_list = []
-    return render_template("index.html", demo_cases=DEMO_CASES, demo_groups=DEMO_GROUPS, reports=REPORT_VIEWS, overview=overview, bai_list=bai_list)
+
+    # KPI ví khách hàng (chỉ có khi CSDL đã có phần cổng khách hàng)
+    vi_tong_quan = None
+    try:
+        rows = execute_query("SELECT * FROM dbo.vw_Report_TongQuanViDienTu;")
+        vi_tong_quan = rows[0] if rows else None
+    except Exception:
+        vi_tong_quan = None
+    return render_template(
+        "index.html",
+        demo_cases=DEMO_CASES,
+        demo_groups=DEMO_GROUPS,
+        reports=REPORT_VIEWS,
+        overview=overview,
+        bai_list=bai_list,
+        vi_tong_quan=vi_tong_quan,
+    )
 
 
 @bp.route("/health")
@@ -395,5 +412,125 @@ def setup():
             flash(f"Lỗi khi nạp script CSDL: {str(exc)}", "error")
             return redirect(url_for("main.setup"))
 
-    return render_template("setup.html", allow=allow, health=health_info)
+    return render_template("setup.html", allow=allow, health=health_info, db_stats=get_db_object_stats(health_info))
+
+
+def get_db_object_stats(health_info):
+    """Đếm số đối tượng thực có trong CSDL để trang /setup không phải viết cứng con số (UPGRADE_PLAN 12.2)."""
+    if not health_info.get("connected") or health_info.get("is_master_fallback"):
+        return None
+    try:
+        rows = execute_query("""
+            SELECT
+                (SELECT COUNT(*) FROM sys.tables WHERE is_ms_shipped = 0) AS SoBang,
+                (SELECT COUNT(*) FROM sys.procedures WHERE is_ms_shipped = 0 AND name NOT LIKE 'sp_Demo%') AS SoProcedure,
+                (SELECT COUNT(*) FROM sys.procedures WHERE is_ms_shipped = 0 AND name LIKE 'sp_Demo%') AS SoCursor,
+                (SELECT COUNT(*) FROM sys.triggers WHERE parent_class = 1 AND is_ms_shipped = 0) AS SoTrigger,
+                (SELECT COUNT(*) FROM sys.objects WHERE type IN ('FN', 'IF', 'TF') AND is_ms_shipped = 0
+                    AND SCHEMA_NAME(schema_id) = 'dbo') AS SoFunction,
+                (SELECT COUNT(*) FROM sys.views WHERE is_ms_shipped = 0) AS SoView,
+                (SELECT COUNT(*) FROM sys.database_principals WHERE type = 'R' AND is_fixed_role = 0 AND name LIKE 'r[_]%') AS SoRole,
+                (SELECT COUNT(*) FROM sys.security_policies WHERE is_enabled = 1) AS SoSecurityPolicy;
+        """)
+        return rows[0] if rows else None
+    except Exception:
+        return None
+
+
+# ====================================================================================
+# KHÁCH HÀNG & THANH TOÁN (màn hình nhân viên, UPGRADE_PLAN 12.3)
+# Thao tác đi qua thủ tục sp_NV_* trong sql/03_procedures.sql (phần cổng khách hàng). Ứng dụng chưa có đăng nhập
+# nhân viên nên các nút chạy bằng kết nối hiện tại, kết quả / lỗi hiển thị qua flash giống trang demo.
+# ====================================================================================
+KHACH_HANG_TABS = ("tai-khoan", "giao-dich", "bao-mat")
+
+
+@bp.route("/khach-hang")
+def khach_hang():
+    tab = request.args.get("tab", "tai-khoan")
+    if tab not in KHACH_HANG_TABS:
+        tab = "tai-khoan"
+
+    data = {"tong_quan": None, "tai_khoan": [], "hang_doi": [], "so_cai": [], "bao_mat": [], "khach_chua_vi": []}
+    error = None
+    try:
+        rows = execute_query("SELECT * FROM dbo.vw_Report_TongQuanViDienTu;")
+        data["tong_quan"] = rows[0] if rows else None
+        if tab == "tai-khoan":
+            data["tai_khoan"] = execute_query("""
+                SELECT tk.MaTK, tk.TenDangNhap, kh.MaKH, kh.HoTen, tk.TrangThai, tk.KhoaDen,
+                       tk.SoLanSaiLienTiep, tk.LanDangNhapCuoi, vi.MaVi, vi.SoDu,
+                       (SELECT COUNT(*) FROM dbo.VE_THANG v WHERE v.MaKH = kh.MaKH) AS SoVe
+                FROM dbo.TAI_KHOAN_KH tk
+                INNER JOIN dbo.KHACH_HANG kh ON tk.MaKH = kh.MaKH
+                LEFT JOIN dbo.VI_DIEN_TU vi ON vi.MaKH = kh.MaKH
+                ORDER BY CASE WHEN tk.TrangThai = N'Tạm khóa' THEN 0 ELSE 1 END, tk.MaTK;
+            """)
+            data["khach_chua_vi"] = execute_query("""
+                SELECT kh.MaKH, kh.HoTen, kh.SDT FROM dbo.KHACH_HANG kh
+                WHERE NOT EXISTS (SELECT 1 FROM dbo.TAI_KHOAN_KH tk WHERE tk.MaKH = kh.MaKH)
+                ORDER BY kh.MaKH;
+            """)
+        elif tab == "giao-dich":
+            data["hang_doi"] = execute_query("SELECT * FROM dbo.vw_Report_GiaoDichCanXuLy ORDER BY ThoiGianTao DESC;")
+            data["so_cai"] = execute_query("""
+                SELECT TOP 50 g.MaGD, g.ThoiGianTao, vi.MaKH, kh.HoTen, g.LoaiGD,
+                       g.HuongTien * g.SoTien AS SoTienCoDau, p.TenPTTT AS PhuongThucThanhToan,
+                       g.TrangThai, g.SoDuSau, g.MaVe, g.GhiChu
+                FROM dbo.GIAO_DICH g
+                INNER JOIN dbo.VI_DIEN_TU vi ON g.MaVi = vi.MaVi
+                INNER JOIN dbo.KHACH_HANG kh ON vi.MaKH = kh.MaKH
+                INNER JOIN dbo.PHUONG_THUC_THANH_TOAN p ON g.MaPTTT = p.MaPTTT
+                ORDER BY g.ThoiGianTao DESC;
+            """)
+        else:
+            data["bao_mat"] = execute_query("SELECT * FROM dbo.vw_Report_BaoMatTaiKhoanKH ORDER BY SoLanSai24h DESC, MaTK;")
+    except Exception as exc:
+        error = str(exc)
+
+    return render_template("khach_hang.html", tab=tab, data=data, error=error)
+
+
+def _run_staff_action(sql, params, success_message):
+    """Chạy thủ tục nhân viên; lỗi nghiệp vụ 50xxx hiển thị bằng thông báo thân thiện (app/errors.py)."""
+    try:
+        execute_script_return_sets(sql, params, commit=True)
+        flash(success_message, "success")
+    except Exception as exc:
+        code, message = friendly_error(exc)
+        flash(f"{message} (mã lỗi {code})" if code else f"{message} Chi tiết: {exc}", "error")
+
+
+@bp.route("/khach-hang/mo-khoa", methods=["POST"])
+def khach_hang_mo_khoa():
+    ma_tk = request.form.get("ma_tk", "").strip()
+    _run_staff_action("EXEC dbo.sp_NV_MoKhoaTaiKhoanKH @MaTK = ?;", (ma_tk,), f"Đã mở khóa tài khoản {ma_tk}.")
+    return redirect(url_for("main.khach_hang", tab="tai-khoan"))
+
+
+@bp.route("/khach-hang/nap-tien", methods=["POST"])
+def khach_hang_nap_tien():
+    ma_kh = request.form.get("ma_kh", "").strip()
+    try:
+        so_tien = int(request.form.get("so_tien", "0").replace(".", "").replace(",", ""))
+    except ValueError:
+        so_tien = 0
+    _run_staff_action(
+        "EXEC dbo.sp_NV_NapTienTaiQuay @MaKH = ?, @SoTien = ?;",
+        (ma_kh, so_tien),
+        f"Đã nạp {so_tien:,} ₫ tiền mặt vào ví của {ma_kh}.".replace(",", "."),
+    )
+    return redirect(url_for("main.khach_hang", tab="tai-khoan"))
+
+
+@bp.route("/khach-hang/hoan-tien", methods=["POST"])
+def khach_hang_hoan_tien():
+    ma_gd = request.form.get("ma_gd", "").strip()
+    ly_do = request.form.get("ly_do", "").strip()
+    _run_staff_action(
+        "EXEC dbo.sp_NV_HoanTien @MaGDGoc = ?, @LyDo = ?;",
+        (ma_gd, ly_do),
+        f"Đã hoàn tiền giao dịch {ma_gd} vào ví khách hàng.",
+    )
+    return redirect(url_for("main.khach_hang", tab="giao-dich"))
 

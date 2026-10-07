@@ -7,26 +7,46 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Tắt pooling của ODBC: SESSION_CONTEXT read-only được mang sang lần mở kết nối kế tiếp trên kết nối pooled
+# (đã kiểm chứng trên SQL Server 2022). Phải đặt trước khi mở kết nối đầu tiên.
+pyodbc.pooling = False
 
-def get_connection(database: str | None = None, autocommit: bool = False, timeout: int = 5):
+
+def get_connection(database: str | None = None, autocommit: bool = False, timeout: int = 5, credentials=None):
     driver = os.getenv("SQLSERVER_DRIVER", "ODBC Driver 17 for SQL Server")
     server = os.getenv("SQLSERVER_SERVER", "localhost")
     db_name = database or os.getenv("SQLSERVER_DATABASE", "QuanLyBaiDoXe")
-    trusted = os.getenv("SQLSERVER_TRUSTED_CONNECTION", "yes").lower() in {"yes", "true", "1"}
+    trusted = credentials is None and os.getenv("SQLSERVER_TRUSTED_CONNECTION", "yes").lower() in {"yes", "true", "1"}
 
     parts = [f"DRIVER={{{driver}}}", f"SERVER={server}", f"DATABASE={db_name}"]
     if trusted:
         parts.append("Trusted_Connection=yes")
         parts.append("TrustServerCertificate=yes")
     else:
-        username = os.getenv("SQLSERVER_USERNAME", "sa")
-        password = os.getenv("SQLSERVER_PASSWORD", "")
+        username, password = credentials or (os.getenv("SQLSERVER_USERNAME", "sa"), os.getenv("SQLSERVER_PASSWORD", ""))
         parts.append(f"UID={username}")
         parts.append(f"PWD={password}")
         parts.append("TrustServerCertificate=yes")
 
     conn_str = ";".join(parts) + ";"
     return pyodbc.connect(conn_str, autocommit=autocommit, timeout=timeout)
+
+
+def get_kh_connection(ma_tk: str | None = None, ma_kh: str | None = None):
+    """Kết nối demo: dùng login chính, autocommit để nhật ký đăng nhập sai được lưu khi thủ tục THROW.
+
+    Đã đăng nhập thì đặt SESSION_CONTEXT MaTK / MaKH ở chế độ read-only cho cả phiên kết nối
+    (các procedure sp_KH_* sử dụng SESSION_CONTEXT để biết khách hàng nào đang truy cập).
+    """
+    conn = get_connection(autocommit=True)
+    if ma_tk:
+        cursor = conn.cursor()
+        cursor.execute(
+            "EXEC sys.sp_set_session_context @key = N'MaTK', @value = ?, @read_only = 1;"
+            "EXEC sys.sp_set_session_context @key = N'MaKH', @value = ?, @read_only = 1;",
+            (ma_tk, ma_kh),
+        )
+    return conn
 
 
 def rows_to_dicts(cursor) -> List[Dict[str, Any]]:

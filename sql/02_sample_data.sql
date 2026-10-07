@@ -33,20 +33,22 @@ INSERT INTO dbo.NHAN_VIEN (MaNV, HoTen, ChucVu, SDT, Email, MaBai) VALUES
 ('NV011', N'Bùi Thành Đạt', N'Bảo vệ', '0901000011', 'dat.bui@smartparking.vn', 'BAI_Q7');
 GO
 
--- 3. Tài Khoản Truy Cập (mật khẩu băm SHA-256 từ cột MatKhauMau của Excel)
-INSERT INTO dbo.TAI_KHOAN (TenDangNhap, MatKhauHash, MaNV, TrangThai) VALUES
-('admin', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', 'Admin@2026'), 2), 'NV001', N'Hoạt động'),
-('quanly_q1', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV002', N'Hoạt động'),
-('quanly_q3', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV003', N'Hoạt động'),
-('quanly_bt', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV004', N'Hoạt động'),
-('baove_khoa', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV005', N'Bị khóa'),
-('baove_q1', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV005', N'Hoạt động'),
-('baove_q3', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV006', N'Hoạt động'),
-('baove_bt', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV007', N'Hoạt động'),
-('quanly_tb', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV008', N'Hoạt động'),
-('quanly_q7', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV009', N'Hoạt động'),
-('baove_tb', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV010', N'Hoạt động'),
-('baove_q7', CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', '123456'), 2), 'NV011', N'Hoạt động');
+-- 3. Tài Khoản Truy Cập (mật khẩu mẫu từ cột MatKhauMau của Excel)
+--    Băm SHA2_512(salt + mật khẩu) giống dbo.f_BamMatKhau (N5). Salt cố định = 16 byte đầu SHA-256(TenDangNhap)
+--    để seed tái lập được; tài khoản tạo mới sau này dùng salt ngẫu nhiên CRYPT_GEN_RANDOM(16).
+INSERT INTO dbo.TAI_KHOAN (TenDangNhap, MatKhauHash, MatKhauSalt, MaNV, TrangThai) VALUES
+('admin', HASHBYTES('SHA2_512', 0x8C6976E5B5410415BDE908BD4DEE15DF + CAST('Admin@2026' AS VARBINARY(100))), 0x8C6976E5B5410415BDE908BD4DEE15DF, 'NV001', N'Hoạt động'),
+('quanly_q1', HASHBYTES('SHA2_512', 0xA96A1945520B26CBAAE8A493E34ACFB9 + CAST('123456' AS VARBINARY(100))), 0xA96A1945520B26CBAAE8A493E34ACFB9, 'NV002', N'Hoạt động'),
+('quanly_q3', HASHBYTES('SHA2_512', 0xF653957CF726492E0F2E5258DB1CC602 + CAST('123456' AS VARBINARY(100))), 0xF653957CF726492E0F2E5258DB1CC602, 'NV003', N'Hoạt động'),
+('quanly_bt', HASHBYTES('SHA2_512', 0x8105CD0384432837517622656FE8AE3A + CAST('123456' AS VARBINARY(100))), 0x8105CD0384432837517622656FE8AE3A, 'NV004', N'Hoạt động'),
+('baove_khoa', HASHBYTES('SHA2_512', 0xC9DA96BE9B174D7E3ADB8BC19C056135 + CAST('123456' AS VARBINARY(100))), 0xC9DA96BE9B174D7E3ADB8BC19C056135, 'NV005', N'Bị khóa'),
+('baove_q1', HASHBYTES('SHA2_512', 0xF2681DF9DA242214531CB15BCB0D0EB8 + CAST('123456' AS VARBINARY(100))), 0xF2681DF9DA242214531CB15BCB0D0EB8, 'NV005', N'Hoạt động'),
+('baove_q3', HASHBYTES('SHA2_512', 0x4E141F23D8E2E4B9F45924CE23AB94E2 + CAST('123456' AS VARBINARY(100))), 0x4E141F23D8E2E4B9F45924CE23AB94E2, 'NV006', N'Hoạt động'),
+('baove_bt', HASHBYTES('SHA2_512', 0xB41CF81A62EBB47CA02AB86856BFC382 + CAST('123456' AS VARBINARY(100))), 0xB41CF81A62EBB47CA02AB86856BFC382, 'NV007', N'Hoạt động'),
+('quanly_tb', HASHBYTES('SHA2_512', 0xAE05E863F787058E47BAC04DDD713846 + CAST('123456' AS VARBINARY(100))), 0xAE05E863F787058E47BAC04DDD713846, 'NV008', N'Hoạt động'),
+('quanly_q7', HASHBYTES('SHA2_512', 0x2C5A92CBA8CC97544F324DB0B6AF48FF + CAST('123456' AS VARBINARY(100))), 0x2C5A92CBA8CC97544F324DB0B6AF48FF, 'NV009', N'Hoạt động'),
+('baove_tb', HASHBYTES('SHA2_512', 0xE3E16ADEA5EE497E9A25D94990CC8B7C + CAST('123456' AS VARBINARY(100))), 0xE3E16ADEA5EE497E9A25D94990CC8B7C, 'NV010', N'Hoạt động'),
+('baove_q7', HASHBYTES('SHA2_512', 0x3CBFAFBA0CF795F7640B45765C5639D9 + CAST('123456' AS VARBINARY(100))), 0x3CBFAFBA0CF795F7640B45765C5639D9, 'NV011', N'Hoạt động');
 GO
 
 -- 4. Phân Loại Phương Tiện & Biểu Phí theo từng Bãi Đỗ
@@ -263,9 +265,14 @@ INSERT INTO dbo.LICHSU_SU_CO (MaThe, BienSo, ThoiGianSuCo, MoTa, TienPhat, Trang
 (NULL, '51F-135.79', '2026-09-07 10:05:00', N'Ô tô cọ quẹt trụ bê tông tại dốc lên Tầng 3, trầy sơn hông xe, đang chờ đối chiếu camera', 300000, N'Đang giải quyết', 'BAI_TB'),
 ('THE0025', NULL, '2026-08-20 20:15:00', N'Khách hàng báo mất thẻ chip THE0025 (Loại: Lượt). Hệ thống tự động khóa thẻ và áp phí phạt đền bù thẻ vật lý.', 50000, N'Đã giải quyết', 'BAI_Q7');
 GO
+
+-- ====================================================================================
+-- PHẦN CỔNG KHÁCH HÀNG
+-- ====================================================================================
+
 -- ====================================================================================
 -- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
--- NÂNG CẤP V7 - BƯỚC 11: DỮ LIỆU MẪU CỔNG KHÁCH HÀNG (UPGRADE_PLAN.md MỤC 11)
+-- DỮ LIỆU MẪU CỔNG KHÁCH HÀNG (UPGRADE_PLAN.md MỤC 11)
 --
 -- TẠM THỜI VIẾT TAY: script sinh seed từ docs/QuanLyBaiDoXe_DuLieuMau.xlsx chưa có trong repo (N8).
 -- Khi có script, chuyển dữ liệu dưới đây vào các sheet tương ứng của Excel master (D11) và sinh lại file này.

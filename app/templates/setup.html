@@ -85,15 +85,17 @@
             <span class="badge badge-info">1-click provisioning</span>
         </div>
 
-        <div class="section-label"><span>{{ icon('package', 13) }} Thành phần sẽ được tự động xây dựng</span></div>
+        <div class="section-label"><span>{{ icon('package', 13) }} Thành phần CSDL {{ '(đang có trong CSDL)' if db_stats else '(full script sẽ tạo)' }}</span></div>
         <div class="spec-grid mb-12">
-            <div class="spec"><span class="tile-ico tone-blue">{{ icon('table', 16) }}</span><div><strong>11 Bảng dữ liệu</strong><small>Chuẩn 3NF &amp; RBAC</small></div></div>
-            <div class="spec"><span class="tile-ico tone-blue">{{ icon('sliders', 16) }}</span><div><strong>6 Stored Procs</strong><small>In, Out, Đăng nhập</small></div></div>
-            <div class="spec"><span class="tile-ico tone-red">{{ icon('zap', 16) }}</span><div><strong>Triggers</strong><small>Toàn vẹn &amp; chặn lỗi</small></div></div>
-            <div class="spec"><span class="tile-ico tone-amber">{{ icon('sigma', 16) }}</span><div><strong>3 Functions</strong><small>Tính phí lũy tiến</small></div></div>
-            <div class="spec"><span class="tile-ico tone-violet">{{ icon('repeat', 16) }}</span><div><strong>2 Cursors</strong><small>Quét hạn &amp; doanh thu</small></div></div>
-            <div class="spec"><span class="tile-ico tone-cyan">{{ icon('chart', 16) }}</span><div><strong>SQL Views</strong><small>Realtime &amp; BI</small></div></div>
-            <div class="spec"><span class="tile-ico tone-green">{{ icon('shield', 16) }}</span><div><strong>Phân quyền RBAC</strong><small>Admin, QuanLy, BaoVe</small></div></div>
+            {#- Số đếm thực từ sys.objects khi đã kết nối CSDL QuanLyBaiDoXe; chưa có CSDL thì hiện số lượng full script sẽ tạo -#}
+            {%- set st = db_stats or {'SoBang': 21, 'SoProcedure': 22, 'SoCursor': 4, 'SoTrigger': 16, 'SoFunction': 11, 'SoView': 32, 'SoRole': 4, 'SoSecurityPolicy': 1} -%}
+            <div class="spec"><span class="tile-ico tone-blue">{{ icon('table', 16) }}</span><div><strong>{{ st['SoBang'] }} Bảng dữ liệu</strong><small>Chuẩn 3NF, ví &amp; sổ cái</small></div></div>
+            <div class="spec"><span class="tile-ico tone-blue">{{ icon('sliders', 16) }}</span><div><strong>{{ st['SoProcedure'] }} Stored Procs</strong><small>Vận hành, khách hàng, nhân viên</small></div></div>
+            <div class="spec"><span class="tile-ico tone-red">{{ icon('zap', 16) }}</span><div><strong>{{ st['SoTrigger'] }} Triggers</strong><small>Toàn vẹn, sổ cái, bảo mật</small></div></div>
+            <div class="spec"><span class="tile-ico tone-amber">{{ icon('sigma', 16) }}</span><div><strong>{{ st['SoFunction'] }} Functions</strong><small>Tính phí, phân quyền, sao kê</small></div></div>
+            <div class="spec"><span class="tile-ico tone-violet">{{ icon('repeat', 16) }}</span><div><strong>{{ st['SoCursor'] }} Cursors</strong><small>Hạn vé, doanh thu, gia hạn, đối soát</small></div></div>
+            <div class="spec"><span class="tile-ico tone-cyan">{{ icon('chart', 16) }}</span><div><strong>{{ st['SoView'] }} SQL Views</strong><small>Realtime, BI, cổng khách hàng</small></div></div>
+            <div class="spec"><span class="tile-ico tone-green">{{ icon('shield', 16) }}</span><div><strong>{{ st['SoRole'] }} Roles + {{ st['SoSecurityPolicy'] }} RLS</strong><small>Admin, QuanLy, BaoVe, KhachHang</small></div></div>
         </div>
 
         <div class="alert alert-warning mb-12">

@@ -1,12 +1,5 @@
 -- ====================================================================================
 -- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
--- SECURITY & RBAC V6 + V7 MERGED (2026-10-06)
--- V6: 3 roles (Admin, Manager, User)
--- V7: 3 new roles + GRANTs + RLS policies
--- ====================================================================================
-
--- ====================================================================================
--- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
 -- BƯỚC 8: AN TOÀN THÔNG TIN & PHÂN QUYỀN TRUY CẬP (ROLE-BASED ACCESS CONTROL - RBAC)
 -- ====================================================================================
 
@@ -41,6 +34,7 @@ GRANT SELECT, INSERT, UPDATE ON dbo.KHACH_HANG TO r_QuanLyBai;
 GRANT SELECT, INSERT, UPDATE ON dbo.VE_THANG TO r_QuanLyBai;
 GRANT SELECT, INSERT, UPDATE ON dbo.NHAN_VIEN TO r_QuanLyBai;
 GRANT SELECT ON dbo.TAI_KHOAN TO r_QuanLyBai;
+DENY SELECT ON dbo.TAI_KHOAN (MatKhauHash, MatKhauSalt) TO r_QuanLyBai;   -- xem tài khoản, không xem hash / salt (N5)
 GRANT SELECT ON dbo.LUOT_GUI TO r_QuanLyBai;
 GRANT SELECT ON dbo.HOA_DON_VE_THANG TO r_QuanLyBai;
 GRANT SELECT, INSERT, UPDATE ON dbo.LICHSU_SU_CO TO r_QuanLyBai;
@@ -107,8 +101,17 @@ GRANT SELECT ON dbo.v_SodoBai_TongHopKhuVuc TO r_QuanLyBai;
 GRANT SELECT ON dbo.v_SodoBai_TongQuanBai TO r_QuanLyBai;
 GO
 
--- ==================== V7 SECURITY ADDITIONS ====================
+-- ====================================================================================
+-- PHẦN CỔNG KHÁCH HÀNG
+-- ====================================================================================
 
+-- ====================================================================================
+-- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
+-- PHÂN QUYỀN TÀI KHOẢN KHÁCH HÀNG (UPGRADE_PLAN.md MỤC 4)
+--
+-- LỚP 1 · Role r_KhachHang: chỉ EXECUTE sp_KH_* và SELECT vw_KH_*, DENY mọi bảng gốc.
+--         Procedure / view thuộc dbo nên ownership chaining cho phép chúng đọc / ghi bảng dù bảng bị DENY.
+-- LỚP 2 · Row-Level Security (policy bao_mat.rls_KhachHang): user thuộc r_KhachHang chỉ thấy dòng của
 --         khách trong SESSION_CONTEXT('MaKH') (và vé được ủy quyền). dbo / nhân viên không bị lọc.
 -- LỚP 3 · Quyền nghiệp vụ: f_KH_CoQuyen trong từng sp_KH_* (bước 12, 13).
 --
@@ -158,6 +161,12 @@ GRANT SELECT ON dbo.vw_KH_LichSuDoXe TO r_KhachHang;
 GRANT SELECT ON dbo.vw_KH_LichSuGiaoDich TO r_KhachHang;
 GRANT SELECT ON dbo.vw_KH_HoaDonCuaToi TO r_KhachHang;
 GRANT SELECT ON dbo.vw_KH_ThongBao TO r_KhachHang;
+GRANT SELECT ON dbo.vw_KH_NhatKyDangNhap TO r_KhachHang;
+GRANT SELECT ON dbo.vw_KH_PhuongThucNapVi TO r_KhachHang;
+GRANT SELECT ON dbo.vw_KH_HanMucNap TO r_KhachHang;
+GRANT SELECT ON dbo.vw_KH_QuyenTrenVe TO r_KhachHang;
+GRANT SELECT ON dbo.vw_KH_VaiTroUyQuyen TO r_KhachHang;
+GRANT EXECUTE ON dbo.sp_KH_DanhSachUyQuyen TO r_KhachHang;
 GRANT SELECT ON dbo.f_KH_SaoKeVi TO r_KhachHang;
 GRANT EXECUTE ON dbo.f_KH_TinhPhiGiaHan TO r_KhachHang;   -- xem trước giá gia hạn trên UI
 GO

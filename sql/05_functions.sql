@@ -91,13 +91,18 @@ RETURN
     WHERE lg.MaBai = @MaBai AND lg.ThoiGianRa IS NULL
 );
 GO
+
+-- ====================================================================================
+-- PHẦN CỔNG KHÁCH HÀNG
+-- ====================================================================================
+
 -- ====================================================================================
 -- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
--- NÂNG CẤP V7 - BƯỚC 12: FUNCTIONS CỔNG KHÁCH HÀNG (UPGRADE_PLAN.md MỤC 6)
+-- FUNCTIONS CỔNG KHÁCH HÀNG (UPGRADE_PLAN.md MỤC 6)
 -- Chạy trước procedures (13), triggers (14), cursors (15), views (16) và RLS (17).
 -- ====================================================================================
 
--- 1. Function f_BamMatKhau: Băm mật khẩu SHA2_512 có salt.
+-- 1. Function f_BamMatKhau: Băm mật khẩu SHA2_512 có salt (dùng chung cho tài khoản khách hàng và nhân viên - N5).
 -- Mật khẩu luôn là VARCHAR: cùng chuỗi nhưng kiểu NVARCHAR sẽ cho ra hash khác (seed và procedure phải khớp).
 CREATE OR ALTER FUNCTION dbo.f_BamMatKhau
 (
@@ -333,4 +338,25 @@ AS
 BEGIN
     RETURN CAST(SESSION_CONTEXT(N'MaTK') AS VARCHAR(12));
 END;
+GO
+
+-- 9. Function f_VeHienHanhCuaThe: Vé hiện hành của một thẻ (N4 - thẻ được cấp lại cho vé mới).
+-- Ưu tiên vé còn dùng (Hoạt động / Tạm khóa; tối đa 1 vé nhờ UX_VeThang_MaThe_ConDung); nếu không có thì lấy vé
+-- hết hạn gần nhất để trigger vẫn báo đúng "vé đã hết hạn" khi khách quẹt thẻ tháng chưa gia hạn.
+-- Mọi nơi tra vé theo MaThe (trigger cổng, báo mất thẻ, check-in, view bốt cổng) dùng hàm này thay cho JOIN thẳng.
+CREATE OR ALTER FUNCTION dbo.f_VeHienHanhCuaThe
+(
+    @MaThe VARCHAR(10)
+)
+RETURNS TABLE
+AS
+RETURN
+(
+    SELECT TOP 1
+        vt.MaVe, vt.MaThe, vt.MaKH, vt.BienSo, vt.MaLoaiXe, vt.NgayDangKy, vt.NgayHetHan,
+        vt.TrangThai, vt.MaBaiApDung, vt.TuDongGiaHan, vt.SoThangTuDongGiaHan
+    FROM dbo.VE_THANG vt
+    WHERE vt.MaThe = @MaThe
+    ORDER BY CASE WHEN vt.TrangThai <> N'Hết hạn' THEN 0 ELSE 1 END, vt.NgayHetHan DESC, vt.MaVe DESC
+);
 GO

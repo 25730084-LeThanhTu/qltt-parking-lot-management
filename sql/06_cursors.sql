@@ -3,141 +3,14 @@
 -- BƯỚC 6: DATABASE CURSORS (2 CURSORS BỌC TRONG PROCEDURES ĐỂ DEMO)
 -- ====================================================================================
 
--- 1. Procedure sp_DemoCanhBaoHanTheThang: Quét kiểm tra và tự động xử lý vé tháng hết hạn
-CREATE OR ALTER PROCEDURE dbo.sp_DemoCanhBaoHanTheThang
-AS
-BEGIN
-    SET NOCOUNT ON;
+-- ====================================================================================
+-- PHẦN CỔNG KHÁCH HÀNG
+-- ====================================================================================
 
-    -- Bảng tạm để lưu danh sách xử lý và hiển thị ra màn hình
-    CREATE TABLE #KetQuaQuet (
-        STT INT IDENTITY(1,1) PRIMARY KEY,
-        MaVe VARCHAR(10),
-        MaThe VARCHAR(10),
-        BienSo VARCHAR(15),
-        NgayHetHan DATE,
-        SoNgayConLai INT,
-        HanhDong NVARCHAR(150),
-        TrangThaiVe NVARCHAR(20)
-    );
-
-    DECLARE @MaVe VARCHAR(10);
-    DECLARE @MaThe VARCHAR(10);
-    DECLARE @BienSo VARCHAR(15);
-    DECLARE @NgayHetHan DATE;
-    DECLARE @TrangThai NVARCHAR(20);
-
-    -- Khai báo Cursor duyệt qua toàn bộ vé tháng
-    DECLARE cur_VeThang CURSOR FOR
-    SELECT MaVe, MaThe, BienSo, NgayHetHan, TrangThai
-    FROM dbo.VE_THANG;
-
-    OPEN cur_VeThang;
-    FETCH NEXT FROM cur_VeThang INTO @MaVe, @MaThe, @BienSo, @NgayHetHan, @TrangThai;
-
-    WHILE @@FETCH_STATUS = 0
-    BEGIN
-        DECLARE @SoNgay INT = DATEDIFF(DAY, CAST(GETDATE() AS DATE), @NgayHetHan);
-
-        IF @SoNgay < 0
-        BEGIN
-            -- Quá hạn: Khóa vé và khóa thẻ xe
-            UPDATE dbo.VE_THANG SET TrangThai = N'Hết hạn' WHERE MaVe = @MaVe;
-            UPDATE dbo.THE_XE SET TrangThai = N'Bị khóa' WHERE MaThe = @MaThe;
-
-            INSERT INTO #KetQuaQuet (MaVe, MaThe, BienSo, NgayHetHan, SoNgayConLai, HanhDong, TrangThaiVe)
-            VALUES (@MaVe, @MaThe, @BienSo, @NgayHetHan, @SoNgay, N'ĐÃ QUÁ HẠN: Tự động khóa thẻ và đổi trạng thái hết hạn', N'Hết hạn');
-        END
-        ELSE IF @SoNgay <= 3
-        BEGIN
-            -- Sắp hết hạn trong 3 ngày
-            INSERT INTO #KetQuaQuet (MaVe, MaThe, BienSo, NgayHetHan, SoNgayConLai, HanhDong, TrangThaiVe)
-            VALUES (@MaVe, @MaThe, @BienSo, @NgayHetHan, @SoNgay, CONCAT(N'CẢNH BÁO: Sắp hết hạn trong ', @SoNgay, N' ngày. Gửi SMS/Email nhắc nộp phí.'), @TrangThai);
-        END
-        ELSE
-        BEGIN
-            -- Hạn dùng an toàn
-            INSERT INTO #KetQuaQuet (MaVe, MaThe, BienSo, NgayHetHan, SoNgayConLai, HanhDong, TrangThaiVe)
-            VALUES (@MaVe, @MaThe, @BienSo, @NgayHetHan, @SoNgay, N'Còn hạn an toàn', @TrangThai);
-        END;
-
-        FETCH NEXT FROM cur_VeThang INTO @MaVe, @MaThe, @BienSo, @NgayHetHan, @TrangThai;
-    END;
-
-    CLOSE cur_VeThang;
-    DEALLOCATE cur_VeThang;
-
-    SELECT * FROM #KetQuaQuet ORDER BY SoNgayConLai ASC;
-    DROP TABLE #KetQuaQuet;
-END;
-GO
-
--- 2. Procedure sp_DemoTongKetDoanhThuChuoi: Thống kê doanh thu từng bãi bằng CURSOR
-CREATE OR ALTER PROCEDURE dbo.sp_DemoTongKetDoanhThuChuoi
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    CREATE TABLE #BaoCaoDoanhThu (
-        STT INT IDENTITY(1,1) PRIMARY KEY,
-        MaBai VARCHAR(10),
-        TenBai NVARCHAR(100),
-        DoanhThuLuot DECIMAL(18,2),
-        DoanhThuThang DECIMAL(18,2),
-        TongDoanhThu DECIMAL(18,2),
-        DanhGiaHieuQua NVARCHAR(100)
-    );
-
-    DECLARE @MaBai VARCHAR(10);
-    DECLARE @TenBai NVARCHAR(100);
-
-    -- Cursor duyệt qua từng bãi đỗ xe
-    DECLARE cur_BaiDo CURSOR FOR
-    SELECT MaBai, TenBai FROM dbo.BAI_DO_XE ORDER BY MaBai;
-
-    OPEN cur_BaiDo;
-    FETCH NEXT FROM cur_BaiDo INTO @MaBai, @TenBai;
-
-    WHILE @@FETCH_STATUS = 0
-    BEGIN
-        DECLARE @TienLuot DECIMAL(18,2) = 0;
-        DECLARE @TienThang DECIMAL(18,2) = 0;
-
-        SELECT @TienLuot = ISNULL(SUM(TienGui), 0)
-        FROM dbo.LUOT_GUI
-        WHERE MaBai = @MaBai;
-
-        SELECT @TienThang = ISNULL(SUM(SoTien), 0)
-        FROM dbo.HOA_DON_VE_THANG
-        WHERE MaBai = @MaBai;
-
-        DECLARE @Tong DECIMAL(18,2) = @TienLuot + @TienThang;
-        DECLARE @DanhGia NVARCHAR(100);
-
-        IF @Tong >= 10000000
-            SET @DanhGia = N'Hiệu quả rất cao (Doanh thu > 10 triệu)';
-        ELSE IF @Tong >= 2000000
-            SET @DanhGia = N'Hiệu quả tốt';
-        ELSE
-            SET @DanhGia = N'Cần đẩy mạnh khai thác thêm lượt gửi';
-
-        INSERT INTO #BaoCaoDoanhThu (MaBai, TenBai, DoanhThuLuot, DoanhThuThang, TongDoanhThu, DanhGiaHieuQua)
-        VALUES (@MaBai, @TenBai, @TienLuot, @TienThang, @Tong, @DanhGia);
-
-        FETCH NEXT FROM cur_BaiDo INTO @MaBai, @TenBai;
-    END;
-
-    CLOSE cur_BaiDo;
-    DEALLOCATE cur_BaiDo;
-
-    SELECT * FROM #BaoCaoDoanhThu ORDER BY TongDoanhThu DESC;
-    DROP TABLE #BaoCaoDoanhThu;
-END;
-GO
 -- ====================================================================================
 -- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
--- NÂNG CẤP V7 - BƯỚC 15: CURSORS CỔNG KHÁCH HÀNG (UPGRADE_PLAN.md MỤC 8)
--- 2 cursor mới (tự động gia hạn, đối soát ví) và phiên bản V7 của 2 cursor V6
+-- CURSORS CỔNG KHÁCH HÀNG (UPGRADE_PLAN.md MỤC 8)
+-- 2 cursor mới (tự động gia hạn, đối soát ví) và phiên bản mở rộng của 2 cursor vận hành
 -- (ghi đè bản trong 06_cursors.sql vì cần cột / bảng mới của bước 10).
 -- ====================================================================================
 
@@ -280,11 +153,17 @@ BEGIN
                     CASE @MaLoi WHEN 50031 THEN N'Thiếu số dư' ELSE N'Lỗi' END, NULL, NULL, NULL,
                     CONCAT(N'Đã hoàn tác riêng vé này (', @MaLoi, N'): ', @NoiDungLoi));
 
-            INSERT INTO dbo.THONG_BAO (MaKH, LoaiTB, TieuDe, NoiDung, MaVe)
-            VALUES (@MaKH, N'Sắp hết hạn', N'Không thể tự động gia hạn vé tháng',
-                    CONCAT(N'Vé ', @MaVe, N' (biển số ', @BienSo, N') hết hạn ngày ', FORMAT(@HanCu, 'dd/MM/yyyy'),
-                           N' nhưng chưa thể tự động gia hạn: ', @NoiDungLoi, N' Vui lòng nạp thêm tiền vào ví hoặc gia hạn tại quầy.'),
-                    @MaVe);
+            -- Mỗi vé tối đa 1 thông báo thất bại mỗi ngày, để chạy lại cursor không gửi trùng
+            IF NOT EXISTS (
+                SELECT 1 FROM dbo.THONG_BAO
+                WHERE MaVe = @MaVe AND TieuDe = N'Không thể tự động gia hạn vé tháng'
+                  AND ThoiGianTao >= CAST(CAST(GETDATE() AS DATE) AS DATETIME)
+            )
+                INSERT INTO dbo.THONG_BAO (MaKH, LoaiTB, TieuDe, NoiDung, MaVe)
+                VALUES (@MaKH, N'Sắp hết hạn', N'Không thể tự động gia hạn vé tháng',
+                        CONCAT(N'Vé ', @MaVe, N' (biển số ', @BienSo, N') hết hạn ngày ', FORMAT(@HanCu, 'dd/MM/yyyy'),
+                               N' nhưng chưa thể tự động gia hạn: ', @NoiDungLoi, N' Vui lòng nạp thêm tiền vào ví hoặc gia hạn tại quầy.'),
+                        @MaVe);
         END CATCH;
 
         FETCH NEXT FROM cur_TuDongGiaHan INTO @MaVe, @MaKH, @HoTen, @BienSo, @HanCu, @SoThang;
@@ -380,7 +259,7 @@ BEGIN
 END;
 GO
 
--- 3. sp_DemoCanhBaoHanTheThang (V7): Giữ nguyên logic V6 (khóa vé quá hạn, cảnh báo vé còn <= 3 ngày),
+-- 3. sp_DemoCanhBaoHanTheThang: Giữ nguyên logic gốc (khóa vé quá hạn, cảnh báo vé còn <= 3 ngày),
 -- bổ sung: vé bật tự động gia hạn và ví đủ tiền -> báo "Sẽ tự động gia hạn"; ghi THONG_BAO cho khách
 -- (mỗi vé tối đa 1 thông báo cùng loại mỗi ngày để chạy lại không nhân đôi).
 CREATE OR ALTER PROCEDURE dbo.sp_DemoCanhBaoHanTheThang
@@ -481,7 +360,7 @@ BEGIN
 END;
 GO
 
--- 4. sp_DemoTongKetDoanhThuChuoi (V7): Giữ nguyên logic V6, tách doanh thu vé tháng theo kênh thanh toán
+-- 4. sp_DemoTongKetDoanhThuChuoi: Giữ nguyên logic gốc, tách doanh thu vé tháng theo kênh thanh toán
 CREATE OR ALTER PROCEDURE dbo.sp_DemoTongKetDoanhThuChuoi
 AS
 BEGIN

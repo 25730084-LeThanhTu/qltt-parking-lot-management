@@ -1,0 +1,117 @@
+{% from '_icons.html' import icon %}
+{%- set ep = request.endpoint -%}
+{%- set nav = [
+    ('kh.tong_quan', 'home', 'Tổng quan', ['kh.tong_quan', 'kh.chi_tiet_ve', 'kh.gia_han']),
+    ('kh.nap_tien', 'wallet', 'Nạp tiền', ['kh.nap_tien', 'kh.cong_thanh_toan']),
+    ('kh.giao_dich', 'receipt', 'Giao dịch', ['kh.giao_dich']),
+    ('kh.lich_su_do_xe', 'car', 'Đỗ xe', ['kh.lich_su_do_xe']),
+    ('kh.uy_quyen', 'share', 'Chia sẻ vé', ['kh.uy_quyen']),
+    ('kh.thong_bao', 'bell', 'Thông báo', ['kh.thong_bao']),
+] -%}
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title ~ ' • ' if title }}SmartPark • Cổng khách hàng</title>
+    <script>
+        try {
+            var savedTheme = localStorage.getItem("sp-theme");
+            if (savedTheme === "light" || savedTheme === "dark") document.documentElement.setAttribute("data-theme", savedTheme);
+        } catch (e) {}
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20261006_v14">
+</head>
+<body class="kh-body">
+
+<header class="kh-top">
+    <div class="kh-top-inner">
+        <a href="{{ url_for('kh.tong_quan') }}" class="kh-brand" title="Trang tổng quan">
+            <span class="sb-logo">{{ icon('parking', 18) }}</span>
+            <span class="kh-brand-text"><strong>Smart<span>Park</span></strong><small>Cổng khách hàng</small></span>
+        </a>
+
+        {% if ho_so %}
+        <nav class="kh-nav" aria-label="Điều hướng cổng khách hàng">
+            {% for endpoint, ic, label, actives in nav %}
+            <a href="{{ url_for(endpoint) }}" class="{% if ep in actives %}active{% endif %}" {% if ep in actives %}aria-current="page"{% endif %}>
+                {{ icon(ic, 15) }}<span>{{ label }}</span>
+                {% if endpoint == 'kh.thong_bao' and ho_so.SoThongBaoChuaDoc %}<span class="kh-count">{{ ho_so.SoThongBaoChuaDoc }}</span>{% endif %}
+            </a>
+            {% endfor %}
+        </nav>
+        {% else %}
+        <div class="grow"></div>
+        {% endif %}
+
+        <div class="kh-top-actions">
+            {% if ho_so %}
+            <a href="{{ url_for('kh.nap_tien') }}" class="kh-balance" title="Số dư ví - bấm để nạp tiền">
+                {{ icon('wallet', 15) }}<span class="mono">{{ (ho_so.SoDu or 0)|vnd }}</span>
+            </a>
+            {% endif %}
+            <button type="button" class="icon-btn theme-toggle" data-theme-toggle aria-label="Chuyển giao diện Sáng / Tối" title="Chuyển giao diện Sáng / Tối">
+                <span class="i-sun">{{ icon('sun', 17) }}</span>
+                <span class="i-moon">{{ icon('moon', 17) }}</span>
+            </button>
+            {% if ho_so %}
+            <details class="kh-user" data-dropdown>
+                <summary class="kh-user-btn" aria-label="Menu tài khoản">
+                    <span class="kh-avatar" aria-hidden="true">{{ ho_so.HoTen[:1] }}</span>
+                    <span class="kh-user-name">{{ ho_so.HoTen }}</span>
+                </summary>
+                <div class="kh-menu" role="menu">
+                    <div class="kh-menu-head">
+                        <div class="strong">{{ ho_so.HoTen }}</div>
+                        <div class="subtle xs mono">{{ ho_so.TenDangNhap }} • {{ ho_so.MaKH }}</div>
+                    </div>
+                    <a href="{{ url_for('kh.uy_quyen') }}" role="menuitem">{{ icon('share', 15) }}Chia sẻ vé</a>
+                    <a href="{{ url_for('kh.bao_mat') }}" role="menuitem">{{ icon('shield', 15) }}Bảo mật tài khoản</a>
+                    <form method="post" action="{{ url_for('kh.dang_xuat') }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" role="menuitem">{{ icon('log-out', 15) }}Đăng xuất</button>
+                    </form>
+                </div>
+            </details>
+            {% endif %}
+        </div>
+    </div>
+</header>
+
+<main class="kh-main">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-stack" role="status">
+        {% for category, message in messages %}
+          <div class="alert flash-item {% if category == 'success' %}alert-success{% elif category == 'error' %}alert-error{% elif category == 'warning' %}alert-warning{% else %}alert-info{% endif %}">
+            {% if category == 'success' %}{{ icon('check-circle', 18) }}{% else %}{{ icon('alert-circle', 18) }}{% endif %}
+            <div class="grow">{{ message }}</div>
+            <button type="button" class="btn btn-ghost btn-xs" data-dismiss aria-label="Đóng thông báo">{{ icon('x', 14) }}</button>
+          </div>
+        {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+</main>
+
+{% if ho_so %}
+<nav class="kh-bottom" aria-label="Điều hướng nhanh">
+    {% for endpoint, ic, label, actives in nav if endpoint != 'kh.uy_quyen' %}
+    <a href="{{ url_for(endpoint) }}" class="{% if ep in actives %}active{% endif %}" {% if ep in actives %}aria-current="page"{% endif %}>
+        <span class="kh-bottom-ico">{{ icon(ic, 19) }}{% if endpoint == 'kh.thong_bao' and ho_so.SoThongBaoChuaDoc %}<span class="kh-count">{{ ho_so.SoThongBaoChuaDoc }}</span>{% endif %}</span>
+        <span>{{ label }}</span>
+    </a>
+    {% endfor %}
+</nav>
+{% endif %}
+
+<footer class="kh-footer">SmartPark • Cổng khách hàng vé tháng • Dữ liệu được bảo vệ bởi Row-Level Security</footer>
+
+<script src="{{ url_for('static', filename='js/main.js') }}?v=20261006_v14"></script>
+</body>
+</html>

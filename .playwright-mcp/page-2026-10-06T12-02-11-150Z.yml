@@ -1,0 +1,86 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - link "SmartPark Cổng khách hàng" [ref=e4] [cursor=pointer]:
+        - /url: /kh/
+        - generic [ref=e9]:
+          - strong [ref=e10]: SmartPark
+          - generic [ref=e11]: Cổng khách hàng
+      - button "Chuyển giao diện Sáng / Tối" [ref=e13] [cursor=pointer]
+  - main [ref=e18]:
+    - generic [ref=e19]:
+      - generic [ref=e20]:
+        - generic [ref=e26]:
+          - heading "Đăng nhập" [level=1] [ref=e27]
+          - paragraph [ref=e28]: Quản lý vé tháng, nạp tiền vào ví và tự gia hạn trực tuyến.
+        - generic [ref=e29]:
+          - generic [ref=e30]:
+            - generic [ref=e31]: Số điện thoại
+            - textbox "Số điện thoại" [ref=e32]:
+              - /placeholder: "VD: 0903112233"
+          - generic [ref=e33]:
+            - generic [ref=e34]: Mật khẩu
+            - generic [ref=e35]:
+              - textbox "Mật khẩu" [ref=e36]
+              - button "Hiện mật khẩu" [ref=e37] [cursor=pointer]
+          - button "Đăng nhập" [ref=e41] [cursor=pointer]
+          - paragraph [ref=e45]:
+            - text: Chưa có tài khoản?
+            - link "Đăng ký bằng SĐT và CCCD" [ref=e46] [cursor=pointer]:
+              - /url: /kh/dang-ky
+            - text: (dành cho khách đã đăng ký vé tại quầy).
+      - region [ref=e47]:
+        - generic [ref=e49]:
+          - heading "Tài khoản demo" [level=2] [ref=e50]
+          - generic [ref=e55]:
+            - text: "Bấm để điền sẵn. Mật khẩu mẫu:"
+            - code [ref=e56]: Khach@2026
+            - text: . Ẩn bảng này bằng
+            - code [ref=e57]: KH_DEMO_ACCOUNTS=0
+            - text: .
+        - generic [ref=e58]:
+          - button "Nguyễn Văn An 0903112233 1 vé" [ref=e59] [cursor=pointer]:
+            - generic [ref=e60]:
+              - generic [ref=e61]: Nguyễn Văn An
+              - generic [ref=e62]: "0903112233"
+            - generic [ref=e63]: 1 vé
+          - button "Trần Thị Mai 0912445566 1 vé được chia sẻ 1" [ref=e65] [cursor=pointer]:
+            - generic [ref=e66]:
+              - generic [ref=e67]: Trần Thị Mai
+              - generic [ref=e68]: "0912445566"
+            - generic [ref=e69]:
+              - generic [ref=e70]: 1 vé
+              - generic [ref=e71]: được chia sẻ 1
+          - button "Lê Hoàng Long 0988776655 1 vé" [ref=e72] [cursor=pointer]:
+            - generic [ref=e73]:
+              - generic [ref=e74]: Lê Hoàng Long
+              - generic [ref=e75]: "0988776655"
+            - generic [ref=e76]: 1 vé
+          - button "Phạm Thu Trang 0934556677 1 vé" [ref=e78] [cursor=pointer]:
+            - generic [ref=e79]:
+              - generic [ref=e80]: Phạm Thu Trang
+              - generic [ref=e81]: "0934556677"
+            - generic [ref=e82]: 1 vé
+          - button "Đỗ Thanh Phong 0908246810 1 vé Tạm khóa" [ref=e84] [cursor=pointer]:
+            - generic [ref=e85]:
+              - generic [ref=e86]: Đỗ Thanh Phong
+              - generic [ref=e87]: "0908246810"
+            - generic [ref=e88]:
+              - generic [ref=e89]: 1 vé
+              - generic [ref=e90]: Tạm khóa
+          - button "Lý Ngọc Hân 0938135790 1 vé" [ref=e91] [cursor=pointer]:
+            - generic [ref=e92]:
+              - generic [ref=e93]: Lý Ngọc Hân
+              - generic [ref=e94]: "0938135790"
+            - generic [ref=e95]: 1 vé
+          - button "Tạ Thị Kim Oanh 0966369147 2 vé" [ref=e97] [cursor=pointer]:
+            - generic [ref=e98]:
+              - generic [ref=e99]: Tạ Thị Kim Oanh
+              - generic [ref=e100]: "0966369147"
+            - generic [ref=e101]: 2 vé
+          - button "Phan Gia Huy 0945112233 2 vé" [ref=e103] [cursor=pointer]:
+            - generic [ref=e104]:
+              - generic [ref=e105]: Phan Gia Huy
+              - generic [ref=e106]: "0945112233"
+            - generic [ref=e107]: 2 vé
+  - contentinfo [ref=e109]: SmartPark • Cổng khách hàng vé tháng • Dữ liệu được bảo vệ bởi Row-Level Security

@@ -1,0 +1,138 @@
+{% extends 'kh/base_kh.html' %}
+{% from '_icons.html' import icon, vehicle_icon %}
+{% from 'kh/_macros.html' import han_con_lai, parking_table, badge %}
+{% set title = 'Vé ' ~ ve.MaVe %}
+{% block content %}
+<div class="page-head">
+    <div class="ph-main">
+        <a href="{{ url_for('kh.tong_quan') }}" class="eyebrow">{{ icon('arrow-left', 13) }} Tổng quan</a>
+        <h1 class="ph-title row wrap"><span class="plate plate-lg">{{ ve.BienSo }}</span><span>Vé {{ ve.MaVe }}</span>{{ badge(ve.TrangThai) }}</h1>
+        <p class="ph-sub">{{ ve.LoaiPhuongTien or ve.MaLoaiXe }} • {{ ve.PhamViApDung }} • Vai trò của bạn: <strong>{{ ve.VaiTroCuaToi }}</strong>{% if ve.MaVaiTroCuaToi != 'CHU_SO_HUU' %} (chủ vé: {{ ve.ChuVe }}){% endif %}</p>
+    </div>
+    {% if 'VE.GIAHAN' in quyen %}
+    <div class="ph-actions">
+        <a href="{{ url_for('kh.gia_han', ma_ve=ve.MaVe) }}" class="btn btn-primary">{{ icon('refresh', 15) }}Gia hạn bằng ví</a>
+    </div>
+    {% endif %}
+</div>
+
+<div class="grid kh-ve-grid">
+    <section class="card stack">
+        <h2 class="card-title">{{ icon('ticket', 17) }}<span>Thông tin vé</span></h2>
+        <div class="kv">
+            <div class="kv-row"><span class="kv-k">Mã thẻ</span><span class="kv-v mono">{{ ve.MaThe }}</span></div>
+            <div class="kv-row"><span class="kv-k">Ngày đăng ký</span><span class="kv-v">{{ ve.NgayDangKy.strftime('%d/%m/%Y') }}</span></div>
+            <div class="kv-row"><span class="kv-k">Hạn dùng</span><span class="kv-v strong">{{ ve.NgayHetHan.strftime('%d/%m/%Y') }}</span></div>
+            <div class="kv-row"><span class="kv-k">Phí gia hạn 1 tháng</span><span class="kv-v">{{ ve.PhiGiaHan1Thang|vnd if ve.PhiGiaHan1Thang is not none else '—' }}</span></div>
+            {% if ve.HanUyQuyen %}<div class="kv-row"><span class="kv-k">Quyền của bạn hết hạn</span><span class="kv-v">{{ ve.HanUyQuyen.strftime('%d/%m/%Y') }}</span></div>{% endif %}
+        </div>
+        {{ han_con_lai(ve.SoNgayConLai) }}
+    </section>
+
+    <section class="card stack">
+        <h2 class="card-title">{{ icon('repeat', 17) }}<span>Tự động gia hạn</span></h2>
+        {% if 'VE.TUDONGGIAHAN' in quyen %}
+        <p class="subtle sm">Khi vé còn ≤ 3 ngày, hệ thống tự trừ ví và gia hạn (kênh <em>Tự động</em>). Nếu ví không đủ tiền bạn sẽ nhận thông báo.</p>
+        <form method="post" action="{{ url_for('kh.tu_dong_gia_han', ma_ve=ve.MaVe) }}" class="row wrap" style="gap: 8px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="bat_tat" value="{{ '0' if ve.TuDongGiaHan else '1' }}">
+            <label class="field-label sr-only" for="so_thang_tu_dong">Số tháng mỗi lần gia hạn</label>
+            <select id="so_thang_tu_dong" name="so_thang" class="input" style="width: auto;" {% if ve.TuDongGiaHan %}disabled{% endif %}>
+                {% for n in so_thang_chon %}<option value="{{ n }}" {% if n == ve.SoThangTuDongGiaHan %}selected{% endif %}>{{ n }} tháng / lần</option>{% endfor %}
+            </select>
+            {% if ve.TuDongGiaHan %}
+            <span class="badge badge-success">{{ icon('check', 12) }}Đang bật • {{ ve.SoThangTuDongGiaHan }} tháng/lần</span>
+            <button type="submit" class="btn btn-outline btn-sm">Tắt tự động gia hạn</button>
+            {% else %}
+            <button type="submit" class="btn btn-soft btn-sm">{{ icon('repeat', 14) }}Bật tự động gia hạn</button>
+            {% endif %}
+        </form>
+        {% else %}
+        <div class="alert alert-info">{{ icon('info', 16) }}<div class="grow sm">Chỉ chủ vé mới bật / tắt được tự động gia hạn.</div></div>
+        {% endif %}
+
+        {% if 'VE.BAOMAT' in quyen %}
+        <div class="divider"></div>
+        <h2 class="card-title">{{ icon('lock', 17) }}<span>Báo mất thẻ</span></h2>
+        <p class="subtle sm">Thẻ bị khóa ngay lập tức, vé tạm khóa cho đến khi được cấp thẻ mới tại quầy (phí đền bù thẻ 50.000 ₫).</p>
+        <form method="post" action="{{ url_for('kh.bao_mat_the', ma_ve=ve.MaVe) }}"
+              data-confirm="Khóa thẻ {{ ve.MaThe }} của vé {{ ve.MaVe }} ngay? Thao tác này không tự hoàn tác được.">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn btn-danger btn-sm" {% if ve.TrangThai == 'Tạm khóa' %}disabled{% endif %}>{{ icon('lock', 14) }}{{ 'Thẻ đã khóa' if ve.TrangThai == 'Tạm khóa' else 'Báo mất thẻ' }}</button>
+        </form>
+        {% endif %}
+    </section>
+</div>
+
+{% if ve.MaVaiTroCuaToi == 'CHU_SO_HUU' %}
+<section class="card">
+    <div class="card-head">
+        <h2 class="card-title">{{ icon('receipt', 17) }}<span>Hóa đơn của vé</span></h2>
+        <span class="badge badge-secondary">{{ hoa_don|length }} hóa đơn</span>
+    </div>
+    {% if hoa_don %}
+    <div class="table-wrap short">
+        <table class="data-table">
+            <thead><tr><th>Mã hóa đơn</th><th>Ngày</th><th>Số tháng</th><th style="text-align: right;">Số tiền</th><th>Phương thức</th><th>Kênh</th><th>Bãi thu</th></tr></thead>
+            <tbody>
+            {% for h in hoa_don %}
+            <tr>
+                <td class="mono strong">{{ h.MaHD }}</td>
+                <td class="nowrap">{{ h.NgayThanhToan.strftime('%d/%m/%Y') }}</td>
+                <td>{{ h.SoThangGiaHan }}</td>
+                <td class="money-cell">{{ h.SoTien|vnd }}</td>
+                <td>{{ h.PhuongThucThanhToan }}</td>
+                <td>{{ badge(h.KenhThanhToan) }}</td>
+                <td>{{ h.TenBai }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}<div class="empty">{{ icon('receipt', 20) }}<span>Chưa có hóa đơn.</span></div>{% endif %}
+</section>
+
+<section class="card">
+    <div class="card-head">
+        <h2 class="card-title">{{ icon('share', 17) }}<span>Người được chia sẻ vé</span></h2>
+        <a href="{{ url_for('kh.uy_quyen') }}" class="btn btn-outline btn-sm">{{ icon('plus', 14) }}Chia sẻ vé</a>
+    </div>
+    {% if uy_quyen %}
+    <div class="table-wrap short">
+        <table class="data-table">
+            <thead><tr><th>Người nhận</th><th>Vai trò</th><th>Thời hạn</th><th>Trạng thái</th><th></th></tr></thead>
+            <tbody>
+            {% for u in uy_quyen %}
+            <tr>
+                <td><div class="strong">{{ u.NguoiLienQuan }}</div><div class="subtle xs mono">{{ u.TaiKhoanNguoiNhan }}</div></td>
+                <td>{{ u.TenVaiTro }}</td>
+                <td class="nowrap">{{ u.NgayKetThuc.strftime('%d/%m/%Y') if u.NgayKetThuc else 'Không thời hạn' }}</td>
+                <td>{{ badge(u.TrangThai) }}</td>
+                <td>
+                    {% if u.TrangThai in ['Hiệu lực', 'Hết hạn'] %}
+                    <form method="post" action="{{ url_for('kh.thu_hoi_uy_quyen', ma_uy_quyen=u.MaUyQuyen) }}" data-confirm="Thu hồi quyền của {{ u.NguoiLienQuan }} trên vé {{ ve.MaVe }}?">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="quay_lai" value="{{ url_for('kh.chi_tiet_ve', ma_ve=ve.MaVe) }}">
+                        <button type="submit" class="btn btn-ghost btn-xs">{{ icon('x', 12) }}Thu hồi</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}<div class="empty">{{ icon('users', 20) }}<span>Vé chưa được chia sẻ cho ai.</span></div>{% endif %}
+</section>
+{% endif %}
+
+<section class="card">
+    <div class="card-head">
+        <h2 class="card-title">{{ icon('car', 17) }}<span>Lượt gửi gần đây của vé</span></h2>
+        <a href="{{ url_for('kh.lich_su_do_xe', ma_ve=ve.MaVe) }}" class="kh-more">Xem tất cả {{ icon('chevron-right', 14) }}</a>
+    </div>
+    {% if luot_gui %}{{ parking_table(luot_gui, show_ticket=false) }}{% else %}
+    <div class="empty">{{ icon('car', 20) }}<span>Vé chưa có lượt gửi xe nào.</span></div>
+    {% endif %}
+</section>
+{% endblock %}

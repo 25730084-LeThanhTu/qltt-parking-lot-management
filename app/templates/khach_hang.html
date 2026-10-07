@@ -1,0 +1,239 @@
+{% extends 'base.html' %}
+{% from '_icons.html' import icon %}
+{% block content %}
+{%- set tq = data.tong_quan -%}
+
+<div class="page-head">
+    <div class="ph-main">
+        <div class="eyebrow">{{ icon('wallet', 13) }} Cổng khách hàng <span class="sep">• Màn hình nhân viên</span></div>
+        <h1 class="ph-title">Khách hàng &amp; Thanh toán</h1>
+        <p class="ph-sub">Tài khoản cổng khách hàng, ví trả trước, sổ cái giao dịch và giám sát bảo mật. Mọi thao tác đi qua thủ tục <code>sp_NV_*</code>; số dư chỉ thay đổi qua sổ cái <code>GIAO_DICH</code>.</p>
+    </div>
+    <a href="{{ url_for('kh.dang_nhap') }}" class="btn btn-outline btn-sm" target="_blank" rel="noopener" title="Đăng nhập bằng tài khoản khách để demo nạp tiền, gia hạn, chia sẻ vé">{{ icon('user', 14) }}Mở cổng khách hàng ↗</a>
+    <div class="seg" role="tablist" aria-label="Chọn nhóm thông tin">
+        <a href="{{ url_for('main.khach_hang', tab='tai-khoan') }}" class="seg-btn {% if tab == 'tai-khoan' %}active{% endif %}">{{ icon('users', 14) }}Tài khoản</a>
+        <a href="{{ url_for('main.khach_hang', tab='giao-dich') }}" class="seg-btn {% if tab == 'giao-dich' %}active{% endif %}">{{ icon('receipt', 14) }}Giao dịch</a>
+        <a href="{{ url_for('main.khach_hang', tab='bao-mat') }}" class="seg-btn {% if tab == 'bao-mat' %}active{% endif %}">{{ icon('shield', 14) }}Bảo mật</a>
+    </div>
+</div>
+
+{% if error %}
+<div class="alert alert-error">
+    {{ icon('alert-circle', 18) }}
+    <div class="grow">
+        <div class="alert-title">Chưa đọc được dữ liệu cổng khách hàng</div>
+        <div class="sm">CSDL có thể được tạo từ phiên bản cũ, chưa có phần cổng khách hàng. Hãy nạp lại CSDL tại trang <a href="{{ url_for('main.setup') }}">Hệ thống</a>.</div>
+        <pre class="code-danger wrap-text no-copy mt-8">{{ error }}</pre>
+    </div>
+</div>
+{% endif %}
+
+{% if tq %}
+<section class="kpi-grid" aria-label="Tổng quan ví khách hàng">
+    <div class="kpi">
+        <span class="tile-ico lg tone-violet">{{ icon('wallet', 20) }}</span>
+        <div><div class="kpi-label">Số dư khách đang giữ</div><div class="kpi-value" style="font-size: 1.25rem;">{{ tq['TongSoDuDangGiu']|format_cell('TongSoDuDangGiu') }}</div></div>
+    </div>
+    <div class="kpi">
+        <span class="tile-ico lg tone-green">{{ icon('trending', 20) }}</span>
+        <div><div class="kpi-label">Nạp ví tháng này</div><div class="kpi-value" style="font-size: 1.25rem;">{{ tq['TongNapThangNay']|format_cell('TongNapThangNay') }}</div></div>
+    </div>
+    <div class="kpi">
+        <span class="tile-ico lg tone-amber">{{ icon('hourglass', 20) }}</span>
+        <div><div class="kpi-label">Giao dịch chờ xử lý</div><div class="kpi-value">{{ tq['SoGiaoDichChoXuLy'] }}</div></div>
+    </div>
+    <div class="kpi">
+        <span class="tile-ico lg tone-red">{{ icon('lock', 20) }}</span>
+        <div><div class="kpi-label">Tài khoản tạm khóa</div><div class="kpi-value">{{ tq['SoTaiKhoanTamKhoa'] }}<span class="kpi-unit">/ {{ tq['SoTaiKhoanKhachHang'] }}</span></div></div>
+    </div>
+</section>
+{% endif %}
+
+{% if tab == 'tai-khoan' %}
+<section class="card">
+    <div class="card-head">
+        <div>
+            <h2 class="card-title">{{ icon('users', 17) }}<span>Tài khoản cổng khách hàng</span></h2>
+            <div class="card-sub">Tài khoản tạm khóa hiển thị đầu tiên. Mở khóa gọi <code>sp_NV_MoKhoaTaiKhoanKH</code>; nạp tiền mặt gọi <code>sp_NV_NapTienTaiQuay</code>.</div>
+        </div>
+        <div class="lot-dir-tools">
+            <div class="input-group">
+                {{ icon('search', 15) }}
+                <input type="search" class="input" placeholder="Tìm theo tên, SĐT, mã…" aria-label="Tìm tài khoản" data-lot-dir-search="dsTaiKhoan" autocomplete="off">
+            </div>
+        </div>
+    </div>
+    {% if data.tai_khoan %}
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+            <tr><th>Tài khoản</th><th>Khách hàng</th><th>Trạng thái</th><th>Sai liên tiếp</th><th>Đăng nhập cuối</th><th style="text-align: right;">Số dư ví</th><th>Vé</th><th>Thao tác</th></tr>
+            </thead>
+            <tbody id="dsTaiKhoan">
+            {% for r in data.tai_khoan %}
+            <tr data-lot-text="{{ r.MaTK }} {{ r.TenDangNhap }} {{ r.MaKH }} {{ r.HoTen }}">
+                <td><div class="mono strong">{{ r.MaTK }}</div><div class="subtle xs mono">{{ r.TenDangNhap }}</div></td>
+                <td><div class="strong">{{ r.HoTen }}</div><div class="subtle xs mono">{{ r.MaKH }}</div></td>
+                <td>
+                    <span class="badge {{ r.TrangThai|status_badge_class }}"><span class="badge-dot"></span>{{ r.TrangThai }}</span>
+                    {% if r.KhoaDen %}<div class="subtle xs mt-4">đến {{ r.KhoaDen }}</div>{% endif %}
+                </td>
+                <td class="{% if r.SoLanSaiLienTiep >= 3 %}text-danger strong{% endif %}">{{ r.SoLanSaiLienTiep }}</td>
+                <td class="subtle" style="font-size: 0.76rem;">{{ r.LanDangNhapCuoi or '—' }}</td>
+                <td class="money-cell">{{ r.SoDu|format_cell('SoDu') if r.SoDu is not none else '—' }}</td>
+                <td>{{ r.SoVe }}</td>
+                <td>
+                    <div class="row wrap" style="gap: 6px;">
+                        {% if r.TrangThai == 'Tạm khóa' %}
+                        <form method="post" action="{{ url_for('main.khach_hang_mo_khoa') }}" data-confirm="Mở khóa tài khoản {{ r.MaTK }} ({{ r.HoTen }})?">
+                            <input type="hidden" name="ma_tk" value="{{ r.MaTK }}">
+                            <button type="submit" class="btn btn-soft btn-xs">{{ icon('key', 12) }}Mở khóa</button>
+                        </form>
+                        {% endif %}
+                        {% if r.MaVi %}
+                        <form method="post" action="{{ url_for('main.khach_hang_nap_tien') }}" class="row" style="gap: 4px;"
+                              data-confirm-amount="Nạp {amount} ₫ tiền mặt vào ví của {{ r.HoTen }} ({{ r.MaKH }})?">
+                            <input type="hidden" name="ma_kh" value="{{ r.MaKH }}">
+                            <label class="sr-only" for="nap-{{ r.MaKH }}">Số tiền nạp cho {{ r.MaKH }}</label>
+                            <input id="nap-{{ r.MaKH }}" name="so_tien" type="number" min="10000" step="10000" value="200000" class="input" style="height: 26px; width: 110px; font-size: 0.76rem; padding: 0 8px;">
+                            <button type="submit" class="btn btn-outline btn-xs">{{ icon('wallet', 12) }}Nạp tiền mặt</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="empty" data-lot-dir-empty="dsTaiKhoan" hidden>{{ icon('search', 20) }}<span>Không tìm thấy tài khoản phù hợp.</span></div>
+    {% else %}
+    <div class="empty">{{ icon('users', 20) }}<span>Chưa có tài khoản cổng khách hàng nào.</span></div>
+    {% endif %}
+</section>
+
+{% if data.khach_chua_vi %}
+<section class="card">
+    <div class="card-head" style="margin-bottom: 8px;">
+        <h2 class="card-title">{{ icon('user', 17) }}<span>Khách hàng chưa có tài khoản online</span></h2>
+        <span class="badge badge-secondary">{{ data.khach_chua_vi|length }} khách</span>
+    </div>
+    <div class="row wrap" style="gap: 6px;">
+        {% for k in data.khach_chua_vi %}
+        <span class="badge badge-secondary" title="Khách tự đăng ký bằng SĐT + CCCD (sp_KH_DangKyTaiKhoan)">{{ k.MaKH }} · {{ k.HoTen }} · <span class="mono">{{ k.SDT }}</span></span>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+{% elif tab == 'giao-dich' %}
+<section class="card">
+    <div class="card-head">
+        <div>
+            <h2 class="card-title">{{ icon('hourglass', 17) }}<span>Hàng đợi cần xử lý</span></h2>
+            <div class="card-sub">Từ <code>vw_Report_GiaoDichCanXuLy</code>: giao dịch treo quá 30 phút (cursor <code>sp_DemoDoiSoatViDienTu</code> sẽ chuyển Thất bại) và giao dịch thất bại 7 ngày gần nhất.</div>
+        </div>
+        <span class="badge badge-warning">{{ data.hang_doi|length }} giao dịch</span>
+    </div>
+    {% if data.hang_doi %}
+    <div class="table-wrap short">
+        <table class="data-table">
+            <thead><tr><th>Mã GD</th><th>Thời điểm</th><th>Khách hàng</th><th>Loại</th><th style="text-align: right;">Số tiền</th><th>Phương thức</th><th>Phân loại</th></tr></thead>
+            <tbody>
+            {% for g in data.hang_doi %}
+            <tr>
+                <td class="mono strong">{{ g.MaGD }}</td>
+                <td class="subtle" style="font-size: 0.76rem;">{{ g.ThoiGianTao }}</td>
+                <td>{{ g.HoTen }} <span class="subtle xs mono">{{ g.MaKH }}</span></td>
+                <td>{{ g.LoaiGD }}</td>
+                <td class="money-cell">{{ g.SoTien|format_cell('SoTien') }}</td>
+                <td>{{ g.PhuongThucThanhToan }}</td>
+                <td><span class="badge {{ g.PhanLoai|status_badge_class }}"><span class="badge-dot"></span>{{ g.PhanLoai }}</span></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty">{{ icon('check-circle', 20) }}<span>Không có giao dịch cần xử lý.</span></div>
+    {% endif %}
+</section>
+
+<section class="card">
+    <div class="card-head">
+        <div>
+            <h2 class="card-title">{{ icon('list', 17) }}<span>Sổ cái giao dịch gần nhất</span></h2>
+            <div class="card-sub">Sổ cái chỉ ghi thêm: không sửa, không xóa. Hoàn tiền tạo giao dịch đối ứng qua <code>sp_NV_HoanTien</code> (chỉ cho thanh toán vé tháng thành công).</div>
+        </div>
+    </div>
+    {% if data.so_cai %}
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead><tr><th>Mã GD</th><th>Thời điểm</th><th>Khách hàng</th><th>Loại</th><th style="text-align: right;">Số tiền</th><th>Phương thức</th><th>Trạng thái</th><th style="text-align: right;">Số dư sau</th><th>Thao tác</th></tr></thead>
+            <tbody>
+            {% for g in data.so_cai %}
+            <tr>
+                <td class="mono strong">{{ g.MaGD }}</td>
+                <td class="subtle" style="font-size: 0.76rem;">{{ g.ThoiGianTao }}</td>
+                <td>{{ g.HoTen }} <span class="subtle xs mono">{{ g.MaKH }}</span></td>
+                <td>{{ g.LoaiGD }}{% if g.MaVe %} <span class="subtle xs mono">{{ g.MaVe }}</span>{% endif %}</td>
+                <td class="{{ 'SoTienCoDau'|cell_class(g.SoTienCoDau) }}">{{ g.SoTienCoDau|format_cell('SoTienCoDau') }}</td>
+                <td>{{ g.PhuongThucThanhToan }}</td>
+                <td><span class="badge {{ g.TrangThai|status_badge_class }}"><span class="badge-dot"></span>{{ g.TrangThai }}</span></td>
+                <td class="money-cell">{{ g.SoDuSau|format_cell('SoDuSau') if g.SoDuSau is not none else '—' }}</td>
+                <td>
+                    {% if g.LoaiGD == 'Thanh toán vé tháng' and g.TrangThai == 'Thành công' %}
+                    <form method="post" action="{{ url_for('main.khach_hang_hoan_tien') }}" class="row" style="gap: 4px;"
+                          data-confirm="Hoàn {{ (g.SoTienCoDau * -1)|format_cell('SoTien') }} vào ví của {{ g.HoTen }} cho giao dịch {{ g.MaGD }}?">
+                        <input type="hidden" name="ma_gd" value="{{ g.MaGD }}">
+                        <label class="sr-only" for="ly-do-{{ g.MaGD }}">Lý do hoàn tiền {{ g.MaGD }}</label>
+                        <input id="ly-do-{{ g.MaGD }}" name="ly_do" class="input" required placeholder="Lý do hoàn tiền" style="height: 26px; width: 150px; font-size: 0.76rem; padding: 0 8px;">
+                        <button type="submit" class="btn btn-outline btn-xs">{{ icon('refresh', 12) }}Hoàn tiền</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty">{{ icon('list', 20) }}<span>Sổ cái chưa có giao dịch.</span></div>
+    {% endif %}
+</section>
+
+{% else %}
+<section class="card">
+    <div class="card-head">
+        <div>
+            <h2 class="card-title">{{ icon('shield', 17) }}<span>Giám sát bảo mật tài khoản (24 giờ)</span></h2>
+            <div class="card-sub">Từ <code>vw_Report_BaoMatTaiKhoanKH</code>. Sai mật khẩu 5 lần trong 15 phút: trigger <code>trg_NhatKyDangNhap_KhoaTaiKhoan</code> tự khóa 15 phút.</div>
+        </div>
+    </div>
+    {% if data.bao_mat %}
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead><tr><th>Tài khoản</th><th>Khách hàng</th><th>Trạng thái</th><th>Sai 24h</th><th>Thành công 24h</th><th>Số IP 24h</th><th>Đăng nhập cuối</th><th>Cảnh báo</th></tr></thead>
+            <tbody>
+            {% for b in data.bao_mat %}
+            <tr>
+                <td><div class="mono strong">{{ b.MaTK }}</div><div class="subtle xs mono">{{ b.TenDangNhap }}</div></td>
+                <td>{{ b.HoTen }}</td>
+                <td><span class="badge {{ b.TrangThai|status_badge_class }}"><span class="badge-dot"></span>{{ b.TrangThai }}</span></td>
+                <td class="{% if b.SoLanSai24h >= 3 %}text-danger strong{% endif %}">{{ b.SoLanSai24h }}</td>
+                <td>{{ b.SoLanThanhCong24h }}</td>
+                <td>{{ b.SoDiaChiIP24h }}</td>
+                <td class="subtle" style="font-size: 0.76rem;">{{ b.LanDangNhapCuoi or '—' }}</td>
+                <td><span class="badge {{ b.CanhBao|status_badge_class }}">{{ b.CanhBao }}</span></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty">{{ icon('shield', 20) }}<span>Chưa có dữ liệu đăng nhập.</span></div>
+    {% endif %}
+</section>
+{% endif %}
+
+{% endblock %}

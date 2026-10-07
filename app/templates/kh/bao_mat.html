@@ -1,0 +1,70 @@
+{% extends 'kh/base_kh.html' %}
+{% from '_icons.html' import icon %}
+{% from 'kh/_macros.html' import badge %}
+{% set title = 'Bảo mật' %}
+{% block content %}
+<div class="page-head">
+    <div class="ph-main">
+        <div class="eyebrow">{{ icon('shield', 13) }} Tài khoản {{ ho_so.TenDangNhap }}</div>
+        <h1 class="ph-title">Bảo mật tài khoản</h1>
+        <p class="ph-sub">Mật khẩu được băm SHA2-512 kèm salt ngẫu nhiên. Sai mật khẩu 5 lần trong 15 phút, tài khoản tự tạm khóa 15 phút.</p>
+    </div>
+</div>
+
+<div class="grid kh-ve-grid">
+    <section class="card stack">
+        <h2 class="card-title">{{ icon('key', 17) }}<span>Đổi mật khẩu</span></h2>
+        <form method="post" class="stack">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div>
+                <label class="field-label" for="mat_khau_cu">Mật khẩu hiện tại</label>
+                <input id="mat_khau_cu" name="mat_khau_cu" type="password" class="input" required autocomplete="current-password">
+            </div>
+            <div>
+                <label class="field-label" for="mat_khau_moi">Mật khẩu mới</label>
+                <div class="kh-password">
+                    <input id="mat_khau_moi" name="mat_khau_moi" type="password" class="input" required minlength="8" autocomplete="new-password" data-password-policy="chinh-sach">
+                    <button type="button" class="btn btn-ghost btn-xs" data-toggle-password="mat_khau_moi" aria-label="Hiện mật khẩu" aria-pressed="false">{{ icon('eye', 15) }}</button>
+                </div>
+            </div>
+            <div>
+                <label class="field-label" for="nhap_lai">Nhập lại mật khẩu mới</label>
+                <input id="nhap_lai" name="nhap_lai" type="password" class="input" required autocomplete="new-password">
+            </div>
+            <ul class="pw-policy" id="chinh-sach" aria-live="polite">
+                <li data-rule="len">Tối thiểu 8 ký tự</li>
+                <li data-rule="upper">Có chữ hoa</li>
+                <li data-rule="lower">Có chữ thường</li>
+                <li data-rule="digit">Có chữ số</li>
+                <li data-rule="special">Có ký tự đặc biệt</li>
+            </ul>
+            <button type="submit" class="btn btn-primary">{{ icon('check', 15) }}Đổi mật khẩu</button>
+        </form>
+    </section>
+
+    <section class="card">
+        <div class="card-head">
+            <h2 class="card-title">{{ icon('activity', 17) }}<span>10 lần đăng nhập gần nhất</span></h2>
+        </div>
+        {% if nhat_ky %}
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Thời điểm</th><th>Kết quả</th><th>Địa chỉ IP</th><th>Thiết bị</th></tr></thead>
+                <tbody>
+                {% for n in nhat_ky %}
+                <tr>
+                    <td class="nowrap">{{ n.ThoiGian.strftime('%H:%M:%S %d/%m/%Y') }}</td>
+                    <td>{{ badge(n.KetQua) }}</td>
+                    <td class="mono">{{ n.DiaChiIP or '—' }}</td>
+                    <td class="subtle sm truncate" style="max-width: 220px;" title="{{ n.ThietBi or '' }}">{{ n.ThietBi or '—' }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty">{{ icon('activity', 20) }}<span>Chưa có nhật ký đăng nhập.</span></div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

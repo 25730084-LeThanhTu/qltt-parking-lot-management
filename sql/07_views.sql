@@ -82,7 +82,7 @@ SELECT
 FROM dbo.BAI_DO_XE bd;
 GO
 
--- 5. View vw_Report_DoanhThuTheoBai: Báo cáo tài chính tổng hợp phân bổ theo bãi
+-- 5. vw_Report_DoanhThuTheoBai: thêm DoanhThuThangTaiQuay, DoanhThuThangOnline (online + tự động)
 CREATE OR ALTER VIEW dbo.vw_Report_DoanhThuTheoBai
 AS
 SELECT 
@@ -90,7 +90,10 @@ SELECT
     bd.TenBai,
     ISNULL(sub_luot.TienLuot, 0) AS DoanhThuLuot,
     ISNULL(sub_thang.TienThang, 0) AS DoanhThuThang,
-    (ISNULL(sub_luot.TienLuot, 0) + ISNULL(sub_thang.TienThang, 0)) AS TongDoanhThu
+    (ISNULL(sub_luot.TienLuot, 0) + ISNULL(sub_thang.TienThang, 0)) AS TongDoanhThu,
+    -- Tách doanh thu vé tháng theo kênh thanh toán
+    ISNULL(sub_thang.TienThangTaiQuay, 0) AS DoanhThuThangTaiQuay,
+    ISNULL(sub_thang.TienThangOnline, 0) AS DoanhThuThangOnline
 FROM dbo.BAI_DO_XE bd
 LEFT JOIN (
     SELECT MaBai, SUM(TienGui) AS TienLuot
@@ -98,7 +101,10 @@ LEFT JOIN (
     GROUP BY MaBai
 ) sub_luot ON bd.MaBai = sub_luot.MaBai
 LEFT JOIN (
-    SELECT MaBai, SUM(SoTien) AS TienThang
+    SELECT MaBai,
+           SUM(SoTien) AS TienThang,
+           SUM(CASE WHEN KenhThanhToan = N'Tại quầy' THEN SoTien ELSE 0 END) AS TienThangTaiQuay,
+           SUM(CASE WHEN KenhThanhToan IN (N'Online', N'Tự động') THEN SoTien ELSE 0 END) AS TienThangOnline
     FROM dbo.HOA_DON_VE_THANG
     GROUP BY MaBai
 ) sub_thang ON bd.MaBai = sub_thang.MaBai;
@@ -167,12 +173,7 @@ GO
 -- mở barrier (cho vào / cho ra), số tiền tạm tính và cảnh báo nghiệp vụ kèm theo.
 -- ====================================================================================
 
--- 9. View v_BotCong_TraCuuThe: Bảng tra cứu thẻ tại bốt cổng - quyết định mở barrier
---    Mỗi mã thẻ trả về đúng 1 dòng: tình trạng thẻ, hợp đồng vé tháng, lượt gửi đang mở,
---    chiều quét kế tiếp (Vào / Ra), cờ cho phép quét và lý do từ chối nếu bị chặn.
---    Các điều kiện chặn được đối chiếu đúng theo trigger trg_KiemTraCheckIn (lỗi 50001 / 50002)
---    và trg_ChanSuDungVeHetHan (lỗi 50003), bổ sung thêm 1 rào chặn nghiệp vụ chặt hơn:
---    thẻ loại 'Tháng' nhưng chưa gắn hợp đồng vé tháng nào cũng không được vào bãi.
+-- 9. v_BotCong_TraCuuThe: thêm CoTaiKhoanOnline, TuDongGiaHan; gợi ý tự gia hạn online khi vé sắp hết hạn
 CREATE OR ALTER VIEW dbo.v_BotCong_TraCuuThe
 AS
 WITH TheHienTai AS (
@@ -189,6 +190,9 @@ WITH TheHienTai AS (
         vt.NgayHetHan,
         vt.TrangThai AS TrangThaiVeThang,
         vt.MaBaiApDung,
+        vt.TuDongGiaHan,
+        -- Khách có tài khoản cổng khách hàng thì bảo vệ có thể hướng dẫn tự gia hạn online
+        CAST(CASE WHEN tkkh.MaTK IS NULL THEN 0 ELSE 1 END AS BIT) AS CoTaiKhoanOnline,
         -- Vé tháng có MaBaiApDung không trỏ tới một bãi cụ thể (ví dụ 'ALL') là vé dùng chung toàn chuỗi
         CAST(CASE WHEN vt.MaVe IS NOT NULL AND bva.MaBai IS NULL THEN 1 ELSE 0 END AS BIT) AS VeApDungToanChuoi,
         kh.HoTen AS HoTenKhachHang,
@@ -201,9 +205,10 @@ WITH TheHienTai AS (
         -- (chỉ khi trỏ tới một bãi cụ thể, nên vé toàn chuỗi 'ALL' sẽ rơi về bãi sở hữu thẻ)
         COALESCE(lg.MaBai, bva.MaBai, t.MaBai) AS MaBaiKiemSoat
     FROM dbo.THE_XE t
-    LEFT JOIN dbo.VE_THANG vt ON t.MaThe = vt.MaThe
+    OUTER APPLY dbo.f_VeHienHanhCuaThe(t.MaThe) vt   -- 1 dòng / thẻ kể cả thẻ đã cấp lại cho vé mới
     LEFT JOIN dbo.BAI_DO_XE bva ON vt.MaBaiApDung = bva.MaBai
     LEFT JOIN dbo.KHACH_HANG kh ON vt.MaKH = kh.MaKH
+    LEFT JOIN dbo.TAI_KHOAN_KH tkkh ON vt.MaKH = tkkh.MaKH
     OUTER APPLY (
         SELECT TOP 1 l.MaLuot, l.BienSo, l.MaViTri, l.ThoiGianVao, l.MaBai
         FROM dbo.LUOT_GUI l
@@ -272,13 +277,17 @@ SELECT
             THEN N'Xe đã đỗ quá 24 giờ - kiểm tra phương tiện bỏ quên'
         WHEN th.MaLuotDangMo IS NULL AND th.MaVe IS NOT NULL
              AND DATEDIFF(DAY, CAST(GETDATE() AS DATE), th.NgayHetHan) BETWEEN 0 AND 3
-            THEN N'Vé tháng sắp hết hạn - nhắc khách đóng phí gia hạn'
+            THEN CASE WHEN th.CoTaiKhoanOnline = 1
+                      THEN N'Vé tháng sắp hết hạn - khách có tài khoản online, hướng dẫn tự gia hạn trên cổng khách hàng'
+                      ELSE N'Vé tháng sắp hết hạn - nhắc khách đóng phí gia hạn' END
         ELSE NULL
-    END AS GhiChuCanhBao
+    END AS GhiChuCanhBao,
+    -- Cờ phục vụ thẻ "Hồ sơ thẻ quét" trên màn hình bốt cổng
+    th.CoTaiKhoanOnline,
+    CAST(ISNULL(th.TuDongGiaHan, 0) AS BIT) AS TuDongGiaHan
 FROM TheHienTai th
 LEFT JOIN dbo.BAI_DO_XE b ON th.MaBaiKiemSoat = b.MaBai;
 GO
-
 -- 10. View v_BotCong_XeChoRa: Màn hình check-out tại bốt cổng ra
 --     Liệt kê toàn bộ xe đang trong bãi kèm số phút đỗ, số block giờ tính phí và tiền tạm tính
 --     theo đúng công thức của f_TinhTienGuiXe (miễn phí 15 phút đầu, làm tròn lên block giờ)
@@ -516,7 +525,7 @@ OUTER APPLY (
     ORDER BY l.ThoiGianVao DESC, l.MaLuot DESC
 ) lg
 LEFT JOIN dbo.THE_XE t ON lg.MaThe = t.MaThe
-LEFT JOIN dbo.VE_THANG vt ON t.MaThe = vt.MaThe AND t.LoaiThe = N'Tháng'
+OUTER APPLY (SELECT h.* FROM dbo.f_VeHienHanhCuaThe(t.MaThe) h WHERE t.LoaiThe = N'Tháng') vt
 LEFT JOIN dbo.KHACH_HANG kh ON vt.MaKH = kh.MaKH;
 GO
 
@@ -781,13 +790,19 @@ SELECT
         AND DATEDIFF(DAY, CAST(GETDATE() AS DATE), NgayHetHan) BETWEEN 0 AND 7) AS SoVeThangSapHetHan7Ngay,
     (SELECT COUNT(*) FROM dbo.LICHSU_SU_CO
       WHERE CAST(ThoiGianSuCo AS DATE) = CAST(GETDATE() AS DATE)) AS SoSuCoHomNay;
-GO-- ====================================================================================
+GO
+
+-- ====================================================================================
+-- PHẦN CỔNG KHÁCH HÀNG
+-- ====================================================================================
+
+-- ====================================================================================
 -- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
--- NÂNG CẤP V7 - BƯỚC 16: VIEWS CỔNG KHÁCH HÀNG & BÁO CÁO THANH TOÁN (UPGRADE_PLAN.md MỤC 9)
+-- VIEWS CỔNG KHÁCH HÀNG & BÁO CÁO THANH TOÁN (UPGRADE_PLAN.md MỤC 9)
 -- PHẦN F: 6 views cổng khách hàng (vw_KH_*), lọc theo SESSION_CONTEXT do sp_KH_DangNhap đặt.
 --         Không có ngữ cảnh khách hàng (nhân viên, trang quản trị) thì các view này trả về rỗng.
 -- PHẦN G: 5 views báo cáo quản trị thanh toán / bảo mật tài khoản.
--- PHẦN H: Phiên bản V7 của vw_Report_DoanhThuTheoBai và v_BotCong_TraCuuThe (thêm cột ở cuối, giữ cột cũ).
+-- PHẦN H: Phiên bản mở rộng của vw_Report_DoanhThuTheoBai và v_BotCong_TraCuuThe (thêm cột ở cuối, giữ cột cũ).
 -- ====================================================================================
 
 -- ====================================================================================
@@ -1095,149 +1110,58 @@ GROUP BY YEAR(hd.NgayThanhToan), MONTH(hd.NgayThanhToan);
 GO
 
 -- ====================================================================================
--- PHẦN H: PHIÊN BẢN V7 CỦA VIEWS V6 (sinh từ 07_views.sql, chỉ thêm cột ở cuối)
+-- PHẦN H: Bản mở rộng của vw_Report_DoanhThuTheoBai và v_BotCong_TraCuuThe nằm ngay tại vị trí bản gốc
+-- ở đầu file (view phía sau phụ thuộc chúng).
+-- PHẦN I: VIEWS PHỤ TRỢ CỔNG KHÁCH HÀNG /kh (lọc theo SESSION_CONTEXT như PHẦN F)
 -- ====================================================================================
 
--- 5 (V7). vw_Report_DoanhThuTheoBai: thêm DoanhThuThangTaiQuay, DoanhThuThangOnline (online + tự động)
-CREATE OR ALTER VIEW dbo.vw_Report_DoanhThuTheoBai
+-- 12. vw_KH_NhatKyDangNhap: Nhật ký đăng nhập của tài khoản đang đăng nhập (màn hình Bảo mật)
+CREATE OR ALTER VIEW dbo.vw_KH_NhatKyDangNhap
 AS
-SELECT 
-    bd.MaBai,
-    bd.TenBai,
-    ISNULL(sub_luot.TienLuot, 0) AS DoanhThuLuot,
-    ISNULL(sub_thang.TienThang, 0) AS DoanhThuThang,
-    (ISNULL(sub_luot.TienLuot, 0) + ISNULL(sub_thang.TienThang, 0)) AS TongDoanhThu,
-    -- V7: tách doanh thu vé tháng theo kênh thanh toán
-    ISNULL(sub_thang.TienThangTaiQuay, 0) AS DoanhThuThangTaiQuay,
-    ISNULL(sub_thang.TienThangOnline, 0) AS DoanhThuThangOnline
-FROM dbo.BAI_DO_XE bd
-LEFT JOIN (
-    SELECT MaBai, SUM(TienGui) AS TienLuot
-    FROM dbo.LUOT_GUI
-    GROUP BY MaBai
-) sub_luot ON bd.MaBai = sub_luot.MaBai
-LEFT JOIN (
-    SELECT MaBai,
-           SUM(SoTien) AS TienThang,
-           SUM(CASE WHEN KenhThanhToan = N'Tại quầy' THEN SoTien ELSE 0 END) AS TienThangTaiQuay,
-           SUM(CASE WHEN KenhThanhToan IN (N'Online', N'Tự động') THEN SoTien ELSE 0 END) AS TienThangOnline
-    FROM dbo.HOA_DON_VE_THANG
-    GROUP BY MaBai
-) sub_thang ON bd.MaBai = sub_thang.MaBai;
+SELECT n.MaNK, n.ThoiGian, n.KetQua, n.DiaChiIP, n.ThietBi
+FROM dbo.NHAT_KY_DANG_NHAP n
+WHERE n.MaTK = CAST(SESSION_CONTEXT(N'MaTK') AS VARCHAR(12));
 GO
 
--- 9 (V7). v_BotCong_TraCuuThe: thêm CoTaiKhoanOnline, TuDongGiaHan; gợi ý tự gia hạn online khi vé sắp hết hạn
-CREATE OR ALTER VIEW dbo.v_BotCong_TraCuuThe
+-- 13. vw_KH_PhuongThucNapVi: Phương thức khách được chọn khi nạp ví online (không gồm tiền mặt tại quầy)
+CREATE OR ALTER VIEW dbo.vw_KH_PhuongThucNapVi
 AS
-WITH TheHienTai AS (
-    SELECT
-        t.MaThe,
-        t.LoaiThe,
-        t.TrangThai AS TrangThaiThe,
-        t.NgayCap,
-        t.MaBai AS MaBaiSoHuuThe,
-        vt.MaVe,
-        vt.MaKH,
-        vt.BienSo AS BienSoDangKy,
-        vt.MaLoaiXe AS MaLoaiXeDangKy,
-        vt.NgayHetHan,
-        vt.TrangThai AS TrangThaiVeThang,
-        vt.MaBaiApDung,
-        vt.TuDongGiaHan,
-        -- V7: khách có tài khoản cổng khách hàng thì bảo vệ có thể hướng dẫn tự gia hạn online
-        CAST(CASE WHEN tkkh.MaTK IS NULL THEN 0 ELSE 1 END AS BIT) AS CoTaiKhoanOnline,
-        -- Vé tháng có MaBaiApDung không trỏ tới một bãi cụ thể (ví dụ 'ALL') là vé dùng chung toàn chuỗi
-        CAST(CASE WHEN vt.MaVe IS NOT NULL AND bva.MaBai IS NULL THEN 1 ELSE 0 END AS BIT) AS VeApDungToanChuoi,
-        kh.HoTen AS HoTenKhachHang,
-        kh.SDT AS SDTKhachHang,
-        lg.MaLuot AS MaLuotDangMo,
-        lg.BienSo AS BienSoDangGui,
-        lg.MaViTri AS MaViTriDangDo,
-        lg.ThoiGianVao,
-        -- Bãi kiểm soát lượt quét kế tiếp: ưu tiên bãi xe đang đỗ, kế đến bãi áp dụng vé tháng
-        -- (chỉ khi trỏ tới một bãi cụ thể, nên vé toàn chuỗi 'ALL' sẽ rơi về bãi sở hữu thẻ)
-        COALESCE(lg.MaBai, bva.MaBai, t.MaBai) AS MaBaiKiemSoat
-    FROM dbo.THE_XE t
-    LEFT JOIN dbo.VE_THANG vt ON t.MaThe = vt.MaThe
-    LEFT JOIN dbo.BAI_DO_XE bva ON vt.MaBaiApDung = bva.MaBai
-    LEFT JOIN dbo.KHACH_HANG kh ON vt.MaKH = kh.MaKH
-    LEFT JOIN dbo.TAI_KHOAN_KH tkkh ON vt.MaKH = tkkh.MaKH
-    OUTER APPLY (
-        SELECT TOP 1 l.MaLuot, l.BienSo, l.MaViTri, l.ThoiGianVao, l.MaBai
-        FROM dbo.LUOT_GUI l
-        WHERE l.MaThe = t.MaThe AND l.ThoiGianRa IS NULL
-        ORDER BY l.ThoiGianVao DESC, l.MaLuot DESC
-    ) lg
-)
+SELECT MaPTTT, TenPTTT, LoaiKenh, PhiPhanTram, SoTienToiThieu, TrangThai
+FROM dbo.PHUONG_THUC_THANH_TOAN
+WHERE ChoPhepNapVi = 1 AND LoaiKenh <> N'Tiền mặt';
+GO
+
+-- 14. vw_KH_HanMucNap: Hạn mức nạp trong ngày còn lại của ví (tính cả lệnh nạp đang chờ cổng thanh toán)
+CREATE OR ALTER VIEW dbo.vw_KH_HanMucNap
+AS
 SELECT
-    th.MaThe,
-    th.LoaiThe,
-    th.TrangThaiThe,
-    th.NgayCap,
-    th.MaBaiSoHuuThe,
-    th.MaBaiKiemSoat,
-    b.TenBai AS TenBaiKiemSoat,
-    b.SucChua,
-    b.SoLuongHienTai,
-    (b.SucChua - b.SoLuongHienTai) AS SoChoTrong,
-    -- Hồ sơ vé tháng gắn với thẻ (NULL nếu là thẻ lượt vãng lai)
-    th.MaVe,
-    th.MaKH,
-    th.HoTenKhachHang,
-    th.SDTKhachHang,
-    th.BienSoDangKy,
-    th.MaLoaiXeDangKy,
-    th.NgayHetHan,
-    th.TrangThaiVeThang,
-    th.MaBaiApDung,
-    th.VeApDungToanChuoi,
-    CASE WHEN th.MaVe IS NULL THEN NULL
-         ELSE DATEDIFF(DAY, CAST(GETDATE() AS DATE), th.NgayHetHan) END AS SoNgayConLaiVe,
-    -- Lượt gửi đang mở (xe còn trong bãi, chưa check-out)
-    th.MaLuotDangMo,
-    th.BienSoDangGui,
-    th.MaViTriDangDo,
-    th.ThoiGianVao,
-    CAST(CASE WHEN th.MaLuotDangMo IS NULL THEN 0 ELSE 1 END AS BIT) AS DangTrongBai,
-    CASE WHEN th.MaLuotDangMo IS NULL THEN NULL
-         ELSE DATEDIFF(MINUTE, th.ThoiGianVao, GETDATE()) END AS SoPhutDaDo,
-    -- Quyết định vận hành barrier tại bốt cổng
-    CASE WHEN th.MaLuotDangMo IS NULL THEN N'Vào' ELSE N'Ra' END AS ChieuQuetKeTiep,
-    CAST(CASE
-        WHEN th.MaLuotDangMo IS NOT NULL THEN 1
-        WHEN th.TrangThaiThe <> N'Hoạt động' THEN 0
-        WHEN th.LoaiThe = N'Tháng' AND th.MaVe IS NULL THEN 0
-        WHEN th.LoaiThe = N'Tháng' AND (th.TrangThaiVeThang <> N'Hoạt động' OR th.NgayHetHan < CAST(GETDATE() AS DATE)) THEN 0
-        WHEN b.SoLuongHienTai >= b.SucChua THEN 0
-        ELSE 1
-    END AS BIT) AS ChoPhepQuet,
-    CASE
-        WHEN th.MaLuotDangMo IS NOT NULL THEN NULL
-        WHEN th.TrangThaiThe = N'Mất' THEN N'Thẻ đã được báo mất - trigger trg_KiemTraCheckIn sẽ chặn check-in (lỗi 50002)'
-        WHEN th.TrangThaiThe = N'Bị khóa' THEN N'Thẻ đang bị khóa - trigger trg_KiemTraCheckIn sẽ chặn check-in (lỗi 50002)'
-        WHEN th.LoaiThe = N'Tháng' AND th.MaVe IS NULL THEN N'Thẻ tháng chưa gắn hợp đồng vé tháng nào - yêu cầu về quầy đăng ký'
-        WHEN th.LoaiThe = N'Tháng' AND th.NgayHetHan < CAST(GETDATE() AS DATE) THEN N'Vé tháng đã hết hạn - trigger trg_ChanSuDungVeHetHan sẽ chặn check-in (lỗi 50003)'
-        WHEN th.LoaiThe = N'Tháng' AND th.TrangThaiVeThang <> N'Hoạt động' THEN N'Vé tháng đang ở trạng thái ' + th.TrangThaiVeThang + N' - yêu cầu về quầy xử lý'
-        WHEN b.SoLuongHienTai >= b.SucChua THEN N'Bãi đã đầy công suất - trigger trg_KiemTraCheckIn sẽ chặn check-in (lỗi 50001)'
-        ELSE NULL
-    END AS LyDoTuChoi,
-    CASE
-        WHEN th.MaLuotDangMo IS NOT NULL AND th.TrangThaiThe <> N'Hoạt động'
-            THEN N'Thẻ không còn hiệu lực nhưng xe vẫn trong bãi - xác minh giấy tờ và lập biên bản sự cố trước khi cho ra'
-        WHEN th.MaLuotDangMo IS NOT NULL AND th.LoaiThe = N'Tháng' AND th.NgayHetHan < CAST(GETDATE() AS DATE)
-            THEN N'Vé tháng hết hạn trong lúc xe đang đỗ - nhắc khách gia hạn ngay khi ra cổng'
-        WHEN th.MaLuotDangMo IS NOT NULL AND DATEDIFF(HOUR, th.ThoiGianVao, GETDATE()) >= 24
-            THEN N'Xe đã đỗ quá 24 giờ - kiểm tra phương tiện bỏ quên'
-        WHEN th.MaLuotDangMo IS NULL AND th.MaVe IS NOT NULL
-             AND DATEDIFF(DAY, CAST(GETDATE() AS DATE), th.NgayHetHan) BETWEEN 0 AND 3
-            THEN CASE WHEN th.CoTaiKhoanOnline = 1
-                      THEN N'Vé tháng sắp hết hạn - khách có tài khoản online, hướng dẫn tự gia hạn trên cổng khách hàng'
-                      ELSE N'Vé tháng sắp hết hạn - nhắc khách đóng phí gia hạn' END
-        ELSE NULL
-    END AS GhiChuCanhBao,
-    -- V7: cờ phục vụ thẻ "Hồ sơ thẻ quét" trên màn hình bốt cổng
-    th.CoTaiKhoanOnline,
-    CAST(ISNULL(th.TuDongGiaHan, 0) AS BIT) AS TuDongGiaHan
-FROM TheHienTai th
-LEFT JOIN dbo.BAI_DO_XE b ON th.MaBaiKiemSoat = b.MaBai;
+    vi.MaVi,
+    vi.HanMucNapNgay,
+    dbo.f_KH_TongNapTrongNgay(vi.MaVi) AS DaNapHomNay,
+    vi.HanMucNapNgay - dbo.f_KH_TongNapTrongNgay(vi.MaVi) AS HanMucConLai
+FROM dbo.VI_DIEN_TU vi
+WHERE vi.MaKH = CAST(SESSION_CONTEXT(N'MaKH') AS VARCHAR(10));
+GO
+
+-- 15. vw_KH_QuyenTrenVe: Quyền nghiệp vụ của tôi trên từng vé (để ẩn nút không có quyền; server vẫn kiểm tra lại)
+CREATE OR ALTER VIEW dbo.vw_KH_QuyenTrenVe
+AS
+SELECT v.MaVe, q.MaQuyen
+FROM dbo.vw_KH_VeThangCuaToi v
+INNER JOIN dbo.VAI_TRO_QUYEN q ON q.MaVaiTro = v.MaVaiTroCuaToi;
+GO
+
+-- 16. vw_KH_VaiTroUyQuyen: Vai trò được phép chia sẻ kèm danh sách quyền (form chia sẻ vé)
+CREATE OR ALTER VIEW dbo.vw_KH_VaiTroUyQuyen
+AS
+SELECT
+    vt.MaVaiTro,
+    vt.TenVaiTro,
+    vt.MoTa,
+    STRING_AGG(qk.MoTa, N'; ') AS DanhSachQuyen
+FROM dbo.VAI_TRO_KH vt
+INNER JOIN dbo.VAI_TRO_QUYEN vq ON vq.MaVaiTro = vt.MaVaiTro
+INNER JOIN dbo.QUYEN_KH qk ON qk.MaQuyen = vq.MaQuyen
+WHERE vt.MaVaiTro <> 'CHU_SO_HUU'
+GROUP BY vt.MaVaiTro, vt.TenVaiTro, vt.MoTa;
 GO

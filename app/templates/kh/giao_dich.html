@@ -1,0 +1,77 @@
+{% extends 'kh/base_kh.html' %}
+{% from '_icons.html' import icon %}
+{% from 'kh/_macros.html' import badge %}
+{% set title = 'Lịch sử giao dịch' %}
+{% block content %}
+<div class="page-head">
+    <div class="ph-main">
+        <div class="eyebrow">{{ icon('receipt', 13) }} Ví {{ ho_so.MaVi or '' }}</div>
+        <h1 class="ph-title">Sao kê ví</h1>
+        <p class="ph-sub">Mọi biến động số dư đều là một dòng trong sổ cái, không sửa và không xóa. Cột số dư lũy kế tính bằng window function (<code>f_KH_SaoKeVi</code>).</p>
+    </div>
+</div>
+
+<form method="get" class="card kh-filter">
+    <div>
+        <label class="field-label" for="loai">Loại giao dịch</label>
+        <select id="loai" name="loai" class="input">
+            <option value="">Tất cả</option>
+            {% for l in loai_gd %}<option {% if loc.loai == l %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select>
+    </div>
+    <div>
+        <label class="field-label" for="trang_thai">Trạng thái</label>
+        <select id="trang_thai" name="trang_thai" class="input">
+            <option value="">Tất cả</option>
+            {% for t in trang_thai %}<option {% if loc.trang_thai == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+        </select>
+    </div>
+    <div>
+        <label class="field-label" for="tu">Từ ngày</label>
+        <input id="tu" name="tu" type="date" class="input" value="{{ loc.tu }}">
+    </div>
+    <div>
+        <label class="field-label" for="den">Đến ngày</label>
+        <input id="den" name="den" type="date" class="input" value="{{ loc.den }}">
+    </div>
+    <div class="row kh-filter-actions">
+        <button type="submit" class="btn btn-primary">{{ icon('filter', 15) }}Lọc</button>
+        <a href="{{ url_for('kh.giao_dich') }}" class="btn btn-ghost">Xóa lọc</a>
+    </div>
+</form>
+
+<section class="card">
+    <div class="card-head">
+        <h2 class="card-title">{{ icon('list', 17) }}<span>Giao dịch</span></h2>
+        <span class="badge badge-secondary">{{ giao_dich|length }} giao dịch</span>
+    </div>
+    {% if giao_dich %}
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead><tr><th>Thời điểm</th><th>Mã GD</th><th>Loại</th><th style="text-align: right;">Số tiền</th><th>Phương thức</th><th>Trạng thái</th><th style="text-align: right;">Số dư lũy kế</th><th>Ghi chú</th></tr></thead>
+            <tbody>
+            {% for g in giao_dich %}
+            <tr>
+                <td class="nowrap">{{ g.ThoiGianTao.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td class="mono">{{ g.MaGD }}</td>
+                <td>{{ g.LoaiGD }}{% if g.MaVe %} <span class="subtle xs mono">{{ g.MaVe }}</span>{% endif %}</td>
+                <td class="{{ 'SoTienCoDau'|cell_class(g.SoTienCoDau) }}">{{ g.SoTienCoDau|format_cell('SoTienCoDau') }}</td>
+                <td>{{ g.PhuongThucThanhToan }}</td>
+                <td>
+                    {{ badge(g.TrangThai) }}
+                    {% if g.TrangThai == 'Chờ xử lý' and g.LoaiGD == 'Nạp tiền' %}
+                    <a href="{{ url_for('kh.cong_thanh_toan', ma_gd=g.MaGD) }}" class="xs">Tiếp tục thanh toán</a>
+                    {% endif %}
+                </td>
+                <td class="money-cell">{{ g.SoDuLuyKe|vnd }}</td>
+                <td class="subtle sm">{{ g.GhiChu or '' }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty">{{ icon('receipt', 20) }}<span>Chưa có giao dịch nào{% if loc.values()|select|list %} khớp bộ lọc{% endif %}.</span></div>
+    {% endif %}
+</section>
+{% endblock %}

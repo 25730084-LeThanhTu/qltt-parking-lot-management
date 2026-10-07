@@ -32,8 +32,25 @@
         'title': 'Nhật Ký Vi Phạm & Sự Cố Hệ Thống',
         'desc': 'Báo cáo trích xuất từ bảng ghi sự cố tự động (Trigger): quẹt thẻ lỗi, mất thẻ, biển số không khớp.',
         'category': 'An Ninh & Audit'
-    }
+    },
+    'vw_Report_DoanhThuTheoNgay': {'icon': 'chart', 'tone': 'tone-green', 'title': 'Doanh Thu Theo Ngày', 'desc': 'Doanh thu vé lượt và vé tháng theo từng ngày, từng bãi.', 'category': 'Tài Chính'},
+    'vw_Report_DoanhThuTheoThang': {'icon': 'chart', 'tone': 'tone-green', 'title': 'Doanh Thu Theo Tháng', 'desc': 'Doanh thu vé lượt và vé tháng theo từng tháng, từng bãi.', 'category': 'Tài Chính'},
+    'vw_Report_LuuLuongTheoGio': {'icon': 'clock', 'tone': 'tone-blue', 'title': 'Lưu Lượng Theo Khung Giờ', 'desc': 'Số lượt xe vào theo giờ trong ngày để tìm giờ cao điểm.', 'category': 'Vận Hành'},
+    'vw_Report_ThongKeTheoLoaiXe': {'icon': 'car', 'tone': 'tone-cyan', 'title': 'Cơ Cấu Theo Loại Xe', 'desc': 'Số lượt, doanh thu và thời gian gửi trung bình theo loại phương tiện.', 'category': 'Vận Hành'},
+    'vw_Report_XepHangBai': {'icon': 'trending', 'tone': 'tone-amber', 'title': 'Xếp Hạng Các Bãi', 'desc': 'Xếp hạng bãi theo tổng doanh thu kèm tỷ lệ lấp đầy hiện tại.', 'category': 'Tài Chính'},
+    'vw_Report_TongQuanChuoi': {'icon': 'layers', 'tone': 'tone-blue', 'title': 'Tổng Quan Toàn Chuỗi', 'desc': 'Một dòng tổng hợp: sức chứa, xe đang gửi, doanh thu hôm nay / tháng này, vé sắp hết hạn.', 'category': 'Vận Hành'},
+    'vw_Report_DoanhThuTheoPhuongThuc': {'icon': 'card', 'tone': 'tone-violet', 'title': 'Doanh Thu Theo Phương Thức Thanh Toán', 'desc': 'Doanh thu vé tháng theo PTTT và kênh (tại quầy / online / tự động), tiền nạp ví và phí cổng thanh toán.', 'category': 'Thanh Toán'},
+    'vw_Report_TongQuanViDienTu': {'icon': 'wallet', 'tone': 'tone-violet', 'title': 'Tổng Quan Ví Điện Tử', 'desc': 'Tổng số dư khách đang giữ (nợ phải trả), nạp / chi trong tháng, giao dịch chờ, tài khoản bị khóa.', 'category': 'Thanh Toán'},
+    'vw_Report_GiaoDichCanXuLy': {'icon': 'hourglass', 'tone': 'tone-amber', 'title': 'Giao Dịch Cần Xử Lý', 'desc': 'Hàng đợi nhân viên: giao dịch nạp tiền treo quá 30 phút và giao dịch thất bại 7 ngày gần nhất.', 'category': 'Thanh Toán'},
+    'vw_Report_BaoMatTaiKhoanKH': {'icon': 'shield', 'tone': 'tone-red', 'title': 'Bảo Mật Tài Khoản Khách Hàng', 'desc': 'Tài khoản bị khóa, số lần đăng nhập sai và số địa chỉ IP trong 24 giờ.', 'category': 'An Ninh & Audit'},
+    'vw_Report_TyLeChuyenDoiOnline': {'icon': 'trending', 'tone': 'tone-cyan', 'title': 'Tỷ Lệ Gia Hạn Online', 'desc': 'Tỷ lệ hóa đơn online / tự động so với tại quầy theo tháng và tỷ lệ khách có tài khoản.', 'category': 'Thanh Toán'}
 } %}
+{% set report_groups = [
+    ('Vận hành & công suất', 'activity', ['Vận Hành', 'Giám Sát IoT']),
+    ('Doanh thu & tài chính', 'wallet', ['Tài Chính']),
+    ('Thanh toán & ví điện tử', 'card', ['Thanh Toán']),
+    ('An ninh & chăm sóc khách hàng', 'shield', ['An Ninh & Audit', 'Chăm Sóc KH'])
+] %}
 {% set op_icons = {
     'v_BotCong_TraCuuThe': 'card',
     'v_BotCong_XeChoRa': 'receipt',
@@ -54,23 +71,31 @@
         </p>
     </div>
     <div class="ph-actions">
+        <div class="lot-dir-tools">
+            <div class="input-group">
+                {{ icon('search', 15) }}
+                <input type="search" class="input" placeholder="Tìm báo cáo theo tên, mô tả…" aria-label="Tìm báo cáo" data-lot-dir-search="dsBaoCao" autocomplete="off">
+            </div>
+        </div>
         <a href="{{ url_for('main.parking_map') }}" class="btn btn-outline">{{ icon('grid', 15) }}<span>Sơ đồ bãi xe</span></a>
         <a href="{{ url_for('main.gate_booth') }}" class="btn btn-outline">{{ icon('barrier', 15) }}<span>Bốt cổng</span></a>
     </div>
 </div>
 
-<!-- NHÓM 1: VIEWS BÁO CÁO BI -->
-<div class="section-head">
-    <div>
-        <h2 class="section-title">{{ icon('chart', 17) }}Views báo cáo quản trị</h2>
-        <div class="section-sub">Dữ liệu tổng hợp phục vụ ban giám đốc và Power BI / Tableau</div>
-    </div>
-</div>
-
+<div id="dsBaoCao">
+<!-- NHÓM 1: VIEWS BÁO CÁO BI (chia theo chủ đề) -->
+{% for group_name, group_icon, group_categories in report_groups %}
+{% set group_items = [] %}
+{% for item in report_items %}
+    {% if view_meta.get(item.view_name, {}).get('category', 'Thống Kê') in group_categories %}{% set _ = group_items.append(item) %}{% endif %}
+{% endfor %}
+{% if group_items %}
+<section class="catalog-group">
+<div class="catalog-group-title">{{ icon(group_icon, 14) }}<span>{{ group_name }}</span><span class="badge badge-secondary">{{ group_items|length }}</span></div>
 <div class="grid grid-auto">
-    {% for item in report_items %}
+    {% for item in group_items %}
     {% set meta = view_meta.get(item.view_name, {'icon': 'chart', 'tone': 'tone-blue', 'title': item.view_name, 'desc': 'Báo cáo thống kê trích xuất từ SQL View.', 'category': 'Thống Kê'}) %}
-    <a href="{{ url_for('main.report_detail', view_name=item.view_name) }}" class="card card-link cat-card">
+    <a href="{{ url_for('main.report_detail', view_name=item.view_name) }}" class="card card-link cat-card catalog-card" data-lot-text="{{ item.view_name }} {{ meta.title }} {{ meta.desc }} {{ meta.category }}">
         <div class="cat-card-top">
             <span class="tile-ico {{ meta.tone }}">{{ icon(meta.icon, 18) }}</span>
             <div class="grow">
@@ -91,8 +116,12 @@
     </a>
     {% endfor %}
 </div>
+</section>
+{% endif %}
+{% endfor %}
 
 <!-- NHÓM 2: VIEWS VẬN HÀNH REALTIME -->
+<section class="catalog-group">
 <div class="section-head mt-12">
     <div>
         <h2 class="section-title">{{ icon('activity', 17) }}{{ operation_view_items|length }} views vận hành bốt cổng &amp; sơ đồ bãi</h2>
@@ -106,7 +135,7 @@
 
 <div class="grid grid-auto">
     {% for item in operation_view_items %}
-    <a href="{{ url_for('main.report_detail', view_name=item.view_name) }}" class="card card-link cat-card">
+    <a href="{{ url_for('main.report_detail', view_name=item.view_name) }}" class="card card-link cat-card catalog-card" data-lot-text="{{ item.view_name }} {{ item.title }} {{ item.desc }} {{ item.category }}">
         <div class="cat-card-top">
             <span class="tile-ico tone-amber">{{ icon(op_icons.get(item.view_name, 'activity'), 18) }}</span>
             <div class="grow">
@@ -122,4 +151,7 @@
     </a>
     {% endfor %}
 </div>
+</section>
+</div>
+<div class="empty" data-lot-dir-empty="dsBaoCao" hidden>{{ icon('search', 20) }}<span>Không tìm thấy báo cáo phù hợp.</span></div>
 {% endblock %}

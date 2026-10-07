@@ -1,12 +1,5 @@
 -- ====================================================================================
 -- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
--- TRIGGERS V6 + V7 MERGED (2026-10-06)
--- V6: 4 triggers (check-in, check-out, slot status, log history)
--- V7: 8 triggers (sổ cái ví, ủy quyền, tài khoản, vé, thông báo) + edits
--- ====================================================================================
-
--- ====================================================================================
--- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
 -- BƯỚC 4: DATABASE TRIGGERS (8 TRIGGERS NGHIỆP VỤ TỰ ĐỘNG)
 -- ====================================================================================
 
@@ -102,7 +95,7 @@ BEGIN
         SELECT 1
         FROM inserted i
         INNER JOIN dbo.THE_XE tx ON i.MaThe = tx.MaThe
-        INNER JOIN dbo.VE_THANG vt ON tx.MaThe = vt.MaThe
+        CROSS APPLY dbo.f_VeHienHanhCuaThe(tx.MaThe) vt   -- chỉ vé hiện hành, bỏ qua vé cũ của thẻ đã cấp lại
         WHERE tx.LoaiThe = N'Tháng'
           AND (vt.NgayHetHan < CAST(GETDATE() AS DATE) OR vt.TrangThai = N'Hết hạn')
     )
@@ -199,7 +192,7 @@ BEGIN
         i.MaBai
     FROM inserted i
     INNER JOIN deleted d ON i.MaThe = d.MaThe
-    LEFT JOIN dbo.VE_THANG vt ON i.MaThe = vt.MaThe
+    OUTER APPLY dbo.f_VeHienHanhCuaThe(i.MaThe) vt   -- 1 biên bản / thẻ dù thẻ từng gắn nhiều vé
     WHERE i.TrangThai = N'Mất' AND d.TrangThai <> N'Mất';
 END;
 GO
@@ -295,7 +288,7 @@ BEGIN
         SELECT 1
         FROM inserted i
         INNER JOIN dbo.THE_XE tx ON i.MaThe = tx.MaThe
-        INNER JOIN dbo.VE_THANG vt ON tx.MaThe = vt.MaThe
+        CROSS APPLY dbo.f_VeHienHanhCuaThe(tx.MaThe) vt
         WHERE tx.LoaiThe = N'Tháng'
           AND vt.MaBaiApDung <> 'ALL'
           AND vt.MaBaiApDung <> i.MaBai
@@ -307,8 +300,18 @@ BEGIN
     END;
 END;
 GO
--- ==================== V7 TRIGGERS ADDITIONS ====================
 
+-- ====================================================================================
+-- PHẦN CỔNG KHÁCH HÀNG
+-- ====================================================================================
+
+-- ====================================================================================
+-- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
+-- TRIGGERS CỔNG KHÁCH HÀNG (UPGRADE_PLAN.md MỤC 7)
+-- 8 triggers: sổ cái ví (cập nhật số dư, chặn xóa, chặn sửa), chặn sửa số dư trực tiếp, khóa tài khoản,
+-- kiểm tra ủy quyền, thông báo hóa đơn, thu hồi ủy quyền khi vé đổi chủ.
+-- Không thêm trigger trên LUOT_GUI (đã có 4 trigger AFTER INSERT); LUOT_GUI.MaVe do sp_XeVaoBai ghi.
+-- ====================================================================================
 
 -- 1. trg_GiaoDich_CapNhatSoDu: Nguồn sự thật duy nhất cập nhật số dư ví (D4).
 -- Khi giao dịch chuyển sang 'Thành công' (INSERT trực tiếp hoặc UPDATE từ 'Chờ xử lý'): cộng / trừ ví,
@@ -383,13 +386,6 @@ BEGIN
     SET v.SoDu = v.SoDu + t.TongBienDong
     FROM dbo.VI_DIEN_TU v
     INNER JOIN @Vi t ON t.MaVi = v.MaVi;
-
-    -- Safeguard cuối: Kiểm tra lại SoDu >= 0 sau UPDATE (phòng trường hợp bypass)
-    IF EXISTS (SELECT 1 FROM dbo.VI_DIEN_TU WHERE MaVi IN (SELECT MaVi FROM @Vi) AND SoDu < 0)
-    BEGIN
-        ROLLBACK TRANSACTION;
-        THROW 50031, N'Lỗi: Số dư ví không thể âm. Giao dịch bị từ chối!', 1;
-    END;
 
     -- Ghi số dư trước / sau lần đầu (trg_GiaoDich_BatBien cho phép đổi từ NULL sang giá trị)
     UPDATE g
@@ -597,7 +593,8 @@ BEGIN
     IF EXISTS (
         SELECT 1
         FROM (SELECT DISTINCT MaVe FROM inserted WHERE TrangThai = N'Hiệu lực') x
-        WHERE (SELECT COUNT(*) FROM dbo.UY_QUYEN_VE u WHERE u.MaVe = x.MaVe AND u.TrangThai = N'Hiệu lực') > 3
+        WHERE (SELECT COUNT(*) FROM dbo.UY_QUYEN_VE u WHERE u.MaVe = x.MaVe AND u.TrangThai = N'Hiệu lực'
+                 AND (u.NgayKetThuc IS NULL OR u.NgayKetThuc >= CAST(GETDATE() AS DATE))) > 3
     )
     BEGIN
         ROLLBACK TRANSACTION;
@@ -631,34 +628,6 @@ BEGIN
     FROM inserted i
     INNER JOIN dbo.VE_THANG v ON v.MaVe = i.MaVe
     INNER JOIN dbo.PHUONG_THUC_THANH_TOAN p ON p.MaPTTT = i.MaPTTT;
-END;
-GO
-
--- 7.5. trg_VeThang_CapNhatTrangThai: Tự động cập nhật trạng thái vé dựa trên NgayHetHan (State Machine)
--- Khi NgayHetHan được cập nhật, trigger kiểm tra:
--- - Nếu NgayHetHan >= hôm nay -> TrangThai = 'Hoạt động'
--- - Nếu NgayHetHan < hôm nay -> TrangThai = 'Hết hạn'
-CREATE OR ALTER TRIGGER dbo.trg_VeThang_CapNhatTrangThai
-ON dbo.VE_THANG
-AFTER INSERT, UPDATE
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    IF NOT UPDATE(NgayHetHan) AND @@NESTLEVEL > 1
-        RETURN;
-
-    UPDATE v
-    SET v.TrangThai = CASE
-        WHEN i.NgayHetHan >= CAST(GETDATE() AS DATE) THEN N'Hoạt động'
-        ELSE N'Hết hạn'
-    END
-    FROM dbo.VE_THANG v
-    INNER JOIN inserted i ON i.MaVe = v.MaVe
-    WHERE v.TrangThai <> CASE
-        WHEN i.NgayHetHan >= CAST(GETDATE() AS DATE) THEN N'Hoạt động'
-        ELSE N'Hết hạn'
-    END;
 END;
 GO
 

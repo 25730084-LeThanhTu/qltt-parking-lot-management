@@ -1,0 +1,45 @@
+{% extends 'kh/base_kh.html' %}
+{% from '_icons.html' import icon %}
+{% from 'kh/_macros.html' import parking_table %}
+{% set title = 'Lịch sử đỗ xe' %}
+{% block content %}
+<div class="page-head">
+    <div class="ph-main">
+        <div class="eyebrow">{{ icon('car', 13) }} Lịch sử</div>
+        <h1 class="ph-title">Lịch sử đỗ xe</h1>
+        <p class="ph-sub">Các lượt gửi bằng vé chính chủ và vé được chia sẻ cho bạn. Lượt đang đỗ được tô nổi bật.</p>
+    </div>
+</div>
+
+<form method="get" class="card kh-filter">
+    <div>
+        <label class="field-label" for="ma_ve">Vé</label>
+        <select id="ma_ve" name="ma_ve" class="input">
+            <option value="">Tất cả vé</option>
+            {% for v in ve %}<option value="{{ v.MaVe }}" {% if loc.ma_ve == v.MaVe %}selected{% endif %}>{{ v.MaVe }} • {{ v.BienSo }}</option>{% endfor %}
+        </select>
+    </div>
+    <div>
+        <label class="field-label" for="tu">Từ ngày</label>
+        <input id="tu" name="tu" type="date" class="input" value="{{ loc.tu }}">
+    </div>
+    <div>
+        <label class="field-label" for="den">Đến ngày</label>
+        <input id="den" name="den" type="date" class="input" value="{{ loc.den }}">
+    </div>
+    <div class="row kh-filter-actions">
+        <button type="submit" class="btn btn-primary">{{ icon('filter', 15) }}Lọc</button>
+        <a href="{{ url_for('kh.lich_su_do_xe') }}" class="btn btn-ghost">Xóa lọc</a>
+    </div>
+</form>
+
+<section class="card">
+    <div class="card-head">
+        <h2 class="card-title">{{ icon('list', 17) }}<span>Lượt gửi</span></h2>
+        <span class="badge badge-secondary">{{ luot_gui|length }} lượt • {{ (luot_gui|sum(attribute='SoPhutGui')) // 60 }} giờ</span>
+    </div>
+    {% if luot_gui %}{{ parking_table(luot_gui) }}{% else %}
+    <div class="empty">{{ icon('car', 20) }}<span>Không có lượt gửi nào trong khoảng đã chọn.</span></div>
+    {% endif %}
+</section>
+{% endblock %}

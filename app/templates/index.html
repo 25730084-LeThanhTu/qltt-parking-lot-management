@@ -2,9 +2,9 @@
 {% from '_icons.html' import icon %}
 {% block content %}
 
-{%- set group_icons = {'procedure': 'sliders', 'trigger': 'zap', 'function': 'sigma', 'cursor': 'repeat'} -%}
-{%- set group_names = {'procedure': 'Stored Procedures', 'trigger': 'Triggers', 'function': 'Functions', 'cursor': 'Cursors'} -%}
-{%- set group_badges = {'procedure': 'badge-primary', 'trigger': 'badge-danger', 'function': 'badge-warning', 'cursor': 'badge-violet'} -%}
+{%- set group_icons = {'procedure': 'sliders', 'trigger': 'zap', 'function': 'sigma', 'cursor': 'repeat', 'customer': 'wallet'} -%}
+{%- set group_names = {'procedure': 'Stored Procedures', 'trigger': 'Triggers', 'function': 'Functions', 'cursor': 'Cursors', 'customer': 'Cổng khách hàng'} -%}
+{%- set group_badges = {'procedure': 'badge-primary', 'trigger': 'badge-danger', 'function': 'badge-warning', 'cursor': 'badge-violet', 'customer': 'badge-info'} -%}
 {%- set ns = namespace(total=0) -%}
 {%- for group in demo_groups %}{% for key in group.case_keys %}{% if demo_cases.get(key) %}{% set ns.total = ns.total + 1 %}{% endif %}{% endfor %}{% endfor -%}
 
@@ -67,6 +67,22 @@
             <div class="kpi-value">{{ overview[0]['TongVeThangHoatDong'] }}<span class="kpi-unit">hiệu lực</span></div>
         </div>
     </div>
+    {% if vi_tong_quan %}
+    <a href="{{ url_for('main.khach_hang') }}" class="kpi card-link" title="Mở màn hình Khách hàng & Thanh toán">
+        <span class="tile-ico lg tone-violet">{{ icon('wallet', 20) }}</span>
+        <div>
+            <div class="kpi-label">Số dư ví khách đang giữ</div>
+            <div class="kpi-value" style="font-size: 1.3rem;">{{ vi_tong_quan['TongSoDuDangGiu']|format_cell('TongSoDuDangGiu') }}</div>
+        </div>
+    </a>
+    <a href="{{ url_for('main.report_detail', view_name='vw_Report_TyLeChuyenDoiOnline') }}" class="kpi card-link" title="Tỷ lệ gia hạn online theo tháng">
+        <span class="tile-ico lg tone-blue">{{ icon('trending', 20) }}</span>
+        <div>
+            <div class="kpi-label">Gia hạn online tháng này</div>
+            <div class="kpi-value" style="font-size: 1.3rem;">{{ vi_tong_quan['DoanhThuGiaHanOnlineThangNay']|format_cell('DoanhThuGiaHanOnlineThangNay') }}</div>
+        </div>
+    </a>
+    {% endif %}
 </section>
 {% endif %}
 

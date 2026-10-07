@@ -1,77 +1,7 @@
 -- ====================================================================================
 -- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
--- PROCEDURES V6 + V7 MERGED (2026-10-06)
--- V6: 6 procedures (lõi quầy: check-in, check-out, gia hạn, báo mất, đăng ký, đơn giá)
--- V7: 19 procedures (system core + 10 khách hàng + 3 nhân viên + thay thế v6 với edits)
--- ====================================================================================
-
--- ====================================================================================
--- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
 -- BƯỚC 5: STORED PROCEDURES (6 PROCEDURES NGHIỆP VỤ CỐT LÕI)
 -- ====================================================================================
-
--- 1. Procedure sp_XeVaoBai: Quản lý Check-In xe vào cổng bãi
-CREATE OR ALTER PROCEDURE dbo.sp_XeVaoBai
-(
-    @MaThe VARCHAR(10),
-    @BienSo VARCHAR(15),
-    @MaBai VARCHAR(10),
-    @MaLoaiXe VARCHAR(10) = NULL,
-    @MaViTri VARCHAR(20) = NULL OUTPUT,
-    @MaLuot INT = NULL OUTPUT
-)
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    -- Kiểm tra thẻ xe tồn tại
-    IF NOT EXISTS (SELECT 1 FROM dbo.THE_XE WHERE MaThe = @MaThe)
-    BEGIN
-        THROW 50007, N'Lỗi: Thẻ xe không tồn tại trên hệ thống!', 1;
-        RETURN;
-    END;
-
-    -- Nếu xe tháng, lấy tự động loại xe đã đăng ký
-    IF @MaLoaiXe IS NULL
-    BEGIN
-        SELECT @MaLoaiXe = vt.MaLoaiXe
-        FROM dbo.VE_THANG vt
-        WHERE vt.MaThe = @MaThe AND vt.TrangThai = N'Hoạt động';
-
-        -- Nếu không phải xe tháng, mặc định xe máy 'XM'
-        IF @MaLoaiXe IS NULL SET @MaLoaiXe = 'XM';
-    END;
-
-    -- Tìm ô đỗ trống khả dụng thông qua Function
-    DECLARE @SlotTrong VARCHAR(20) = dbo.f_TimSlotTrong(@MaBai, @MaLoaiXe);
-    IF @SlotTrong IS NULL
-    BEGIN
-        THROW 50010, N'Lỗi: Không còn ô đỗ trống phù hợp loại xe tại bãi này!', 1;
-        RETURN;
-    END;
-
-    -- Tạo lượt gửi xe mới (Trigger trg_KiemTraCheckIn và trg_DongBoTrangThaiSlot sẽ tự động can thiệp)
-    -- Ghi MaVe nếu là vé tháng (cho lịch sử đỗ xe)
-    DECLARE @MaVe VARCHAR(10) = NULL;
-    SELECT @MaVe = vt.MaVe
-    FROM dbo.VE_THANG vt
-    WHERE vt.MaThe = @MaThe AND vt.TrangThai = N'Hoạt động';
-
-    INSERT INTO dbo.LUOT_GUI (MaThe, BienSo, ThoiGianVao, ThoiGianRa, MaViTri, TienGui, MaBai, MaVe)
-    VALUES (@MaThe, @BienSo, GETDATE(), NULL, @SlotTrong, 0, @MaBai, @MaVe);
-
-    SET @MaLuot = SCOPE_IDENTITY();
-    SET @MaViTri = @SlotTrong;
-
-    SELECT 
-        @MaLuot AS MaLuot,
-        @MaThe AS MaThe,
-        @BienSo AS BienSo,
-        @MaBai AS MaBai,
-        @MaViTri AS ViTriDoDuocCap,
-        N'Check-In thành công' AS ThongBao;
-END;
-GO
 
 -- 2. Procedure sp_XeRaBai: Quản lý Check-Out xe ra cổng và tính phí
 CREATE OR ALTER PROCEDURE dbo.sp_XeRaBai
@@ -149,245 +79,6 @@ BEGIN
 END;
 GO
 
--- 3. Procedure sp_DangKyThanhVien: Đăng ký vé tháng an toàn trong TRANSACTION
-CREATE OR ALTER PROCEDURE dbo.sp_DangKyThanhVien
-(
-    @MaKH VARCHAR(10) = NULL, -- NULL: tìm khách theo CMND/CCCD, chưa có thì sinh mã KH#### tiếp theo
-    @HoTen NVARCHAR(100),
-    @SDT VARCHAR(15),
-    @CMND VARCHAR(12),
-    @MaThe VARCHAR(10),
-    @BienSo VARCHAR(15),
-    @MaLoaiXe VARCHAR(10),
-    @MaBaiApDung VARCHAR(10),
-    @SoThangDongTruoc INT = 1,
-    @Email VARCHAR(100) = NULL,
-    @MaBaiBan VARCHAR(10) = NULL -- Bãi bán vé / thu tiền (dùng cho vé toàn chuỗi 'ALL')
-)
-AS
-BEGIN
-    SET NOCOUNT ON;
-    SET @Email = NULLIF(LTRIM(RTRIM(@Email)), ''); -- Email rỗng lưu NULL (UQ_KhachHang_Email chỉ áp dụng khi có email)
-    BEGIN TRANSACTION;
-
-    BEGIN TRY
-        -- 1. Lưu thông tin khách hàng (nếu chưa có thì thêm, có rồi thì cập nhật)
-        IF @MaKH IS NULL
-            SELECT @MaKH = MaKH FROM dbo.KHACH_HANG WITH (UPDLOCK, HOLDLOCK) WHERE CMND_CCCD = @CMND;
-
-        IF @MaKH IS NULL
-            SELECT @MaKH = CONCAT('KH', RIGHT(CONCAT('0000', ISNULL(MAX(CAST(SUBSTRING(MaKH, 3, 8) AS INT)), 0) + 1), 4))
-            FROM dbo.KHACH_HANG WITH (UPDLOCK, HOLDLOCK)
-            WHERE MaKH LIKE 'KH[0-9][0-9][0-9][0-9]%' AND SUBSTRING(MaKH, 3, 8) NOT LIKE '%[^0-9]%';
-
-        IF NOT EXISTS (SELECT 1 FROM dbo.KHACH_HANG WHERE MaKH = @MaKH)
-        BEGIN
-            INSERT INTO dbo.KHACH_HANG (MaKH, HoTen, SDT, Email, CMND_CCCD)
-            VALUES (@MaKH, @HoTen, @SDT, @Email, @CMND);
-        END
-        ELSE
-        BEGIN
-            UPDATE dbo.KHACH_HANG
-            SET HoTen = @HoTen, SDT = @SDT, Email = @Email, CMND_CCCD = @CMND
-            WHERE MaKH = @MaKH;
-        END;
-
-        -- 2. Xác định bãi tính giá và đơn giá trước khi ghi vé
-        -- Vé gắn một bãi: tính giá và ghi doanh thu tại bãi đó.
-        -- Vé toàn chuỗi 'ALL': tính giá và ghi doanh thu tại bãi bán vé (@MaBaiBan), mặc định là bãi phát hành thẻ.
-        DECLARE @MaBaiTinhGia VARCHAR(10) = CASE
-            WHEN @MaBaiApDung = 'ALL' THEN COALESCE(@MaBaiBan, (SELECT MaBai FROM dbo.THE_XE WHERE MaThe = @MaThe))
-            ELSE @MaBaiApDung
-        END;
-
-        IF NOT EXISTS (SELECT 1 FROM dbo.BAI_DO_XE WHERE MaBai = @MaBaiTinhGia)
-        BEGIN
-            THROW 50008, N'Lỗi: Bãi bán vé / bãi tính giá vé tháng không hợp lệ!', 1;
-        END;
-
-        DECLARE @DonGiaThang DECIMAL(18,2);
-        SELECT @DonGiaThang = GiaVeThang
-        FROM dbo.LOAI_XE
-        WHERE MaLoaiXe = @MaLoaiXe AND MaBai = @MaBaiTinhGia;
-
-        IF @DonGiaThang IS NULL
-        BEGIN
-            THROW 50017, N'Lỗi: Loại xe chưa có biểu phí vé tháng tại bãi tính giá!', 1;
-        END;
-
-        -- 3. Chuyển đổi trạng thái thẻ sang Thẻ Tháng
-        UPDATE dbo.THE_XE
-        SET LoaiThe = N'Tháng', TrangThai = N'Hoạt động'
-        WHERE MaThe = @MaThe;
-
-        -- 4. Sinh mã vé tháng V#### tiếp theo và tính hạn dùng
-        DECLARE @MaVe VARCHAR(10);
-        SELECT @MaVe = CONCAT('V', RIGHT(CONCAT('0000', ISNULL(MAX(CAST(SUBSTRING(MaVe, 2, 9) AS INT)), 0) + 1), 4))
-        FROM dbo.VE_THANG WITH (UPDLOCK, HOLDLOCK)
-        WHERE MaVe LIKE 'V[0-9][0-9][0-9][0-9]%' AND SUBSTRING(MaVe, 2, 9) NOT LIKE '%[^0-9]%';
-
-        DECLARE @NgayHetHan DATE = DATEADD(MONTH, @SoThangDongTruoc, CAST(GETDATE() AS DATE));
-
-        INSERT INTO dbo.VE_THANG (MaVe, MaThe, MaKH, BienSo, MaLoaiXe, NgayDangKy, NgayHetHan, TrangThai, MaBaiApDung)
-        VALUES (@MaVe, @MaThe, @MaKH, @BienSo, @MaLoaiXe, CAST(GETDATE() AS DATE), @NgayHetHan, N'Hoạt động', @MaBaiApDung);
-
-        -- 5. Tính tiền và xuất hóa đơn, mã HD + yyyyMMdd + số thứ tự (tối thiểu 3 chữ số)
-        DECLARE @TongTien DECIMAL(18,2) = @DonGiaThang * @SoThangDongTruoc;
-        DECLARE @MaHD VARCHAR(15);
-        SELECT @MaHD = CONCAT('HD', FORMAT(GETDATE(), 'yyyyMMdd'),
-                              RIGHT(CONCAT('000', ISNULL(MAX(CAST(SUBSTRING(MaHD, 11, 5) AS INT)), 0) + 1), 3))
-        FROM dbo.HOA_DON_VE_THANG WITH (UPDLOCK, HOLDLOCK)
-        WHERE MaHD LIKE 'HD[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND SUBSTRING(MaHD, 3, 13) NOT LIKE '%[^0-9]%';
-
-        INSERT INTO dbo.HOA_DON_VE_THANG (MaHD, MaVe, NgayThanhToan, SoThangGiaHan, SoTien, MaBai)
-        VALUES (@MaHD, @MaVe, GETDATE(), @SoThangDongTruoc, @TongTien, @MaBaiTinhGia);
-
-        COMMIT TRANSACTION;
-
-        SELECT
-            @MaVe AS MaVe,
-            @MaKH AS MaKH,
-            @HoTen AS HoTenKhachHang,
-            @MaThe AS MaThe,
-            @BienSo AS BienSo,
-            @NgayHetHan AS NgayHetHan,
-            @MaHD AS MaHoaDon,
-            @TongTien AS TongTienThanhToan,
-            N'Đăng ký vé tháng thành công' AS TrangThai;
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH;
-END;
-GO
-
--- 4. Procedure sp_GiaHanTheThang: Gia hạn thời hạn sử dụng vé tháng và xuất biên lai
-CREATE OR ALTER PROCEDURE dbo.sp_GiaHanTheThang
-(
-    @MaVe VARCHAR(10),
-    @SoThangGiaHan INT = 1,
-    @MaBaiGiaHan VARCHAR(10) = NULL -- Bãi thu tiền: vé gắn bãi chỉ thu tại bãi áp dụng; vé 'ALL' mặc định là bãi phát hành thẻ
-)
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    -- Validation: Số tháng gia hạn phải từ 1 đến 12
-    IF @SoThangGiaHan < 1 OR @SoThangGiaHan > 12
-    BEGIN
-        THROW 50060, N'Lỗi: Số tháng gia hạn phải từ 1 đến 12 tháng!', 1;
-    END;
-
-    IF NOT EXISTS (SELECT 1 FROM dbo.VE_THANG WHERE MaVe = @MaVe)
-    BEGIN
-        THROW 50012, N'Lỗi: Không tìm thấy vé tháng cần gia hạn!', 1;
-        RETURN;
-    END;
-
-    BEGIN TRANSACTION;
-
-    BEGIN TRY
-        DECLARE @NgayHetHanCu DATE;
-        DECLARE @MaThe VARCHAR(10);
-        DECLARE @MaLoaiXe VARCHAR(10);
-        DECLARE @MaBaiApDung VARCHAR(10);
-        DECLARE @MaBaiThe VARCHAR(10);
-        DECLARE @TrangThaiThe NVARCHAR(20);
-
-        SELECT
-            @NgayHetHanCu = vt.NgayHetHan,
-            @MaThe = vt.MaThe,
-            @MaLoaiXe = vt.MaLoaiXe,
-            @MaBaiApDung = vt.MaBaiApDung,
-            @MaBaiThe = tx.MaBai,
-            @TrangThaiThe = tx.TrangThai
-        FROM dbo.VE_THANG vt WITH (UPDLOCK)
-        INNER JOIN dbo.THE_XE tx ON vt.MaThe = tx.MaThe
-        WHERE vt.MaVe = @MaVe;
-
-        -- Thẻ đã báo mất: không gia hạn (không tự mở khóa thẻ mất)
-        IF @TrangThaiThe = N'Mất'
-        BEGIN
-            THROW 50019, N'Lỗi: Thẻ của vé tháng đã báo mất. Cần cấp thẻ mới trước khi gia hạn!', 1;
-        END;
-
-        -- Xác định bãi thu tiền / tính giá
-        IF @MaBaiApDung <> 'ALL' AND @MaBaiGiaHan IS NOT NULL AND @MaBaiGiaHan <> @MaBaiApDung
-        BEGIN
-            THROW 50018, N'Lỗi: Vé tháng gắn một bãi chỉ được gia hạn và thu tiền tại bãi áp dụng của vé!', 1;
-        END;
-
-        -- Vé ALL chỉ được gia hạn tại bãi phát hành (không cho phép chọn bãi khác để tránh lỗi doanh thu)
-        IF @MaBaiApDung = 'ALL' AND @MaBaiGiaHan IS NOT NULL AND @MaBaiGiaHan <> @MaBaiThe
-        BEGIN
-            THROW 50059, N'Lỗi: Vé áp dụng toàn chuỗi chỉ được gia hạn tại bãi phát hành thẻ!', 1;
-        END;
-
-        DECLARE @MaBaiTinhGia VARCHAR(10) = CASE
-            WHEN @MaBaiApDung = 'ALL' THEN @MaBaiThe
-            ELSE @MaBaiApDung
-        END;
-
-        IF NOT EXISTS (SELECT 1 FROM dbo.BAI_DO_XE WHERE MaBai = @MaBaiTinhGia)
-        BEGIN
-            THROW 50008, N'Lỗi: Bãi bán vé / bãi tính giá vé tháng không hợp lệ!', 1;
-        END;
-
-        DECLARE @DonGiaThang DECIMAL(18,2);
-        SELECT @DonGiaThang = GiaVeThang
-        FROM dbo.LOAI_XE
-        WHERE MaLoaiXe = @MaLoaiXe AND MaBai = @MaBaiTinhGia;
-
-        IF @DonGiaThang IS NULL
-        BEGIN
-            THROW 50017, N'Lỗi: Loại xe chưa có biểu phí vé tháng tại bãi tính giá!', 1;
-        END;
-
-        -- Nếu vé còn hạn thì cộng dồn tiếp, nếu đã quá hạn thì tính từ ngày hôm nay
-        DECLARE @MocTinh DATE = CASE WHEN @NgayHetHanCu > CAST(GETDATE() AS DATE) THEN @NgayHetHanCu ELSE CAST(GETDATE() AS DATE) END;
-        DECLARE @NgayHetHanMoi DATE = DATEADD(MONTH, @SoThangGiaHan, @MocTinh);
-
-        -- Cập nhật vé tháng và mở khóa thẻ xe
-        UPDATE dbo.VE_THANG
-        SET NgayHetHan = @NgayHetHanMoi,
-            TrangThai = N'Hoạt động'
-        WHERE MaVe = @MaVe;
-
-        UPDATE dbo.THE_XE
-        SET TrangThai = N'Hoạt động'
-        WHERE MaThe = @MaThe AND TrangThai <> N'Hoạt động';
-
-        -- Tạo hóa đơn, mã HD + yyyyMMdd + số thứ tự (tối thiểu 3 chữ số)
-        DECLARE @SoTien DECIMAL(18,2) = @DonGiaThang * @SoThangGiaHan;
-        DECLARE @MaHD VARCHAR(15);
-        SELECT @MaHD = CONCAT('HD', FORMAT(GETDATE(), 'yyyyMMdd'),
-                              RIGHT(CONCAT('000', ISNULL(MAX(CAST(SUBSTRING(MaHD, 11, 5) AS INT)), 0) + 1), 3))
-        FROM dbo.HOA_DON_VE_THANG WITH (UPDLOCK, HOLDLOCK)
-        WHERE MaHD LIKE 'HD[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]%' AND SUBSTRING(MaHD, 3, 13) NOT LIKE '%[^0-9]%';
-
-        INSERT INTO dbo.HOA_DON_VE_THANG (MaHD, MaVe, NgayThanhToan, SoThangGiaHan, SoTien, MaBai)
-        VALUES (@MaHD, @MaVe, GETDATE(), @SoThangGiaHan, @SoTien, @MaBaiTinhGia);
-
-        COMMIT TRANSACTION;
-
-        SELECT
-            @MaVe AS MaVe,
-            @MaThe AS MaThe,
-            @NgayHetHanCu AS HanCu,
-            @NgayHetHanMoi AS HanMoi,
-            @MaHD AS MaHoaDon,
-            @MaBaiTinhGia AS MaBaiThuTien,
-            @SoTien AS SoTienGiaHan,
-            N'Gia hạn vé tháng thành công' AS ThongBao;
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH;
-END;
-GO
-
 -- 5. Procedure sp_BaoMatThe: Xử lý nghiệp vụ báo mất thẻ của khách hàng
 CREATE OR ALTER PROCEDURE dbo.sp_BaoMatThe
 (
@@ -408,10 +99,10 @@ BEGIN
     SET TrangThai = N'Mất'
     WHERE MaThe = @MaTheBaoMat;
 
-    -- Khóa vé tháng liên kết (nếu có)
+    -- Khóa vé tháng còn dùng của thẻ (nếu có); vé cũ đã hết hạn của thẻ cấp lại giữ nguyên lịch sử
     UPDATE dbo.VE_THANG
     SET TrangThai = N'Tạm khóa'
-    WHERE MaThe = @MaTheBaoMat;
+    WHERE MaThe = @MaTheBaoMat AND TrangThai <> N'Hết hạn';
 
     SELECT 
         @MaTheBaoMat AS MaThe,
@@ -421,7 +112,7 @@ BEGIN
 END;
 GO
 
--- 6. Procedure sp_DangNhap: Kiểm tra tài khoản, đối chiếu mật khẩu băm SHA-256 và phân quyền
+-- 6. Procedure sp_DangNhap: Kiểm tra tài khoản, đối chiếu mật khẩu băm SHA2_512 có salt (f_BamMatKhau) và phân quyền
 CREATE OR ALTER PROCEDURE dbo.sp_DangNhap
 (
     @TenDangNhap VARCHAR(50),
@@ -440,12 +131,14 @@ BEGIN
 
     -- Kiểm tra trạng thái tài khoản
     DECLARE @TrangThai NVARCHAR(20);
-    DECLARE @MatKhauHashTrongDB VARCHAR(255);
+    DECLARE @MatKhauHashTrongDB VARBINARY(64);
+    DECLARE @MatKhauSalt VARBINARY(16);
     DECLARE @MaNV VARCHAR(10);
 
-    SELECT 
+    SELECT
         @TrangThai = TrangThai,
         @MatKhauHashTrongDB = MatKhauHash,
+        @MatKhauSalt = MatKhauSalt,
         @MaNV = MaNV
     FROM dbo.TAI_KHOAN
     WHERE TenDangNhap = @TenDangNhap;
@@ -456,11 +149,8 @@ BEGIN
         RETURN;
     END;
 
-    -- Băm mật khẩu người dùng nhập bằng SHA-256
-    DECLARE @InputHash VARCHAR(64) = CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', @MatKhauPlain), 2);
-
-    -- Đối chiếu chuỗi Hash
-    IF @InputHash <> @MatKhauHashTrongDB
+    -- Băm mật khẩu người dùng nhập bằng SHA2_512 kèm salt của tài khoản rồi đối chiếu
+    IF dbo.f_BamMatKhau(@MatKhauPlain, @MatKhauSalt) <> @MatKhauHashTrongDB
     BEGIN
         THROW 50022, N'Lỗi: Mật khẩu không chính xác! Vui lòng kiểm tra lại.', 1;
         RETURN;
@@ -483,7 +173,25 @@ BEGIN
 END;
 GO
 
--- ==================== V7 PROCEDURES ADDITIONS ====================
+-- ====================================================================================
+-- PHẦN CỔNG KHÁCH HÀNG
+-- ====================================================================================
+
+-- ====================================================================================
+-- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
+-- STORED PROCEDURES CỔNG KHÁCH HÀNG (UPGRADE_PLAN.md MỤC 5)
+--
+-- A. Thủ tục hệ thống: sp_SinhMaGiaoDich, sp_GiaHanVe_Core (lõi gia hạn dùng chung mọi kênh)
+-- B. Phiên bản mở rộng của 3 thủ tục vận hành (dùng các cột mới của phần cổng khách hàng):
+--    sp_GiaHanTheThang, sp_DangKyThanhVien, sp_XeVaoBai. Giữ nguyên chữ ký cũ, chỉ thêm tham số tùy chọn.
+-- C. 10 thủ tục khách hàng sp_KH_*: chạy WITH EXECUTE AS OWNER, danh tính lấy từ SESSION_CONTEXT('MaTK')
+--    do sp_KH_DangNhap đặt ở chế độ read-only (không nhận @MaTK từ tham số nên không giả mạo được).
+-- D. 3 thủ tục nhân viên sp_NV_* và callback cổng thanh toán sp_KH_NapTien_XacNhan (không cấp cho khách).
+--
+-- Mẫu transaction an toàn khi lồng nhau (N9): nếu đã có transaction bên ngoài (@@TRANCOUNT > 0) thì chỉ
+-- SAVE TRANSACTION và khi lỗi chỉ ROLLBACK về savepoint, để không hủy transaction của thủ tục / cursor gọi nó.
+-- Mã lỗi mới nằm trong dải 50030 - 50069 (D10).
+-- ====================================================================================
 
 -- ====================================================================================
 -- A. THỦ TỤC HỆ THỐNG
@@ -568,6 +276,12 @@ BEGIN
         IF @TrangThaiThe = N'Mất'
         BEGIN
             THROW 50019, N'Lỗi: Thẻ của vé tháng đã báo mất. Cần cấp thẻ mới trước khi gia hạn!', 1;
+        END;
+
+        -- Thẻ đã được cấp lại cho vé khác (N4): vé cũ không mở lại được, khách gia hạn vé mới
+        IF EXISTS (SELECT 1 FROM dbo.VE_THANG WHERE MaThe = @MaThe AND MaVe <> @MaVe AND TrangThai <> N'Hết hạn')
+        BEGIN
+            THROW 50066, N'Lỗi: Thẻ của vé này đã được cấp cho vé tháng khác, vé cũ không gia hạn được!', 1;
         END;
 
         -- Xác định bãi thu tiền / tính giá
@@ -656,7 +370,7 @@ END;
 GO
 
 -- ====================================================================================
--- B. PHIÊN BẢN V7 CỦA THỦ TỤC V6
+-- B. PHIÊN BẢN MỞ RỘNG CỦA THỦ TỤC VẬN HÀNH
 -- ====================================================================================
 
 -- B1. sp_GiaHanTheThang: Gia hạn tại quầy. Giữ chữ ký be9c15d, thêm @MaPTTT / @MaNVThu tùy chọn, gọi lõi chung.
@@ -737,16 +451,8 @@ BEGIN
         END;
 
         -- 2. Xác định bãi tính giá và đơn giá trước khi ghi vé
-        DECLARE @MaBaiTheGoc VARCHAR(10) = (SELECT MaBai FROM dbo.THE_XE WHERE MaThe = @MaThe);
-
-        -- Vé ALL chỉ được đăng ký tại bãi phát hành thẻ
-        IF @MaBaiApDung = 'ALL' AND @MaBaiBan IS NOT NULL AND @MaBaiBan <> @MaBaiTheGoc
-        BEGIN
-            THROW 50059, N'Lỗi: Vé áp dụng toàn chuỗi chỉ được đăng ký tại bãi phát hành thẻ!', 1;
-        END;
-
         DECLARE @MaBaiTinhGia VARCHAR(10) = CASE
-            WHEN @MaBaiApDung = 'ALL' THEN @MaBaiTheGoc
+            WHEN @MaBaiApDung = 'ALL' THEN COALESCE(@MaBaiBan, (SELECT MaBai FROM dbo.THE_XE WHERE MaThe = @MaThe))
             ELSE @MaBaiApDung
         END;
 
@@ -765,7 +471,26 @@ BEGIN
             THROW 50017, N'Lỗi: Loại xe chưa có biểu phí vé tháng tại bãi tính giá!', 1;
         END;
 
-        -- 3. Chuyển đổi trạng thái thẻ sang Thẻ Tháng
+        -- 3. Cấp thẻ cho vé mới. Thẻ cấp lại (N4): vé cũ đã quá hạn của thẻ chuyển 'Hết hạn' và tắt tự động gia hạn
+        --    (không còn giữ thẻ); thẻ đã báo mất hoặc còn gắn vé đang dùng thì không cấp cho vé mới.
+        IF EXISTS (SELECT 1 FROM dbo.THE_XE WHERE MaThe = @MaThe AND TrangThai = N'Mất')
+        BEGIN
+            THROW 50019, N'Lỗi: Thẻ đã báo mất, không cấp cho vé tháng mới. Hãy dùng thẻ khác!', 1;
+        END;
+
+        UPDATE dbo.VE_THANG
+        SET TrangThai = N'Hết hạn', TuDongGiaHan = 0
+        WHERE MaThe = @MaThe
+          AND (TrangThai = N'Hết hạn' OR (TrangThai = N'Hoạt động' AND NgayHetHan < CAST(GETDATE() AS DATE)));
+
+        DECLARE @VeDangGiuThe VARCHAR(10) = (SELECT MaVe FROM dbo.VE_THANG WHERE MaThe = @MaThe AND TrangThai <> N'Hết hạn');
+        IF @VeDangGiuThe IS NOT NULL
+        BEGIN
+            DECLARE @ThongBaoThe NVARCHAR(400) = CONCAT(N'Lỗi: Thẻ ', @MaThe, N' đang gắn với vé tháng ', @VeDangGiuThe,
+                                                        N' còn hiệu lực. Hãy dùng thẻ khác hoặc gia hạn vé đó!');
+            THROW 50065, @ThongBaoThe, 1;
+        END;
+
         UPDATE dbo.THE_XE
         SET LoaiThe = N'Tháng', TrangThai = N'Hoạt động'
         WHERE MaThe = @MaThe;
@@ -834,29 +559,23 @@ BEGIN
         RETURN;
     END;
 
-    -- Nếu xe tháng, lấy tự động loại xe đã đăng ký; nếu không thì lấy từ THE_XE
+    -- Nếu xe tháng, lấy tự động loại xe đã đăng ký
     IF @MaLoaiXe IS NULL
     BEGIN
         SELECT @MaLoaiXe = vt.MaLoaiXe
         FROM dbo.VE_THANG vt
         WHERE vt.MaThe = @MaThe AND vt.TrangThai = N'Hoạt động';
 
-        -- Nếu vé không hoạt động, query từ THE_XE lấy loại xe đã đăng ký trên thẻ
-        IF @MaLoaiXe IS NULL
-            SELECT @MaLoaiXe = tx.MaLoaiXe
-            FROM dbo.THE_XE tx
-            WHERE tx.MaThe = @MaThe;
-
-        -- Chỉ mặc định xe máy 'XM' nếu thẻ chưa được cấu hình loại xe (không nên xảy ra)
+        -- Nếu không phải xe tháng, mặc định xe máy 'XM'
         IF @MaLoaiXe IS NULL SET @MaLoaiXe = 'XM';
     END;
 
-    -- Vé tháng gắn với thẻ (NULL nếu thẻ lượt)
+    -- Vé tháng hiện hành của thẻ (NULL nếu thẻ lượt); thẻ cấp lại có thể còn vé cũ đã hết hạn
     DECLARE @MaVe VARCHAR(10);
     SELECT @MaVe = vt.MaVe
-    FROM dbo.VE_THANG vt
-    INNER JOIN dbo.THE_XE tx ON vt.MaThe = tx.MaThe
-    WHERE vt.MaThe = @MaThe AND tx.LoaiThe = N'Tháng';
+    FROM dbo.THE_XE tx
+    CROSS APPLY dbo.f_VeHienHanhCuaThe(tx.MaThe) vt
+    WHERE tx.MaThe = @MaThe AND tx.LoaiThe = N'Tháng';
 
     -- Tìm ô đỗ trống khả dụng thông qua Function
     DECLARE @SlotTrong VARCHAR(20) = dbo.f_TimSlotTrong(@MaBai, @MaLoaiXe);
@@ -978,7 +697,8 @@ GO
 
 -- C2. sp_KH_DangNhap: Xác thực, ghi nhật ký, khóa khi sai nhiều lần (trigger), đặt SESSION_CONTEXT read-only.
 -- Sai tên đăng nhập và sai mật khẩu trả về cùng một thông báo 50040 (chống dò tài khoản).
--- Nhật ký được ghi trước khi THROW và không nằm trong transaction riêng nên vẫn lưu lại khi đăng nhập thất bại.
+-- Nhật ký và bộ đếm sai được ghi trước khi THROW, không nằm trong transaction riêng: bên gọi phải COMMIT cả khi
+-- nhận lỗi 50040 / 50041 (hoặc gọi ở chế độ autocommit), nếu ROLLBACK thì trigger khóa tài khoản không bao giờ kích hoạt.
 CREATE OR ALTER PROCEDURE dbo.sp_KH_DangNhap
 (
     @TenDangNhap VARCHAR(100),
@@ -1015,14 +735,6 @@ BEGIN
         INSERT INTO dbo.NHAT_KY_DANG_NHAP (MaTK, TenDangNhapNhap, KetQua, DiaChiIP, ThietBi)
         VALUES (NULL, LEFT(ISNULL(@TenDangNhap, ''), 100), N'Không tồn tại', @DiaChiIP, @ThietBi);
         THROW 50040, N'Lỗi: Tên đăng nhập hoặc mật khẩu không đúng!', 1;
-    END;
-
-    -- Xác thực: Tài khoản phải thuộc một khách hàng (integrity check)
-    IF @MaKH IS NULL
-    BEGIN
-        INSERT INTO dbo.NHAT_KY_DANG_NHAP (MaTK, TenDangNhapNhap, KetQua, DiaChiIP, ThietBi)
-        VALUES (@MaTK, @TenDangNhap, N'Lỗi dữ liệu', @DiaChiIP, @ThietBi);
-        THROW 50057, N'Lỗi: Tài khoản không liên kết với khách hàng. Liên hệ quầy để kiểm tra!', 1;
     END;
 
     -- Hết thời gian khóa tạm thì tự mở khóa
@@ -1179,7 +891,8 @@ BEGIN
     DECLARE @ToiThieu DECIMAL(18,2);
     SELECT @PhiPhanTram = PhiPhanTram, @ToiThieu = SoTienToiThieu
     FROM dbo.PHUONG_THUC_THANH_TOAN
-    WHERE MaPTTT = @MaPTTT AND TrangThai = N'Hoạt động' AND ChoPhepNapVi = 1;
+    WHERE MaPTTT = @MaPTTT AND TrangThai = N'Hoạt động' AND ChoPhepNapVi = 1
+      AND LoaiKenh <> N'Tiền mặt';   -- tiền mặt chỉ nạp tại quầy qua sp_NV_NapTienTaiQuay, không có cổng thanh toán
 
     IF @PhiPhanTram IS NULL
     BEGIN
@@ -1437,12 +1150,15 @@ BEGIN
         THROW 50054, N'Lỗi: Vé đã hết hạn, không thể chia sẻ!', 1;
     END;
 
-    IF EXISTS (SELECT 1 FROM dbo.UY_QUYEN_VE WHERE MaVe = @MaVe AND MaTKDuocUyQuyen = @MaTKNhan AND TrangThai = N'Hiệu lực')
+    -- Ủy quyền đã quá NgayKetThuc không còn tác dụng nên không tính (trạng thái vẫn là 'Hiệu lực')
+    IF EXISTS (SELECT 1 FROM dbo.UY_QUYEN_VE WHERE MaVe = @MaVe AND MaTKDuocUyQuyen = @MaTKNhan AND TrangThai = N'Hiệu lực'
+                 AND (NgayKetThuc IS NULL OR NgayKetThuc >= CAST(GETDATE() AS DATE)))
     BEGIN
         THROW 50049, N'Lỗi: Vé đã được chia sẻ cho tài khoản này và đang còn hiệu lực!', 1;
     END;
 
-    IF (SELECT COUNT(*) FROM dbo.UY_QUYEN_VE WHERE MaVe = @MaVe AND TrangThai = N'Hiệu lực') >= 3
+    IF (SELECT COUNT(*) FROM dbo.UY_QUYEN_VE WHERE MaVe = @MaVe AND TrangThai = N'Hiệu lực'
+          AND (NgayKetThuc IS NULL OR NgayKetThuc >= CAST(GETDATE() AS DATE))) >= 3
     BEGIN
         THROW 50053, N'Lỗi: Mỗi vé chỉ được chia sẻ tối đa 3 tài khoản cùng lúc!', 1;
     END;
@@ -1596,6 +1312,51 @@ BEGIN
 END;
 GO
 
+-- C11. sp_KH_DanhSachUyQuyen: Ủy quyền trên vé tôi sở hữu và ủy quyền người khác cấp cho tôi.
+-- Cần EXECUTE AS OWNER vì RLS trên TAI_KHOAN_KH ẩn tài khoản của người nhận / chủ vé khác.
+CREATE OR ALTER PROCEDURE dbo.sp_KH_DanhSachUyQuyen
+WITH EXECUTE AS OWNER
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @MaTK VARCHAR(12) = dbo.f_KH_MaTKPhien();
+    IF @MaTK IS NULL
+    BEGIN
+        THROW 50042, N'Lỗi: Chưa đăng nhập cổng khách hàng hoặc phiên đã hết hạn!', 1;
+    END;
+
+    DECLARE @MaKH VARCHAR(10) = (SELECT MaKH FROM dbo.TAI_KHOAN_KH WHERE MaTK = @MaTK);
+    DECLARE @HomNay DATE = CAST(GETDATE() AS DATE);
+
+    SELECT
+        uq.MaUyQuyen,
+        uq.MaVe,
+        vt.BienSo,
+        CASE WHEN vt.MaKH = @MaKH THEN N'Tôi chia sẻ' ELSE N'Được chia sẻ cho tôi' END AS Chieu,
+        CASE WHEN vt.MaKH = @MaKH THEN tkNhan.TenDangNhap ELSE NULL END AS TaiKhoanNguoiNhan,
+        CASE WHEN vt.MaKH = @MaKH THEN khNhan.HoTen ELSE khChu.HoTen END AS NguoiLienQuan,
+        uq.MaVaiTro,
+        vtr.TenVaiTro,
+        uq.NgayBatDau,
+        uq.NgayKetThuc,
+        CASE
+            WHEN uq.TrangThai <> N'Hiệu lực' THEN uq.TrangThai
+            WHEN uq.NgayKetThuc < @HomNay THEN N'Hết hạn'
+            ELSE N'Hiệu lực'
+        END AS TrangThai,
+        uq.NgayTao
+    FROM dbo.UY_QUYEN_VE uq
+    INNER JOIN dbo.VE_THANG vt ON vt.MaVe = uq.MaVe
+    INNER JOIN dbo.KHACH_HANG khChu ON khChu.MaKH = vt.MaKH
+    INNER JOIN dbo.TAI_KHOAN_KH tkNhan ON tkNhan.MaTK = uq.MaTKDuocUyQuyen
+    INNER JOIN dbo.KHACH_HANG khNhan ON khNhan.MaKH = tkNhan.MaKH
+    INNER JOIN dbo.VAI_TRO_KH vtr ON vtr.MaVaiTro = uq.MaVaiTro
+    WHERE vt.MaKH = @MaKH OR uq.MaTKDuocUyQuyen = @MaTK
+    ORDER BY CASE WHEN uq.TrangThai = N'Hiệu lực' THEN 0 ELSE 1 END, uq.NgayTao DESC;
+END;
+GO
+
 -- ====================================================================================
 -- D. CALLBACK CỔNG THANH TOÁN VÀ THỦ TỤC NHÂN VIÊN (không cấp cho r_KhachHang)
 -- ====================================================================================
@@ -1697,7 +1458,8 @@ END;
 GO
 
 -- D2. sp_NV_HoanTien: Hoàn tiền một giao dịch thanh toán vé tháng (ghi giao dịch đối ứng, không sửa sổ cái)
--- Hoàn tiền không tự rút ngắn hạn vé; nhân viên điều chỉnh vé theo quy trình tại quầy nếu cần.
+-- Chỉ hoàn khoản chưa gắn hóa đơn (trừ trùng / trừ nhầm): khoản đã xuất hóa đơn gia hạn thì vé đã được cộng hạn
+-- và báo cáo doanh thu đã ghi nhận, hoàn tiền sẽ làm lệch cả hai.
 CREATE OR ALTER PROCEDURE dbo.sp_NV_HoanTien
 (
     @MaGDGoc VARCHAR(16),
@@ -1738,6 +1500,11 @@ BEGIN
         IF @LoaiGD <> N'Thanh toán vé tháng' OR @TrangThai <> N'Thành công'
         BEGIN
             THROW 50063, N'Lỗi: Chỉ hoàn tiền cho giao dịch thanh toán vé tháng đang ở trạng thái Thành công!', 1;
+        END;
+
+        IF EXISTS (SELECT 1 FROM dbo.HOA_DON_VE_THANG WHERE MaGD = @MaGDGoc)
+        BEGIN
+            THROW 50063, N'Lỗi: Giao dịch đã xuất hóa đơn gia hạn vé nên không hoàn tiền được (chỉ hoàn khoản trừ trùng / trừ nhầm chưa gắn hóa đơn)!', 1;
         END;
 
         DECLARE @MaGDMoi VARCHAR(16);

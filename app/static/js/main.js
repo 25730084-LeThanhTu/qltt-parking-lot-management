@@ -105,6 +105,7 @@ function normalizeVi(text) {
         .normalize("NFD")
         .replace(/[̀-ͯ]/g, "")
         .replace(/đ/g, "d")
+        .replace(/_/g, " ")   // VI_DIEN_TU khớp với "vi dien tu"
         .trim();
 }
 
@@ -186,6 +187,92 @@ document.addEventListener("DOMContentLoaded", function () {
         if (!dir) return;
         const cards = Array.from(dir.querySelectorAll("[data-lot-text]"));
         const emptyEl = document.querySelector(`[data-lot-dir-empty="${dir.id}"]`);
-        input.addEventListener("input", () => filterByText(cards, input.value, emptyEl));
+        input.addEventListener("input", () => {
+            filterByText(cards, input.value, emptyEl);
+            // Ẩn nhóm danh mục không còn thẻ nào khớp (trang Bảng dữ liệu / Báo cáo)
+            dir.querySelectorAll(".catalog-group").forEach((group) => {
+                group.hidden = !group.querySelector("[data-lot-text]:not([hidden])");
+            });
+        });
+    });
+});
+
+// Xác nhận trước khi gửi form có tiền hoặc không hoàn tác được (UPGRADE_PLAN 12.1)
+// data-confirm="..."                  : hỏi nguyên văn
+// data-confirm-amount="... {amount} ...": chèn số tiền từ ô so_tien đã định dạng
+document.addEventListener("submit", (e) => {
+    const form = e.target;
+    if (!(form instanceof HTMLFormElement)) return;
+    let message = form.getAttribute("data-confirm");
+    const amountTemplate = form.getAttribute("data-confirm-amount");
+    if (amountTemplate) {
+        const input = form.querySelector("[name='so_tien']");
+        const amount = Number(input ? input.value : 0);
+        message = amountTemplate.replace("{amount}", amount.toLocaleString("vi-VN"));
+    }
+    if (message && !window.confirm(message)) e.preventDefault();
+});
+
+// Cổng khách hàng /kh: menu thả xuống, hiện/ẩn mật khẩu, chính sách mật khẩu, điền nhanh tài khoản demo và số tiền
+document.addEventListener("DOMContentLoaded", function () {
+    const dropdowns = document.querySelectorAll("[data-dropdown]");
+    document.addEventListener("click", (e) => {
+        dropdowns.forEach((d) => { if (d.open && !d.contains(e.target)) d.open = false; });
+    });
+    document.addEventListener("keydown", (e) => {
+        if (e.key !== "Escape") return;
+        dropdowns.forEach((d) => {
+            if (d.open) { d.open = false; d.querySelector("summary").focus(); }
+        });
+    });
+
+    document.querySelectorAll("[data-toggle-password]").forEach((btn) => {
+        const input = document.getElementById(btn.getAttribute("data-toggle-password"));
+        if (!input) return;
+        btn.addEventListener("click", () => {
+            const show = input.type === "password";
+            input.type = show ? "text" : "password";
+            btn.setAttribute("aria-pressed", String(show));
+            btn.setAttribute("aria-label", show ? "Ẩn mật khẩu" : "Hiện mật khẩu");
+        });
+    });
+
+    const PASSWORD_RULES = {
+        len: (v) => v.length >= 8,
+        upper: (v) => /[A-Z]/.test(v),
+        lower: (v) => /[a-z]/.test(v),
+        digit: (v) => /[0-9]/.test(v),
+        special: (v) => /[^A-Za-z0-9]/.test(v),
+    };
+    document.querySelectorAll("[data-password-policy]").forEach((input) => {
+        const list = document.getElementById(input.getAttribute("data-password-policy"));
+        if (!list) return;
+        const update = () => list.querySelectorAll("[data-rule]").forEach((li) => {
+            const rule = PASSWORD_RULES[li.getAttribute("data-rule")];
+            li.classList.toggle("is-ok", Boolean(rule && rule(input.value)));
+        });
+        input.addEventListener("input", update);
+        update();
+    });
+
+    document.querySelectorAll("[data-fill-login]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            const user = document.getElementById("ten_dang_nhap");
+            const pass = document.getElementById("mat_khau");
+            if (user) user.value = btn.getAttribute("data-fill-login");
+            if (pass) {
+                pass.value = btn.getAttribute("data-fill-password") || "";
+                pass.focus();
+            }
+        });
+    });
+
+    document.querySelectorAll("[data-fill-amount]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            const input = document.getElementById(btn.getAttribute("data-target"));
+            if (!input) return;
+            input.value = btn.getAttribute("data-fill-amount");
+            input.focus();
+        });
     });
 });

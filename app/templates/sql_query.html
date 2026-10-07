@@ -48,6 +48,18 @@
                 <button type="button" class="snippet" onclick="setSql('SELECT TOP 10 * FROM dbo.LICHSU_SU_CO ORDER BY ThoiGianSuCo DESC;')">
                     {{ icon('octagon', 14) }}<span>Sự cố bãi xe mới nhất</span><span class="kind">SELECT</span>
                 </button>
+                <button type="button" class="snippet" onclick="setSql('SELECT * FROM dbo.f_KH_SaoKeVi(\'VI0005\', NULL, NULL);')">
+                    {{ icon('wallet', 14) }}<span>Sao kê ví có số dư lũy kế</span><span class="kind">TVF</span>
+                </button>
+                <button type="button" class="snippet" onclick="setSql('SELECT * FROM dbo.vw_Report_DoanhThuTheoPhuongThuc;')">
+                    {{ icon('card', 14) }}<span>Doanh thu theo PTTT</span><span class="kind">VIEW</span>
+                </button>
+                <button type="button" class="snippet" onclick="setSql('EXEC dbo.sp_DemoDoiSoatViDienTu;')">
+                    {{ icon('compare', 14) }}<span>Cursor đối soát ví</span><span class="kind">EXEC</span>
+                </button>
+                <button type="button" class="snippet" onclick="setSql('EXEC sys.sp_set_session_context @key = N\'MaKH\', @value = \'KH0001\';\nEXEC sys.sp_set_session_context @key = N\'MaTK\', @value = \'TK0001\';\nSELECT * FROM dbo.vw_KH_LichSuGiaoDich;')">
+                    {{ icon('user', 14) }}<span>Góc nhìn khách KH0001</span><span class="kind">CONTEXT</span>
+                </button>
             </div>
         </section>
 
@@ -67,6 +79,14 @@
                 <button type="button" class="tag-btn" onclick="setSql('SELECT TOP 20 * FROM dbo.LUOT_GUI;')">LUOT_GUI</button>
                 <button type="button" class="tag-btn" onclick="setSql('SELECT TOP 20 * FROM dbo.HOA_DON_VE_THANG;')">HOA_DON_VT</button>
                 <button type="button" class="tag-btn" onclick="setSql('SELECT TOP 20 * FROM dbo.LICHSU_SU_CO;')">SU_CO</button>
+                <button type="button" class="tag-btn" onclick="setSql('SELECT TOP 20 * FROM dbo.PHUONG_THUC_THANH_TOAN;')">PTTT</button>
+                <button type="button" class="tag-btn" onclick="setSql('SELECT TOP 20 * FROM dbo.TAI_KHOAN_KH;')">TAI_KHOAN_KH</button>
+                <button type="button" class="tag-btn" onclick="setSql('SELECT TOP 20 * FROM dbo.NHAT_KY_DANG_NHAP ORDER BY ThoiGian DESC;')">NHAT_KY_DN</button>
+                <button type="button" class="tag-btn" onclick="setSql('SELECT TOP 20 * FROM dbo.VI_DIEN_TU;')">VI_DIEN_TU</button>
+                <button type="button" class="tag-btn" onclick="setSql('SELECT TOP 20 * FROM dbo.GIAO_DICH ORDER BY ThoiGianTao DESC;')">GIAO_DICH</button>
+                <button type="button" class="tag-btn" onclick="setSql('SELECT TOP 20 * FROM dbo.THONG_BAO ORDER BY ThoiGianTao DESC;')">THONG_BAO</button>
+                <button type="button" class="tag-btn" onclick="setSql('SELECT * FROM dbo.VAI_TRO_QUYEN;')">VAI_TRO_QUYEN</button>
+                <button type="button" class="tag-btn" onclick="setSql('SELECT TOP 20 * FROM dbo.UY_QUYEN_VE;')">UY_QUYEN_VE</button>
             </div>
         </section>
     </aside>

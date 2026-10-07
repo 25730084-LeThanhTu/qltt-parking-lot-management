@@ -1,16 +1,10 @@
 -- ====================================================================================
 -- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
--- SCHEMA V6 + V7 MERGED (2026-10-06)
--- Gồm: 21 bảng V6, 10 bảng V7, cột mới trên 4 bảng V6
--- ====================================================================================
-
--- ====================================================================================
--- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
 -- BƯỚC 1: TẠO CẤU TRÚC BẢNG CƠ SỞ DỮ LIỆU VẬT LÝ (11 BẢNG CHUẨN HÓA V6)
 -- ====================================================================================
 
--- Hủy đối tượng của bản nâng cấp V7 (nếu có) trước: security policy và các hàm RLS gắn SCHEMABINDING
--- vào bảng sẽ chặn DROP TABLE, các bảng V7 có khóa ngoại trỏ vào bảng V6 (xem 10_upgrade_schema_khachhang.sql)
+-- Hủy đối tượng phần cổng khách hàng (nếu có) trước: security policy và các hàm RLS gắn SCHEMABINDING
+-- vào bảng sẽ chặn DROP TABLE, các bảng cổng khách hàng có khóa ngoại trỏ vào bảng vận hành (xem phần cổng khách hàng cuối file)
 IF EXISTS (SELECT 1 FROM sys.security_policies WHERE name = 'rls_KhachHang') DROP SECURITY POLICY bao_mat.rls_KhachHang;
 IF OBJECT_ID('bao_mat.fn_rls_KhachHang', 'IF') IS NOT NULL DROP FUNCTION bao_mat.fn_rls_KhachHang;
 IF OBJECT_ID('bao_mat.fn_rls_VeThang', 'IF') IS NOT NULL DROP FUNCTION bao_mat.fn_rls_VeThang;
@@ -79,7 +73,8 @@ GO
 -- 3. Bảng TAI_KHOAN: Tài khoản truy cập & Xác thực nhân viên (Phân hệ An toàn thông tin)
 CREATE TABLE dbo.TAI_KHOAN (
     TenDangNhap VARCHAR(50) NOT NULL,
-    MatKhauHash VARCHAR(255) NOT NULL,
+    MatKhauHash VARBINARY(64) NOT NULL,   -- SHA2_512(salt + mật khẩu) qua dbo.f_BamMatKhau (N5)
+    MatKhauSalt VARBINARY(16) NOT NULL,   -- salt ngẫu nhiên riêng từng tài khoản
     MaNV VARCHAR(10) NOT NULL,
     TrangThai NVARCHAR(20) NOT NULL DEFAULT N'Hoạt động',
     CONSTRAINT PK_TAI_KHOAN PRIMARY KEY (TenDangNhap),
@@ -159,12 +154,16 @@ CREATE TABLE dbo.VE_THANG (
     TrangThai NVARCHAR(20) NOT NULL DEFAULT N'Hoạt động',
     MaBaiApDung VARCHAR(10) NOT NULL,
     CONSTRAINT PK_VE_THANG PRIMARY KEY (MaVe),
-    CONSTRAINT UQ_VeThang_MaThe UNIQUE (MaThe),
     CONSTRAINT FK_VeThang_TheXe FOREIGN KEY (MaThe) REFERENCES dbo.THE_XE(MaThe),
     CONSTRAINT FK_VeThang_KhachHang FOREIGN KEY (MaKH) REFERENCES dbo.KHACH_HANG(MaKH),
     CONSTRAINT CK_VeThang_TrangThai CHECK (TrangThai IN (N'Hoạt động', N'Tạm khóa', N'Hết hạn')),
     CONSTRAINT CK_VeThang_Han CHECK (NgayHetHan >= NgayDangKy)
 );
+GO
+
+-- Mỗi thẻ chỉ gắn với một vé còn dùng (Hoạt động / Tạm khóa); vé đã Hết hạn không giữ thẻ (N4),
+-- nên thẻ vật lý được cấp lại cho vé mới. "Vé hiện hành" của thẻ lấy qua dbo.f_VeHienHanhCuaThe.
+CREATE UNIQUE INDEX UX_VeThang_MaThe_ConDung ON dbo.VE_THANG (MaThe) WHERE TrangThai <> N'Hết hạn';
 GO
 
 -- 9. Bảng LUOT_GUI: Nhật ký xe ra vào bãi xe (Check-In / Check-Out)
@@ -232,7 +231,18 @@ CREATE INDEX IX_VeThang_TrangThai_NgayHetHan
 ON dbo.VE_THANG (TrangThai, NgayHetHan)
 INCLUDE (MaThe, MaKH, BienSo, MaBaiApDung);
 GO
--- ==================== V7 SCHEMA ADDITIONS ====================
+
+-- ====================================================================================
+-- PHẦN CỔNG KHÁCH HÀNG
+-- ====================================================================================
+
+-- ====================================================================================
+-- DỰ ÁN QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
+-- SCHEMA CỔNG KHÁCH HÀNG (UPGRADE_PLAN.md MỤC 3)
+-- 10 bảng mới, cột mới trên 4 bảng cũ, chỉ mục, danh mục tra cứu (PTTT, quyền, vai trò).
+-- Script idempotent: chạy lại nhiều lần trên CSDL đã nâng cấp không lỗi, không nhân đôi dữ liệu.
+-- Danh mục tra cứu nạp ngay tại đây vì khóa ngoại của cột cũ (HOA_DON_VE_THANG.MaPTTT) cần dữ liệu cha.
+-- ====================================================================================
 
 -- 1. Sequence sinh mã giao dịch ví (D9): GIAO_DICH ghi nhiều và đồng thời nên không dùng MAX + 1
 IF OBJECT_ID('dbo.seq_GiaoDich', 'SO') IS NULL

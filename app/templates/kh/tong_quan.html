@@ -1,0 +1,84 @@
+{% extends 'kh/base_kh.html' %}
+{% from '_icons.html' import icon %}
+{% from 'kh/_macros.html' import ticket_card, parking_table, badge %}
+{% set title = 'Tổng quan' %}
+{% block content %}
+<div class="page-head">
+    <div class="ph-main">
+        <div class="eyebrow">{{ icon('home', 13) }} Tổng quan</div>
+        <h1 class="ph-title">Xin chào, {{ ho_so.HoTen }}</h1>
+        <p class="ph-sub">Vé tháng, ví SmartPark và hoạt động gửi xe của bạn.</p>
+    </div>
+</div>
+
+<section class="kh-overview">
+    <div class="kh-balance-card">
+        <div class="kh-balance-label">{{ icon('wallet', 16) }} Số dư ví {{ ho_so.MaVi or '' }}</div>
+        <div class="kh-balance-value">{{ (ho_so.SoDu or 0)|vnd }}</div>
+        <div class="row wrap" style="gap: 8px;">
+            <a href="{{ url_for('kh.nap_tien') }}" class="btn btn-lg kh-btn-on-brand">{{ icon('plus', 16) }}Nạp tiền</a>
+            <a href="{{ url_for('kh.giao_dich') }}" class="btn btn-lg kh-btn-ghost-on-brand">{{ icon('receipt', 16) }}Sao kê ví</a>
+        </div>
+        {% if ho_so.TrangThaiVi and ho_so.TrangThaiVi != 'Hoạt động' %}
+        <div class="kh-balance-warn">{{ icon('alert-circle', 14) }} Ví đang {{ ho_so.TrangThaiVi|lower }}</div>
+        {% endif %}
+    </div>
+    <div class="kpi-grid kh-kpis">
+        <a href="#ve-cua-toi" class="kpi">
+            <span class="tile-ico lg tone-blue">{{ icon('ticket', 20) }}</span>
+            <div><div class="kpi-label">Vé đang quản lý</div><div class="kpi-value">{{ ve|length }}</div></div>
+        </a>
+        <a href="{{ url_for('kh.thong_bao') }}" class="kpi">
+            <span class="tile-ico lg tone-amber">{{ icon('bell', 20) }}</span>
+            <div><div class="kpi-label">Thông báo chưa đọc</div><div class="kpi-value">{{ ho_so.SoThongBaoChuaDoc }}</div></div>
+        </a>
+    </div>
+</section>
+
+<section aria-labelledby="ve-cua-toi">
+    <div class="section-head">
+        <h2 class="section-title" id="ve-cua-toi">{{ icon('ticket', 17) }} Vé của tôi</h2>
+    </div>
+    {% if ve %}
+    <div class="grid grid-auto">
+        {% for v in ve %}{{ ticket_card(v, quyen.get(v.MaVe, [])) }}{% endfor %}
+    </div>
+    {% else %}
+    <div class="card empty empty-lg">
+        {{ icon('ticket', 26) }}
+        <div class="strong">Bạn chưa có vé tháng nào</div>
+        <div class="subtle sm">Đăng ký vé tháng tại quầy của bất kỳ bãi SmartPark nào. Nếu người nhà chia sẻ vé cho bạn, vé sẽ xuất hiện tại đây.</div>
+    </div>
+    {% endif %}
+</section>
+
+<div class="grid grid-2 kh-two">
+    <section class="card">
+        <div class="card-head">
+            <h2 class="card-title">{{ icon('bell', 17) }}<span>Thông báo mới</span></h2>
+            <a href="{{ url_for('kh.thong_bao') }}" class="kh-more">Xem tất cả {{ icon('chevron-right', 14) }}</a>
+        </div>
+        {% if thong_bao %}
+        <ul class="kh-notifs">
+            {% for t in thong_bao %}
+            <li class="{% if not t.DaDoc %}is-unread{% endif %}">
+                <div class="row between"><span class="strong">{{ t.TieuDe }}</span><span class="subtle xs nowrap">{{ t.ThoiGianTao.strftime('%d/%m %H:%M') }}</span></div>
+                <div class="subtle sm clamp-2">{{ t.NoiDung }}</div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <div class="empty">{{ icon('bell', 20) }}<span>Chưa có thông báo.</span></div>
+        {% endif %}
+    </section>
+    <section class="card">
+        <div class="card-head">
+            <h2 class="card-title">{{ icon('car', 17) }}<span>Lượt gửi xe gần đây</span></h2>
+            <a href="{{ url_for('kh.lich_su_do_xe') }}" class="kh-more">Lịch sử {{ icon('chevron-right', 14) }}</a>
+        </div>
+        {% if luot_gui %}{{ parking_table(luot_gui, compact=true) }}{% else %}
+        <div class="empty">{{ icon('car', 20) }}<span>Chưa có lượt gửi xe nào bằng vé tháng.</span></div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

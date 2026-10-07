@@ -1,0 +1,59 @@
+{% extends 'kh/base_kh.html' %}
+{% from '_icons.html' import icon %}
+{% set title = 'Gia hạn vé ' ~ ve.MaVe %}
+{% block content %}
+<div class="page-head">
+    <div class="ph-main">
+        <a href="{{ url_for('kh.chi_tiet_ve', ma_ve=ve.MaVe) }}" class="eyebrow">{{ icon('arrow-left', 13) }} Vé {{ ve.MaVe }}</a>
+        <h1 class="ph-title row wrap"><span>Gia hạn vé</span><span class="plate plate-lg">{{ ve.BienSo }}</span></h1>
+        <p class="ph-sub">Thanh toán bằng số dư ví. Giá tính theo bãi {{ 'phát hành thẻ (vé toàn chuỗi)' if ve.MaBaiApDung == 'ALL' else 'áp dụng của vé' }}, giống giá tại quầy.</p>
+    </div>
+</div>
+
+{% if not co_quyen %}
+<div class="alert alert-warning">
+    {{ icon('lock', 18) }}
+    <div class="grow"><div class="alert-title">Bạn không có quyền gia hạn vé này</div>
+    <div class="sm">Vai trò <strong>{{ ve.VaiTroCuaToi }}</strong> chỉ được xem vé. Hãy nhờ chủ vé ({{ ve.ChuVe }}) gia hạn.</div></div>
+</div>
+{% else %}
+<div class="grid kh-ve-grid">
+    <section class="card stack">
+        <h2 class="card-title">{{ icon('clock', 17) }}<span>Chọn số tháng</span></h2>
+        <div class="seg kh-seg-wide" role="radiogroup" aria-label="Số tháng gia hạn">
+            {% for n in so_thang_chon %}
+            <a href="{{ url_for('kh.gia_han', ma_ve=ve.MaVe, so_thang=n) }}" class="seg-btn {% if n == so_thang %}active{% endif %}" role="radio" aria-checked="{{ 'true' if n == so_thang else 'false' }}">{{ n }} tháng</a>
+            {% endfor %}
+        </div>
+        <div class="kv kv-boxed">
+            <div class="kv-row"><span class="kv-k">Hạn hiện tại</span><span class="kv-v">{{ ve.NgayHetHan.strftime('%d/%m/%Y') }}{% if ve.SoNgayConLai < 0 %} <span class="badge badge-danger">đã quá hạn</span>{% endif %}</span></div>
+            <div class="kv-row"><span class="kv-k">Cộng thêm</span><span class="kv-v">{{ so_thang }} tháng {{ '(tính từ hôm nay vì vé đã quá hạn)' if ve.SoNgayConLai < 0 else '(nối tiếp hạn hiện tại)' }}</span></div>
+            <div class="kv-row"><span class="kv-k">Phí gia hạn</span><span class="kv-v strong">{{ phi|vnd if phi is not none else 'Chưa có biểu phí' }}</span></div>
+        </div>
+    </section>
+
+    <section class="card stack kh-confirm-box">
+        <h2 class="card-title">{{ icon('wallet', 17) }}<span>Xác nhận thanh toán</span></h2>
+        <div class="kv">
+            <div class="kv-row"><span class="kv-k">Số dư hiện tại</span><span class="kv-v">{{ so_du|vnd }}</span></div>
+            <div class="kv-row"><span class="kv-k">Trừ ví</span><span class="kv-v money-out">{{ ('-' ~ (phi|vnd)) if phi is not none else '—' }}</span></div>
+            <div class="kv-row"><span class="kv-k strong">Số dư sau gia hạn</span>
+                <span class="kv-v strong {% if thieu %}text-danger{% endif %}">{{ (so_du - phi)|vnd if phi is not none else '—' }}</span></div>
+        </div>
+        {% if phi is none %}
+        <div class="alert alert-error">{{ icon('alert-circle', 16) }}<div class="grow sm">Loại xe chưa có biểu phí vé tháng tại bãi tính giá. Vui lòng liên hệ quầy.</div></div>
+        {% elif thieu %}
+        <div class="alert alert-warning">{{ icon('alert-circle', 16) }}<div class="grow sm">Ví còn thiếu <strong>{{ thieu|vnd }}</strong> để gia hạn {{ so_thang }} tháng.</div></div>
+        <a href="{{ url_for('kh.nap_tien', so_tien=(((thieu // 10000) + 1) * 10000)|int) }}" class="btn btn-primary btn-lg btn-block">{{ icon('plus', 16) }}Nạp thêm {{ ((((thieu // 10000) + 1) * 10000)|int)|vnd }}</a>
+        {% else %}
+        <form method="post" data-confirm="Trừ {{ phi|vnd }} từ ví để gia hạn vé {{ ve.MaVe }} thêm {{ so_thang }} tháng?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="so_thang" value="{{ so_thang }}">
+            <button type="submit" class="btn btn-primary btn-lg btn-block">{{ icon('check', 16) }}Thanh toán {{ phi|vnd }}</button>
+        </form>
+        <p class="subtle xs center">Trừ ví, gia hạn và xuất hóa đơn trong cùng một transaction (<code>sp_KH_GiaHanBangVi</code>).</p>
+        {% endif %}
+    </section>
+</div>
+{% endif %}
+{% endblock %}

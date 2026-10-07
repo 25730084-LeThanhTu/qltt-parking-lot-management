@@ -140,6 +140,12 @@
                 <span>Hồ sơ thẻ quét</span>
                 <span class="badge {{ the_info.TrangThaiThe|status_badge_class }}"><span class="badge-dot"></span>{{ the_info.TrangThaiThe }}</span>
             </div>
+            {% if the_info.MaVe and (the_info.CoTaiKhoanOnline or the_info.TuDongGiaHan) %}
+            <div class="row wrap mb-8" style="gap: 6px;">
+                {% if the_info.CoTaiKhoanOnline %}<span class="badge badge-info">{{ icon('user', 12) }}Có tài khoản online</span>{% endif %}
+                {% if the_info.TuDongGiaHan %}<span class="badge badge-success">{{ icon('repeat', 12) }}Tự động gia hạn</span>{% endif %}
+            </div>
+            {% endif %}
             <div class="kv">
                 <div class="kv-row">
                     <span class="kv-k">Mã thẻ / loại</span>
