@@ -1,0 +1,89 @@
+{% extends 'kh/base_kh.html' %}
+{% from '_icons.html' import icon %}
+{% from 'kh/_macros.html' import badge %}
+{% set title = 'Chia sẻ vé' %}
+{% block content %}
+<div class="page-head">
+    <div class="ph-main">
+        <div class="eyebrow">{{ icon('share', 13) }} Ủy quyền</div>
+        <h1 class="ph-title">Chia sẻ vé</h1>
+        <p class="ph-sub">Cho người nhà hoặc kế toán xem vé, lịch sử đỗ xe với quyền hạn chế. Tối đa 3 người cùng lúc cho mỗi vé; chỉ chủ vé được chia sẻ và thu hồi.</p>
+    </div>
+</div>
+
+<div class="grid kh-split-form">
+    <section class="card stack">
+        <h2 class="card-title">{{ icon('plus', 17) }}<span>Chia sẻ vé mới</span></h2>
+        {% if ve_co_the_chia_se %}
+        <form method="post" class="stack">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div>
+                <label class="field-label" for="ma_ve">Vé</label>
+                <select id="ma_ve" name="ma_ve" class="input" required>
+                    {% for v in ve_co_the_chia_se %}<option value="{{ v.MaVe }}" {% if form.ma_ve == v.MaVe %}selected{% endif %}>{{ v.MaVe }} • {{ v.BienSo }} (hạn {{ v.NgayHetHan.strftime('%d/%m/%Y') }})</option>{% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="field-label" for="nguoi_nhan">Số điện thoại tài khoản người nhận</label>
+                <input id="nguoi_nhan" name="nguoi_nhan" class="input" inputmode="tel" required value="{{ form.nguoi_nhan or '' }}" placeholder="Người nhận phải có tài khoản cổng khách hàng">
+            </div>
+            <fieldset class="stack-sm">
+                <legend class="field-label">Vai trò</legend>
+                {% for r in vai_tro %}
+                <label class="kh-pay">
+                    <input type="radio" name="ma_vai_tro" value="{{ r.MaVaiTro }}" required {% if (form.ma_vai_tro or 'XEM_LICH_SU') == r.MaVaiTro %}checked{% endif %}>
+                    <span class="grow">
+                        <span class="strong">{{ r.TenVaiTro }}</span>
+                        <span class="subtle xs">{{ r.DanhSachQuyen }}</span>
+                    </span>
+                </label>
+                {% endfor %}
+            </fieldset>
+            <div>
+                <label class="field-label" for="ngay_ket_thuc">Ngày kết thúc (bỏ trống = không thời hạn)</label>
+                <input id="ngay_ket_thuc" name="ngay_ket_thuc" type="date" class="input" value="{{ form.ngay_ket_thuc or '' }}">
+            </div>
+            <button type="submit" class="btn btn-primary">{{ icon('share', 15) }}Chia sẻ vé</button>
+        </form>
+        {% else %}
+        <div class="empty">{{ icon('lock', 20) }}<span>Bạn không sở hữu vé nào để chia sẻ.</span></div>
+        {% endif %}
+    </section>
+
+    <section class="card">
+        <div class="card-head">
+            <h2 class="card-title">{{ icon('users', 17) }}<span>Danh sách chia sẻ</span></h2>
+            <span class="badge badge-secondary">{{ uy_quyen|length }}</span>
+        </div>
+        {% if uy_quyen %}
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead><tr><th>Vé</th><th>Chiều</th><th>Người liên quan</th><th>Vai trò</th><th>Thời hạn</th><th>Trạng thái</th><th></th></tr></thead>
+                <tbody>
+                {% for u in uy_quyen %}
+                <tr>
+                    <td><span class="plate">{{ u.BienSo }}</span> <span class="subtle xs mono">{{ u.MaVe }}</span></td>
+                    <td><span class="badge {{ 'badge-primary' if u.Chieu == 'Tôi chia sẻ' else 'badge-violet' }}">{{ u.Chieu }}</span></td>
+                    <td><div class="strong">{{ u.NguoiLienQuan }}</div>{% if u.TaiKhoanNguoiNhan %}<div class="subtle xs mono">{{ u.TaiKhoanNguoiNhan }}</div>{% endif %}</td>
+                    <td>{{ u.TenVaiTro }}</td>
+                    <td class="nowrap">{{ u.NgayKetThuc.strftime('%d/%m/%Y') if u.NgayKetThuc else 'Không thời hạn' }}</td>
+                    <td>{{ badge(u.TrangThai) }}</td>
+                    <td>
+                        {% if u.Chieu == 'Tôi chia sẻ' and u.TrangThai in ['Hiệu lực', 'Hết hạn'] %}
+                        <form method="post" action="{{ url_for('kh.thu_hoi_uy_quyen', ma_uy_quyen=u.MaUyQuyen) }}" data-confirm="Thu hồi quyền của {{ u.NguoiLienQuan }} trên vé {{ u.MaVe }}?">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn btn-ghost btn-xs">{{ icon('x', 12) }}Thu hồi</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty">{{ icon('share', 20) }}<span>Chưa có chia sẻ nào.</span></div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

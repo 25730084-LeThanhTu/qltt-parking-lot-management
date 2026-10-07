@@ -1,0 +1,13 @@
+{% extends 'kh/base_kh.html' %}
+{% from '_icons.html' import icon %}
+{% set title = 'Có lỗi xảy ra' %}
+{% block content %}
+<section class="card">
+    <div class="empty empty-lg">
+        {{ icon('alert-circle', 28) }}
+        <div class="strong">Không thực hiện được yêu cầu</div>
+        <div class="subtle sm">{{ error }}</div>
+        <a href="{{ url_for('kh.tong_quan') }}" class="btn btn-outline btn-sm mt-8">{{ icon('home', 14) }}Về trang tổng quan</a>
+    </div>
+</section>
+{% endblock %}

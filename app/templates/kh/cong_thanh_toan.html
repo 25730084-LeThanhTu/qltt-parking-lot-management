@@ -1,0 +1,58 @@
+{% extends 'kh/base_kh.html' %}
+{% from '_icons.html' import icon %}
+{% from 'kh/_macros.html' import badge %}
+{% set title = 'Cổng thanh toán' %}
+{% block content %}
+<div class="alert alert-info">
+    {{ icon('info', 18) }}
+    <div class="grow sm"><strong>Cổng thanh toán mô phỏng.</strong> Trong thực tế {{ gd.PhuongThucThanhToan }} gọi callback về máy chủ SmartPark (<code>sp_KH_NapTien_XacNhan</code>, chạy bằng quyền hệ thống). Ở đây bạn bấm thay cho cổng thanh toán.</div>
+</div>
+
+<section class="kh-gateway card">
+    <div class="kh-gateway-head">
+        <span class="tile-ico lg tone-violet">{{ icon('wallet', 20) }}</span>
+        <div class="grow">
+            <div class="strong">{{ gd.PhuongThucThanhToan }}</div>
+            <div class="subtle xs">Thanh toán cho SmartPark • Nạp ví</div>
+        </div>
+        {{ badge(gd.TrangThai) }}
+    </div>
+    <div class="kh-gateway-amount mono">{{ gd.SoTienCoDau|vnd }}</div>
+    <div class="kv">
+        <div class="kv-row"><span class="kv-k">Mã giao dịch</span><span class="kv-v mono">{{ gd.MaGD }}</span></div>
+        <div class="kv-row"><span class="kv-k">Phí cổng (SmartPark chịu)</span><span class="kv-v">{{ (gd.PhiGiaoDich or 0)|vnd }}</span></div>
+        <div class="kv-row"><span class="kv-k">Tạo lúc</span><span class="kv-v">{{ gd.ThoiGianTao.strftime('%H:%M:%S %d/%m/%Y') }}</span></div>
+        {% if gd.MaThamChieu %}<div class="kv-row"><span class="kv-k">Mã tham chiếu cổng</span><span class="kv-v mono">{{ gd.MaThamChieu }}</span></div>{% endif %}
+        {% if gd.SoDuSau is not none %}<div class="kv-row"><span class="kv-k">Số dư sau giao dịch</span><span class="kv-v strong">{{ gd.SoDuSau|vnd }}</span></div>{% endif %}
+    </div>
+
+    {% if gd.TrangThai == 'Chờ xử lý' %}
+    <div class="grid grid-2">
+        <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="ket_qua" value="0">
+            <button type="submit" class="btn btn-outline btn-lg btn-block">{{ icon('x', 16) }}Hủy thanh toán</button>
+        </form>
+        <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="ket_qua" value="1">
+            <button type="submit" class="btn btn-success btn-lg btn-block">{{ icon('check', 16) }}Thanh toán thành công</button>
+        </form>
+    </div>
+    {% elif gd.TrangThai == 'Thành công' %}
+    <div class="alert alert-success">{{ icon('check-circle', 18) }}<div class="grow sm">Ví đã được cộng {{ gd.SoTienCoDau|vnd }}.</div></div>
+    <div class="grid grid-2">
+        <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="ket_qua" value="1">
+            <button type="submit" class="btn btn-outline btn-block" title="Cổng thanh toán gọi lại callback lần nữa">{{ icon('repeat', 15) }}Gửi lại callback</button>
+        </form>
+        <a href="{{ url_for('kh.tong_quan') }}" class="btn btn-primary btn-block">{{ icon('home', 15) }}Về tổng quan</a>
+    </div>
+    <p class="subtle xs center">"Gửi lại callback" minh họa tính idempotent: callback lặp với cùng mã tham chiếu không cộng tiền lần nữa.</p>
+    {% else %}
+    <div class="alert alert-error">{{ icon('x-circle', 18) }}<div class="grow sm">Giao dịch không thành công, ví không bị trừ tiền.</div></div>
+    <a href="{{ url_for('kh.nap_tien') }}" class="btn btn-primary btn-block">{{ icon('refresh', 15) }}Tạo lệnh nạp mới</a>
+    {% endif %}
+</section>
+{% endblock %}

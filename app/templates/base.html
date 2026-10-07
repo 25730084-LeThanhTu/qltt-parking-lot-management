@@ -11,6 +11,7 @@
     'main.table_detail': 'Bảng dữ liệu',
     'main.sql_query': 'SQL Studio',
     'main.setup': 'Hệ thống',
+    'main.khach_hang': 'Khách hàng & Thanh toán',
 } -%}
 <!doctype html>
 <html lang="vi">
@@ -33,7 +34,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260929_v10">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20261006_v14">
 </head>
 <body>
 
@@ -75,6 +76,12 @@
             </a>
             <a href="{{ url_for('main.tables') }}" class="sb-link {% if ep in ['main.tables', 'main.table_detail'] %}active{% endif %}">
                 {{ icon('database', 18) }}<span>Bảng dữ liệu</span>
+            </a>
+            <a href="{{ url_for('main.khach_hang') }}" class="sb-link {% if ep == 'main.khach_hang' %}active{% endif %}">
+                {{ icon('wallet', 18) }}<span>Khách hàng &amp; Thanh toán</span>
+            </a>
+            <a href="{{ url_for('kh.dang_nhap') }}" class="sb-link" target="_blank" rel="noopener" title="Mở cổng khách hàng trong tab mới (đăng nhập bằng tài khoản khách)">
+                {{ icon('user', 18) }}<span>Cổng khách hàng ↗</span>
             </a>
         </div>
 
@@ -151,6 +158,6 @@
 
 <div id="toast-container" class="toast-container" aria-live="polite"></div>
 
-<script src="{{ url_for('static', filename='js/main.js') }}?v=20260929_v10"></script>
+<script src="{{ url_for('static', filename='js/main.js') }}?v=20261006_v14"></script>
 </body>
 </html>

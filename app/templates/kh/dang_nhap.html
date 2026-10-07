@@ -1,0 +1,58 @@
+{% extends 'kh/base_kh.html' %}
+{% from '_icons.html' import icon %}
+{% set title = 'Đăng nhập' %}
+{% block content %}
+<div class="kh-auth">
+    <section class="card kh-auth-card">
+        <div class="kh-auth-head">
+            <span class="tile-ico lg tone-blue">{{ icon('log-in', 20) }}</span>
+            <div>
+                <h1 class="ph-title">Đăng nhập</h1>
+                <p class="ph-sub">Quản lý vé tháng, nạp tiền vào ví và tự gia hạn trực tuyến.</p>
+            </div>
+        </div>
+        <form method="post" class="stack" autocomplete="on">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div>
+                <label class="field-label" for="ten_dang_nhap">Số điện thoại</label>
+                <input id="ten_dang_nhap" name="ten_dang_nhap" class="input" required inputmode="tel" autocomplete="username" value="{{ ten_dang_nhap }}" placeholder="VD: 0903112233">
+            </div>
+            <div>
+                <label class="field-label" for="mat_khau">Mật khẩu</label>
+                <div class="kh-password">
+                    <input id="mat_khau" name="mat_khau" type="password" class="input" required autocomplete="current-password">
+                    <button type="button" class="btn btn-ghost btn-xs" data-toggle-password="mat_khau" aria-label="Hiện mật khẩu" aria-pressed="false">{{ icon('eye', 15) }}</button>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-lg btn-block">{{ icon('log-in', 16) }}Đăng nhập</button>
+            <p class="subtle sm center">Chưa có tài khoản? <a href="{{ url_for('kh.dang_ky') }}">Đăng ký bằng SĐT và CCCD</a> (dành cho khách đã đăng ký vé tại quầy).</p>
+        </form>
+    </section>
+
+    {% if tai_khoan_demo %}
+    <section class="card kh-demo-card" aria-labelledby="demo-title">
+        <div class="card-head" style="margin-bottom: 8px;">
+            <div>
+                <h2 class="card-title" id="demo-title">{{ icon('sparkles', 16) }}<span>Tài khoản demo</span></h2>
+                <div class="card-sub">Bấm để điền sẵn. Mật khẩu mẫu: <code>{{ mat_khau_demo }}</code>. Ẩn bảng này bằng <code>KH_DEMO_ACCOUNTS=0</code>.</div>
+            </div>
+        </div>
+        <div class="kh-demo-list">
+            {% for t in tai_khoan_demo %}
+            <button type="button" class="kh-demo-item" data-fill-login="{{ t.TenDangNhap }}" data-fill-password="{{ mat_khau_demo }}">
+                <span class="grow">
+                    <span class="strong">{{ t.HoTen }}</span>
+                    <span class="subtle xs mono">{{ t.TenDangNhap }}</span>
+                </span>
+                <span class="row wrap" style="gap: 4px; justify-content: flex-end;">
+                    {% if t.SoVe %}<span class="badge badge-info">{{ t.SoVe }} vé</span>{% endif %}
+                    {% if t.SoVeDuocChiaSe %}<span class="badge badge-violet">được chia sẻ {{ t.SoVeDuocChiaSe }}</span>{% endif %}
+                    {% if t.TrangThai != 'Hoạt động' %}<span class="badge {{ t.TrangThai|status_badge_class }}">{{ t.TrangThai }}</span>{% endif %}
+                </span>
+            </button>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}

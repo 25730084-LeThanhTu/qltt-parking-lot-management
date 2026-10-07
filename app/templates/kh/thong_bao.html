@@ -1,0 +1,51 @@
+{% extends 'kh/base_kh.html' %}
+{% from '_icons.html' import icon %}
+{% set title = 'Thông báo' %}
+{%- set loai_icon = {'Giao dịch': 'receipt', 'Sắp hết hạn': 'clock', 'Hết hạn': 'alert-circle', 'Bảo mật': 'shield', 'Ủy quyền': 'share', 'Hệ thống': 'info'} -%}
+{% block content %}
+<div class="page-head">
+    <div class="ph-main">
+        <div class="eyebrow">{{ icon('bell', 13) }} Hộp thư</div>
+        <h1 class="ph-title">Thông báo</h1>
+        <p class="ph-sub">Hóa đơn, nạp tiền, cảnh báo hạn vé, bảo mật và chia sẻ vé. Thông báo chưa đọc hiển thị trước.</p>
+    </div>
+    {% if ho_so.SoThongBaoChuaDoc %}
+    <form method="post" class="ph-actions">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn-outline btn-sm">{{ icon('check', 14) }}Đánh dấu đã đọc tất cả ({{ ho_so.SoThongBaoChuaDoc }})</button>
+    </form>
+    {% endif %}
+</div>
+
+<section class="card card-flush">
+    {% if thong_bao %}
+    <ul class="kh-notifs kh-notifs-full">
+        {% for t in thong_bao %}
+        <li class="{% if not t.DaDoc %}is-unread{% endif %}">
+            <span class="tile-ico tone-{{ 'red' if t.LoaiTB in ['Bảo mật', 'Hết hạn'] else ('amber' if t.LoaiTB == 'Sắp hết hạn' else 'blue') }}">{{ icon(loai_icon.get(t.LoaiTB, 'bell'), 16) }}</span>
+            <div class="grow">
+                <div class="row between wrap">
+                    <span class="strong">{{ t.TieuDe }}</span>
+                    <span class="subtle xs nowrap">{{ t.ThoiGianTao.strftime('%H:%M %d/%m/%Y') }}</span>
+                </div>
+                <div class="sm">{{ t.NoiDung }}</div>
+                <div class="row wrap mt-4" style="gap: 6px;">
+                    <span class="badge badge-secondary">{{ t.LoaiTB }}</span>
+                    {% if t.MaVe %}<a href="{{ url_for('kh.chi_tiet_ve', ma_ve=t.MaVe) }}" class="badge badge-info">Vé {{ t.MaVe }}</a>{% endif %}
+                    {% if not t.DaDoc %}
+                    <form method="post">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="ma_tb" value="{{ t.MaTB }}">
+                        <button type="submit" class="btn btn-ghost btn-xs">{{ icon('check', 12) }}Đã đọc</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty empty-lg">{{ icon('bell', 24) }}<span>Bạn chưa có thông báo nào.</span></div>
+    {% endif %}
+</section>
+{% endblock %}

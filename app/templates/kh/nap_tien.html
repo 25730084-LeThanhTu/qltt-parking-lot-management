@@ -1,0 +1,59 @@
+{% extends 'kh/base_kh.html' %}
+{% from '_icons.html' import icon %}
+{% set title = 'Nạp tiền' %}
+{%- set pttt_icon = {'Ngân hàng': 'building', 'Thẻ': 'card', 'Ví điện tử': 'wallet'} -%}
+{% block content %}
+<div class="page-head">
+    <div class="ph-main">
+        <div class="eyebrow">{{ icon('wallet', 13) }} Ví SmartPark</div>
+        <h1 class="ph-title">Nạp tiền vào ví</h1>
+        <p class="ph-sub">Số dư hiện tại <strong>{{ (ho_so.SoDu or 0)|vnd }}</strong>. Tiền vào ví sau khi cổng thanh toán xác nhận; nạp tiền mặt thực hiện tại quầy.</p>
+    </div>
+</div>
+
+<form method="post" class="grid kh-ve-grid" data-confirm-amount="Tạo lệnh nạp {amount} ₫ và chuyển sang cổng thanh toán?">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <section class="card stack">
+        <h2 class="card-title">{{ icon('card', 17) }}<span>1. Chọn phương thức</span></h2>
+        <fieldset class="kh-pay-grid">
+            <legend class="sr-only">Phương thức thanh toán</legend>
+            {% for p in phuong_thuc %}
+            {%- set dung_duoc = p.TrangThai == 'Hoạt động' -%}
+            <label class="kh-pay {% if not dung_duoc %}is-disabled{% endif %}">
+                <input type="radio" name="ma_pttt" value="{{ p.MaPTTT }}" required {% if not dung_duoc %}disabled{% elif loop.first %}checked{% endif %}>
+                <span class="tile-ico tone-{{ 'violet' if p.LoaiKenh == 'Ví điện tử' else 'blue' }}">{{ icon(pttt_icon.get(p.LoaiKenh, 'wallet'), 17) }}</span>
+                <span class="grow">
+                    <span class="strong">{{ p.TenPTTT }}</span>
+                    <span class="subtle xs">Phí {{ '%.1f'|format(p.PhiPhanTram|float) }}% • tối thiểu {{ p.SoTienToiThieu|vnd }}</span>
+                </span>
+                {% if not dung_duoc %}<span class="badge badge-warning">{{ p.TrangThai }}</span>{% endif %}
+            </label>
+            {% else %}
+            <div class="empty">{{ icon('card', 20) }}<span>Chưa có phương thức nạp tiền khả dụng.</span></div>
+            {% endfor %}
+        </fieldset>
+    </section>
+
+    <section class="card stack kh-confirm-box">
+        <h2 class="card-title">{{ icon('wallet', 17) }}<span>2. Nhập số tiền</span></h2>
+        <div>
+            <label class="field-label" for="so_tien">Số tiền nạp (₫)</label>
+            <input id="so_tien" name="so_tien" type="number" class="input input-lg mono" min="10000" step="1000" required value="{{ so_tien_goi_y or 200000 }}">
+        </div>
+        <div class="chips" aria-label="Chọn nhanh số tiền">
+            {% for m in chon_nhanh %}
+            <button type="button" class="chip" data-fill-amount="{{ m }}" data-target="so_tien">{{ m|vnd }}</button>
+            {% endfor %}
+        </div>
+        {% if han_muc %}
+        <div class="kv kv-boxed">
+            <div class="kv-row"><span class="kv-k">Hạn mức nạp mỗi ngày</span><span class="kv-v">{{ han_muc.HanMucNapNgay|vnd }}</span></div>
+            <div class="kv-row"><span class="kv-k">Đã nạp hôm nay (gồm lệnh đang chờ)</span><span class="kv-v">{{ han_muc.DaNapHomNay|vnd }}</span></div>
+            <div class="kv-row"><span class="kv-k strong">Còn được nạp</span><span class="kv-v strong">{{ han_muc.HanMucConLai|vnd }}</span></div>
+        </div>
+        {% endif %}
+        <button type="submit" class="btn btn-primary btn-lg btn-block">{{ icon('arrow-right', 16) }}Tiếp tục tới cổng thanh toán</button>
+        <p class="subtle xs center">Bước 1 tạo giao dịch <em>Chờ xử lý</em> (<code>sp_KH_NapTien_KhoiTao</code>); số dư chỉ tăng khi cổng thanh toán báo thành công.</p>
+    </section>
+</form>
+{% endblock %}
