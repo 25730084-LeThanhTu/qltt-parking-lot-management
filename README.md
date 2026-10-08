@@ -1,13 +1,14 @@
 # HỆ THỐNG QUẢN LÝ CHUỖI NHIỀU BÃI ĐỖ XE (MULTI-SITE PARKING LOT MANAGEMENT)
 > **Môn học:** Quản lý Thông tin / Quản trị Cơ sở Dữ liệu (IE103)  
-> **Nền tảng:** Python 3 (Flask), Microsoft SQL Server 2022 (T-SQL, Stored Procedures, Triggers, Functions, Cursors, 37 Views, RBAC Security, Backup/Restore)  
-> **Cổng phục vụ Web:** `http://127.0.0.1:5001`
+> **Nền tảng:** Python 3 (Flask), Microsoft SQL Server 2022 (T-SQL, Stored Procedures, Triggers, Functions, Cursors, Views, RBAC + Row-Level Security, Backup/Restore)  
+> **Quy mô CSDL:** 21 bảng · 37 views · 23 stored procedures + 4 procedure cursor · 16 triggers · 12 functions (+ 4 hàm lọc RLS) · 4 role  
+> **Cổng phục vụ Web:** `http://127.0.0.1:5001` (đặt `PORT=5001` trong `.env`; mặc định của `run.py` là 5000)
 
 ---
 
 ## 📌 1. Giới thiệu Đề tài
 
-Đề tài giải quyết bài toán vận hành chuỗi nhiều bãi đỗ xe thông minh thuộc các địa bàn trọng điểm (Quận 1 - Lê Lai, Quận 3 - Hai Bà Trưng, Bình Thạnh - Landmark 81). Hệ thống xử lý trọn vẹn luồng nghiệp vụ từ khâu quét thẻ tự động tại barrier, điều phối ô đỗ, tính toán biểu phí động, quản lý hợp đồng vé tháng, xử lý sự cố an ninh cho đến báo cáo phân tích kinh doanh (BI) cho ban giám đốc.
+Đề tài giải quyết bài toán vận hành chuỗi 5 bãi đỗ xe tại TP.HCM: Lê Lai - Bến Thành (Quận 1), Hai Bà Trưng (Quận 3), Landmark 81 (Bình Thạnh), TCP Park - Sân bay Tân Sơn Nhất (Tân Bình) và SC VivoCity (Quận 7). Hệ thống xử lý trọn vẹn luồng nghiệp vụ từ khâu quét thẻ tự động tại barrier, điều phối ô đỗ, tính toán biểu phí động, quản lý hợp đồng vé tháng, xử lý sự cố an ninh cho đến báo cáo phân tích kinh doanh (BI) cho ban giám đốc. Ngoài giao diện nhân viên, hệ thống có **cổng khách hàng `/kh`** cho khách vé tháng: ví trả trước, nạp tiền, tự gia hạn, chia sẻ vé.
 
 ### Điểm nổi bật về nghiệp vụ và kỹ thuật:
 - **Phân tách chi nhánh độc lập**: Mỗi bãi đỗ quản lý kho thẻ chip RFID, sơ đồ ô đỗ, biểu phí và sức chứa riêng biệt qua mã bãi (`MaBai`).
@@ -19,9 +20,11 @@
   - Tự động đồng bộ trạng thái ô đỗ (`Trống` $\leftrightarrow$ `Đã đỗ`) và cập nhật số lượng xe thời gian thực qua **Trigger** `trg_DongBoTrangThaiSlot`.
   - Tự động bẫy lỗi chặn thẻ mất/khóa, chặn vé tháng quá hạn qua **Trigger** `trg_KiemTraCheckIn` và `trg_ChanSuDungVeHetHan`.
   - Bảo toàn tính toàn vẹn khi đăng ký vé tháng bằng **SQL Transaction** nhiều bước.
-  - Tự động quét cảnh báo hạn vé và tổng kết doanh thu toàn chuỗi bằng **Database Cursors**.
-- **Bộ 37 Views chuyên sâu**: Phục vụ trực tiếp bốt kiểm soát cổng vào/ra (`/gate`), sơ đồ mặt bằng realtime (`/map`) và báo cáo quản trị BI (`/reports`).
-- **An toàn thông tin & Phân quyền RBAC**: Phân cấp 3 nhóm vai trò (`r_Admin`, `r_QuanLyBai`, `r_BaoVe`) với chính sách cấp quyền (`GRANT`) và ngăn chặn nghiêm ngặt (`DENY`), mật khẩu băm `SHA2_512` kèm salt ngẫu nhiên riêng từng tài khoản (nhân viên và khách hàng).
+  - Tự động quét cảnh báo hạn vé, tổng kết doanh thu, tự động gia hạn vé bằng ví và đối soát ví bằng **4 Database Cursors**.
+  - Thẻ vật lý được cấp lại cho vé tháng mới khi vé cũ đã hết hạn: **unique index có lọc** `UX_VeThang_MaThe_ConDung` + hàm `f_VeHienHanhCuaThe` (mọi trigger, view tra vé theo thẻ chỉ xét vé hiện hành).
+- **Bộ 37 Views chuyên sâu**: Phục vụ trực tiếp bốt kiểm soát cổng vào/ra (`/gate`), sơ đồ mặt bằng realtime (`/map`), báo cáo quản trị BI (`/reports`) và cổng khách hàng (`vw_KH_*`).
+- **Ví điện tử & sổ cái bất biến**: Số dư ví chỉ đổi qua trigger sổ cái; giao dịch không được sửa / xóa; nạp tiền 2 pha idempotent; transaction lồng nhau an toàn bằng savepoint.
+- **An toàn thông tin & Phân quyền RBAC**: 4 vai trò (`r_Admin`, `r_QuanLyBai`, `r_BaoVe`, `r_KhachHang`) với `GRANT` / `DENY`, **Row-Level Security** cho dữ liệu khách hàng, mật khẩu băm `SHA2_512` kèm salt ngẫu nhiên 16 byte riêng từng tài khoản (nhân viên và khách hàng).
 
 ---
 
@@ -36,8 +39,11 @@ Hệ thống được thiết kế xuất phát từ các vấn đề nhức nh�
 │ 1. Kiểm soát Barrier Vào/Ra  │ 2. Chống Thất thoát Thu phí  │ 3. Hợp đồng   │
 │    & Cấp phát ô đỗ tự động   │    & Biểu phí theo chi nhánh │    Vé tháng   │
 ├──────────────────────────────┼──────────────────────────────┼───────────────┤
-│ 4. An ninh & Xử lý Sự cố     │ 5. Giám sát Mặt bằng & Sức   │ 6. Quyết định │
-│    Báo mất thẻ tức thời      │    chứa Thời gian thực       │    Kinh doanh │
+│ 4. An ninh & Xử lý Sự cố     │ 5. Giám sát Mặt bằng & Sức   │ 6. Tự động    │
+│    Báo mất thẻ tức thời      │    chứa Thời gian thực       │   hóa (Cursor)│
+├──────────────────────────────┼──────────────────────────────┼───────────────┤
+│ 7. Báo cáo BI & Quyết định   │ 8. Cổng khách hàng: ví,      │               │
+│    Kinh doanh                │    tự gia hạn, chia sẻ vé    │               │
 └──────────────────────────────┴──────────────────────────────┴───────────────┘
 ```
 
@@ -110,18 +116,33 @@ Hệ thống được thiết kế xuất phát từ các vấn đề nhức nh�
   - Mỗi ngày quản lý phải dò tay danh sách hàng trăm khách hàng vé tháng xem ai sắp hết hạn để gọi điện nhắc gia hạn, ai đã quá hạn để khóa thẻ.
   - Cuối kỳ, kế toán trưởng phải tổng hợp doanh thu từ nhiều bãi xe khác nhau một cách thủ công.
 - **Giải pháp trong project:**
-  - **Cursor `cur_CanhBaoHanTheThang`:** Tự động duyệt qua bảng `VE_THANG`, kiểm tra ngày hết hạn so với ngày hiện tại; tự động chuyển trạng thái sang `N'Hết hạn'` đối với vé quá hạn và in thông báo cảnh báo cho các vé còn hạn $\le 3$ ngày.
-  - **Cursor `cur_TongKetDoanhThuChuoi`:** Duyệt tuần tự qua danh sách các bãi đỗ trong bảng `BAI_DO_XE`, tổng hợp doanh thu vé lượt và vé tháng theo từng chi nhánh, xuất bảng tổng kết tài chính chuỗi.
+  - **`sp_DemoCanhBaoHanTheThang` (cursor `cur_VeThang`):** Duyệt bảng `VE_THANG`, chuyển vé quá hạn sang `N'Hết hạn'`, cảnh báo vé còn hạn $\le 3$ ngày và ghi thông báo cho khách có tài khoản online.
+  - **`sp_DemoTongKetDoanhThuChuoi` (cursor `cur_BaiDo`):** Duyệt từng bãi trong `BAI_DO_XE`, tổng hợp doanh thu vé lượt và vé tháng (tách theo kênh thanh toán), xếp hạng chi nhánh.
+  - **`sp_DemoTuDongGiaHanVeThang` (cursor `cur_TuDongGiaHan`):** Gia hạn các vé bật tự động gia hạn sắp hết hạn bằng số dư ví; mỗi vé chạy trong một savepoint riêng, vé thiếu tiền chỉ hoàn tác phần của nó.
+  - **`sp_DemoDoiSoatViDienTu` (cursor `cur_DoiSoatVi`):** Đối chiếu số dư từng ví với tổng giao dịch thành công trong sổ cái.
 
 ### 📈 Bài toán 7: Hỗ trợ Ra Quyết định Kinh doanh & Báo cáo BI Đa chiều (Business Intelligence & Executive Analytics)
 - **Vấn đề thực tế:**
   - Ban giám đốc chuỗi cần các con số thực tế để quyết định: Chi nhánh nào hoạt động hiệu quả nhất? Có nên đầu tư thêm ô đỗ ô tô thay vì xe máy? Tỷ lệ lấp đầy trung bình vào các ngày trong tuần ra sao?
 - **Giải pháp trong project:**
   - Hệ thống Views chuẩn hóa cung cấp dữ liệu tức thì cho **Microsoft Power BI** và **Tableau**:
-    - `vw_Report_DoanhThuTheoBai`: Phân tích cơ cấu nguồn thu (vé lượt vs vé tháng).
-    - `vw_Report_CongSuatBaiDo`: Đánh giá tỷ lệ lấp đầy bình quân của từng chi nhánh.
-    - `v_ThongKeLoaiXe`: Tỷ lệ phân bổ các dòng phương tiện để quy hoạch mặt bằng.
-    - `vw_Report_NhatKySuCo`: Thống kê tỷ lệ sự cố và tiền phạt theo tháng.
+    - `vw_Report_DoanhThuTheoBai`: Phân tích cơ cấu nguồn thu (vé lượt vs vé tháng, tại quầy vs online).
+    - `vw_Report_CongSuatBaiDo`, `vw_Report_XepHangBai`: Tỷ lệ lấp đầy và xếp hạng hiệu quả từng chi nhánh.
+    - `vw_Report_ThongKeTheoLoaiXe`, `vw_Report_LuuLuongTheoGio`: Cơ cấu phương tiện và lưu lượng theo giờ để quy hoạch mặt bằng.
+    - `vw_Report_DoanhThuTheoPhuongThuc`, `vw_Report_TongQuanViDienTu`: Doanh thu theo kênh thanh toán và số dư khách đang giữ trong ví.
+    - `vw_Report_NhatKySuCo`: Thống kê sự cố và tiền phạt.
+
+### 👛 Bài toán 8: Cổng Khách hàng Vé tháng & Ví Trả trước (Customer Self-Service & Prepaid Wallet)
+- **Vấn đề thực tế:**
+  - Khách vé tháng phải đến quầy để gia hạn, dễ quên hạn và bị chặn ở cổng.
+  - Một vé dùng chung cho cả gia đình nhưng chỉ chủ vé được thao tác.
+  - Ví trả trước là tiền của khách: số dư sai, cộng trùng khi cổng thanh toán gửi lại callback, hoặc bị sửa tay đều gây thiệt hại trực tiếp.
+- **Giải pháp trong project:**
+  - Khách tự tạo tài khoản bằng SĐT + CCCD (`sp_KH_DangKyTaiKhoan`); đăng nhập sai 5 lần bị khóa 15 phút (`trg_NhatKyDangNhap_KhoaTaiKhoan`).
+  - Nạp tiền 2 pha (`sp_KH_NapTien_KhoiTao` → `sp_KH_NapTien_XacNhan`): callback lặp không cộng tiền lần 2.
+  - Sổ cái `GIAO_DICH` chỉ ghi thêm: số dư ví chỉ đổi qua `trg_GiaoDich_CapNhatSoDu`; sửa / xóa giao dịch hay sửa thẳng số dư đều bị trigger chặn (50060, 50061, 50062). Hoàn tiền bằng giao dịch đối ứng (`sp_NV_HoanTien`).
+  - Gia hạn online bằng ví (`sp_KH_GiaHanBangVi`) và tự động gia hạn bằng cursor, dùng chung lõi `sp_GiaHanVe_Core` với quầy.
+  - Chia sẻ vé cho tối đa 3 người theo vai trò (`sp_KH_UyQuyenVe`, `f_KH_CoQuyen`).
 
 ---
 
@@ -130,56 +151,63 @@ Hệ thống được thiết kế xuất phát từ các vấn đề nhức nh�
 ```text
 qltt-parking-lot-management/
 │
-├── run.py                              # Entry-point khởi chạy Flask server (Port 5001)
+├── run.py                              # Entry-point khởi chạy Flask server (cổng lấy từ biến PORT)
 ├── requirements.txt                    # Danh sách thư viện Python (Flask, pyodbc, python-dotenv)
 ├── .env.example                        # Mẫu cấu hình môi trường kết nối SQL Server
-├── .env                                # Cấu hình môi trường cục bộ
+├── .env                                # Cấu hình môi trường cục bộ (không commit)
 ├── README.md                           # Tài liệu tổng quan, bài toán thực tế & hướng dẫn cài đặt
-├── DemoGuilde.md                       # Cẩm nang thuyết trình 21 kịch bản Demo 5 bước + cổng khách hàng
+├── UPGRADE_PLAN.md                     # Kế hoạch & nhật ký nâng cấp cổng khách hàng
 │
 ├── docs/
-│   └── parking-project-blueprint.md    # Đặc tả kỹ thuật kiến trúc toàn diện V6 (11 bảng, 15 views, RBAC)
+│   ├── DemoGuilde.md                   # Cẩm nang thuyết trình 21 kịch bản Demo 5 bước + cổng khách hàng
+│   ├── ThietKeHeThong.md               # Thiết kế hệ thống: CSDL vật lý, bảo mật, views, procedures / triggers
+│   ├── Dac Ta Nghiep Vu - Updated.docx # Đặc tả nghiệp vụ
+│   ├── Parking_lot_ERD.png             # Sơ đồ ERD
+│   └── QuanLyBaiDoXe_DuLieuMau.xlsx    # Dữ liệu mẫu gốc (nguồn của 02_sample_data.sql)
 │
 ├── sql/                                # 9 module SQL; mỗi module 01-08 gồm phần vận hành bãi rồi phần cổng khách hàng
 │   ├── 01_schema.sql                   # 21 bảng (11 bảng vận hành + 10 bảng cổng khách hàng), sequence seq_GiaoDich, danh mục PTTT / quyền / vai trò
-│   ├── 02_sample_data.sql              # Dữ liệu mẫu (sinh từ docs/QuanLyBaiDoXe_DuLieuMau.xlsx) + tài khoản, ví, sổ cái cổng khách hàng
-│   ├── 03_procedures.sql               # 23 Stored Procedures: quầy, lõi gia hạn, 12 sp_KH_*, 3 sp_NV_*
+│   ├── 02_sample_data.sql              # Dữ liệu mẫu 5 bãi + tài khoản, ví, sổ cái cổng khách hàng
+│   ├── 03_procedures.sql               # 23 Stored Procedures: quầy, lõi gia hạn, sp_KH_* cổng khách hàng, sp_NV_* nhân viên
 │   ├── 04_triggers.sql                 # 16 Triggers: an ninh bãi, sổ cái ví bất biến, khóa tài khoản, ủy quyền
 │   ├── 05_functions.sql                # 12 Functions: tính tiền, tìm slot, băm mật khẩu, phân quyền, sao kê ví, vé hiện hành của thẻ
-│   ├── 06_cursors.sql                  # 4 Cursors: cảnh báo hạn vé, tổng kết doanh thu, tự động gia hạn, đối soát ví
-│   ├── 07_views.sql                    # 37 Views: vận hành, bốt cổng, báo cáo BI, cổng khách hàng vw_KH_*
-│   ├── 08_security_rbac.sql            # RBAC 4 vai trò (r_Admin, r_QuanLyBai, r_BaoVe, r_KhachHang) + Row-Level Security
+│   ├── 06_cursors.sql                  # 4 procedure dùng cursor: cảnh báo hạn vé, tổng kết doanh thu, tự động gia hạn, đối soát ví
+│   ├── 07_views.sql                    # 37 Views: vận hành, bốt cổng, sơ đồ, báo cáo BI, cổng khách hàng vw_KH_*
+│   ├── 08_security_rbac.sql            # RBAC 4 vai trò (r_Admin, r_QuanLyBai, r_BaoVe, r_KhachHang) + 4 hàm lọc & policy Row-Level Security
 │   ├── 09_backup_restore.sql           # Kịch bản sao lưu Full/Diff/Log & khôi phục (chạy riêng, không nằm trong full script)
-│   ├── QL_BaiDoXe_FullScript.sql       # Sinh tự động bởi tools/build_fullscript.py từ 01-08, không sửa tay
+│   ├── QL_BaiDoXe_FullScript.sql       # Bản gộp các module 01-08 theo thứ tự; sửa module nào phải cập nhật lại bản gộp
 │   └── Demo_Queries.sql                # Bộ câu lệnh SQL đối chứng song hành dưới SSMS
-│
-├── tools/
-│   └── build_fullscript.py             # Sinh lại full script; --check để kiểm tra đã đồng bộ với module chưa
 │
 ├── app/
 │   ├── __init__.py                     # Khởi tạo Flask App, format tiền tệ VND, thời gian, trạng thái
-│   ├── db.py                           # Tầng kết nối pyodbc, cơ chế transaction, xử lý batch GO
+│   ├── db.py                           # Tầng kết nối pyodbc, transaction, xử lý batch GO, kết nối cổng khách hàng (SESSION_CONTEXT)
+│   ├── errors.py                       # Chuẩn hóa thông báo lỗi SQL Server (mã 500xx) cho giao diện
 │   ├── queries.py                      # Danh mục bảng, views và chi tiết 21 kịch bản Demo 5 bước
-│   ├── routes.py                       # Quản lý toàn bộ endpoint điều hướng và REST API
+│   ├── routes.py                       # Endpoint giao diện nhân viên (/, /gate, /map, /reports, /tables, /sql, /setup, /khach-hang)
+│   ├── kh_routes.py                    # Endpoint cổng khách hàng /kh (đăng nhập, ví, gia hạn, chia sẻ vé, bảo mật)
 │   │
 │   ├── static/
-│   │   ├── css/style.css               # Giao diện hiện đại (Design Tokens, Sticky Header, Spacing <= 12px)
+│   │   ├── css/style.css               # Giao diện (Design Tokens, Sáng / Tối, responsive)
 │   │   └── js/main.js                  # Hỗ trợ tương tác, lọc tab, cuộn kết quả
 │   │
 │   └── templates/
-│       ├── base.html                   # Layout khung sườn ứng dụng
-│       ├── index.html                  # Trang chủ & Danh mục 21 kịch bản Demo dạng List Card phân nhóm
-│       ├── parking_map.html            # Sơ đồ mặt bằng ô đỗ xe realtime (Slot Map) kèm biển số phản quang
-│       ├── gate_booth.html             # Bốt kiểm soát cổng vào/ra (quét thẻ, đèn cổng, xe chờ ra, nhật ký)
+│       ├── base.html                   # Layout khung sườn giao diện nhân viên
+│       ├── index.html                  # Trang chủ & danh mục 21 kịch bản Demo phân nhóm
 │       ├── demo.html                   # Màn hình thực thi kịch bản Demo 5 bước song hành SSMS
-│       ├── tables.html                 # Danh mục 21 bảng dữ liệu CSDL (nhóm theo phân hệ, tìm kiếm)
+│       ├── gate_booth.html             # Bốt kiểm soát cổng vào/ra (quét thẻ, đèn cổng, xe chờ ra, nhật ký)
+│       ├── parking_map.html            # Sơ đồ mặt bằng ô đỗ xe realtime
+│       ├── tables.html                 # Danh mục 21 bảng dữ liệu (nhóm theo phân hệ, tìm kiếm)
 │       ├── reports.html                # Danh mục 23 view báo cáo BI & vận hành realtime
-│       ├── report_detail.html          # Chi tiết dữ liệu View & trích xuất bảng
+│       ├── report_detail.html          # Chi tiết dữ liệu View
 │       ├── sql_query.html              # Trình soạn thảo và chạy câu lệnh SQL trực tiếp
-│       ├── setup.html                  # Màn hình tích hợp Health Check & Setup CSDL thông minh
+│       ├── setup.html                  # Health Check & nạp lại CSDL
+│       ├── khach_hang.html             # Màn hình nhân viên: tài khoản khách, giao dịch, hoàn tiền, bảo mật
 │       ├── simple_result.html          # Hiển thị bảng kết quả đơn giản
-│       ├── _result_table.html          # Component Macro render dữ liệu bảng chuyên nghiệp
-│       └── error.html                  # Màn hình thông báo lỗi
+│       ├── error.html                  # Màn hình thông báo lỗi
+│       ├── _result_table.html          # Macro render bảng dữ liệu
+│       ├── _lot_picker.html            # Bộ chọn bãi (dùng ở /map, /gate)
+│       ├── _icons.html                 # Bộ icon SVG
+│       └── kh/                         # 15 template cổng khách hàng (base_kh, đăng nhập, tổng quan, vé, nạp tiền, ...)
 │
 └── reports_screenshots/                # Thư mục lưu trữ ảnh Dashboard mẫu từ Power BI / Tableau
     └── README.txt
@@ -191,7 +219,7 @@ qltt-parking-lot-management/
 
 ### 4.1. Yêu cầu Hệ thống
 - **Python:** Phiên bản 3.10 trở lên.
-- **Hệ quản trị CSDL:** Microsoft SQL Server (2017, 2019, 2022 hoặc Docker `azure-sql-edge` trên macOS M1/M2/M3).
+- **Hệ quản trị CSDL:** Microsoft SQL Server 2022 (đã kiểm thử), chạy trên Windows, Linux hoặc container Docker. Script dùng Row-Level Security, `SESSION_CONTEXT`, `CREATE OR ALTER` và `STRING_AGG`, nên cần tối thiểu SQL Server 2017.
 - **Driver kết nối:** `ODBC Driver 18 for SQL Server` (hoặc Driver 17).
 - **Công cụ truy vấn:** SQL Server Management Studio (SSMS) hoặc Azure Data Studio.
 
@@ -233,9 +261,14 @@ SQLSERVER_SERVER=localhost,1433
 SQLSERVER_DATABASE=QuanLyBaiDoXe
 SQLSERVER_TRUSTED_CONNECTION=no
 SQLSERVER_USERNAME=sa
-SQLSERVER_PASSWORD=Password123!
+SQLSERVER_PASSWORD=<mật khẩu sa>
 PORT=5001
+ALLOW_RUN_FULL_SCRIPT=1      # cho phép nạp lại CSDL từ trang /setup
+FLASK_SECRET_KEY=            # bỏ trống: mỗi lần khởi động sinh khóa ngẫu nhiên
+KH_DEMO_ACCOUNTS=1           # hiện bảng "Tài khoản demo" trên trang đăng nhập /kh
 ```
+
+Toàn bộ web (giao diện nhân viên và cổng khách hàng `/kh`) dùng **chung một login** khai báo ở trên.
 
 Khởi chạy ứng dụng:
 ```bash
@@ -247,27 +280,13 @@ Truy cập hệ thống trên trình duyệt:
 http://127.0.0.1:5001
 ```
 
-### 3.6. Chạy bằng Docker (Mac Apple Silicon M1/M2 + Colima)
-
-SQL Server 2022 chỉ có image `amd64`, nên Colima cần bật Rosetta để giả lập (tối thiểu 4 GB RAM):
-
-```bash
-colima start --vm-type vz --vz-rosetta --cpu 4 --memory 4
-
-docker compose up -d --build     # db (SQL Server) -> db-init (nạp full script lần đầu) -> app (Flask)
-docker compose ps                # db: healthy, db-init: Exited (0), app: Up
-```
-
-- Web: `http://127.0.0.1:5001` (cổng 5000 trên macOS bị AirPlay Receiver chiếm; đổi bằng biến `APP_PORT`).
-- SSMS / Azure Data Studio: server `localhost,1433`, user `sa`, mật khẩu `Parking@12345` (đổi bằng biến `MSSQL_SA_PASSWORD` trong shell hoặc `.env` trước lần chạy đầu tiên).
-- `db-init` chỉ nạp `sql/QL_BaiDoXe_FullScript.sql` khi CSDL chưa được dựng hoàn chỉnh, nên dữ liệu demo được giữ lại giữa các lần `up`. Muốn nạp lại: dùng trang `/setup`, hoặc xóa sạch volume bằng `docker compose down -v`.
-- Mã nguồn được mount vào container, Flask tự reload khi sửa code.
+> **macOS:** cổng 5000 thường bị AirPlay Receiver chiếm, nên dùng `PORT=5001`. SQL Server có thể chạy trong container Docker (`mcr.microsoft.com/mssql/server:2022-latest`, mở cổng 1433); trên Mac Apple Silicon cần bật giả lập amd64 (Rosetta).
 
 ---
 
 ## 🎯 5. Danh mục 21 Kịch Bản Demo CSDL Chuẩn 5 Bước
 
-Các kịch bản demo được tổ chức thành dạng **List Card** phân 5 nhóm tại trang chủ (`/`); hướng dẫn thuyết trình từng kịch bản trong [DemoGuilde.md](DemoGuilde.md), cho phép đối chiếu trực tiếp dữ liệu trước và sau khi thực thi:
+Các kịch bản demo được tổ chức thành dạng **List Card** phân 5 nhóm tại trang chủ (`/`); hướng dẫn thuyết trình từng kịch bản trong [docs/DemoGuilde.md](docs/DemoGuilde.md), thiết kế CSDL chi tiết trong [docs/ThietKeHeThong.md](docs/ThietKeHeThong.md). Mỗi kịch bản cho phép đối chiếu trực tiếp dữ liệu trước và sau khi thực thi:
 
 | Nhóm | Mã Kịch Bản | Tên Kịch Bản | Đối Tượng CSDL Sử Dụng | Bài Toán Giải Quyết |
 | :--- | :--- | :--- | :--- | :--- |
@@ -288,7 +307,7 @@ Các kịch bản demo được tổ chức thành dạng **List Card** phân 5 
 | **Cổng KH** | `kh-nap-tien-2-pha` | Nạp tiền 2 pha | `sp_KH_NapTien_KhoiTao`, `sp_KH_NapTien_XacNhan`, `trg_GiaoDich_CapNhatSoDu` | Callback lặp không cộng tiền 2 lần (idempotent). |
 | **Cổng KH** | `kh-gia-han-bang-vi` | Tự gia hạn bằng ví | `sp_KH_GiaHanBangVi`, `sp_GiaHanVe_Core` | Trừ ví + gia hạn + hóa đơn kênh Online trong một transaction. |
 | **Cổng KH** | `trigger-chan-so-du-am` | Chặn số dư âm | `trg_GiaoDich_CapNhatSoDu`, `CHECK SoDu >= 0` | Thủ tục và trigger sổ cái đều chặn (50031). |
-| **Cổng KH** | `rls-co-lap-du-lieu-khach-hang` | Row-Level Security | `r_KhachHang`, `bao_mat.rls_KhachHang` | DENY bảng gốc, mỗi khách chỉ thấy dữ liệu của mình. |
+| **Cổng KH** | `rls-co-lap-du-lieu-khach-hang` | Row-Level Security | `r_KhachHang`, `u_WebKhachHang`, `bao_mat.rls_KhachHang` | Kịch bản tự `EXECUTE AS USER = 'u_WebKhachHang'`: DENY bảng gốc (lỗi 229), mỗi khách chỉ thấy dữ liệu của mình. |
 | **Cổng KH** | `kh-uy-quyen-ve` | Chia sẻ vé theo vai trò | `sp_KH_UyQuyenVe`, `f_KH_CoQuyen` | Thành viên không gia hạn được (50050), tối đa 3 người (50053). |
 | **Cổng KH** | `cursor-tu-dong-gia-han` | Tự động gia hạn | `sp_DemoTuDongGiaHanVeThang` | Cursor + savepoint: vé thiếu tiền chỉ hoàn tác phần của nó. |
 | **Cổng KH** | `trigger-so-cai-bat-bien` | Sổ cái bất biến & hoàn tiền | `trg_GiaoDich_BatBien`, `trg_GiaoDich_ChanXoa`, `sp_NV_HoanTien` | Chặn sửa / xóa sổ cái (50061, 50060, 50062); chỉ hoàn khoản chưa xuất hóa đơn (50063). |
@@ -323,7 +342,8 @@ Các kịch bản demo được tổ chức thành dạng **List Card** phân 5 
    - Đăng nhập / đăng ký bằng SĐT + CCCD; trang đăng nhập có bảng **tài khoản demo** bấm để điền sẵn (mật khẩu mẫu `Khach@2026`, ẩn bằng `KH_DEMO_ACCOUNTS=0`).
    - Tổng quan số dư ví và vé; chi tiết vé (hóa đơn, tự động gia hạn, báo mất thẻ, người được chia sẻ); gia hạn bằng ví có xem trước giá và số dư sau gia hạn.
    - Nạp tiền 2 pha qua **cổng thanh toán mô phỏng** (thành công / hủy / gửi lại callback để minh họa idempotency); sao kê ví có số dư lũy kế; lịch sử đỗ xe; thông báo; chia sẻ / thu hồi vé; đổi mật khẩu và nhật ký đăng nhập.
-   - Mỗi request chạy dưới quyền `r_KhachHang` (`EXECUTE AS USER = 'u_WebKhachHang'`, hoặc login riêng qua `SQLSERVER_KH_USERNAME`) với `SESSION_CONTEXT` read-only, nên Row-Level Security lọc dữ liệu thật sự; có CSRF token và hết phiên sau 30 phút không thao tác.
+   - Cổng dùng chung login với giao diện nhân viên (bản demo). Khi khách đăng nhập, web đặt `SESSION_CONTEXT` (`MaTK`, `MaKH`) ở chế độ read-only; các thủ tục `sp_KH_*` và view `vw_KH_*` lọc theo hai khóa này nên mỗi khách chỉ thấy dữ liệu của mình. Có CSRF token và hết phiên sau 30 phút không thao tác.
+   - Lớp RBAC + Row-Level Security cho khách (`r_KhachHang`) vẫn có trong CSDL và được minh họa riêng ở kịch bản `rls-co-lap-du-lieu-khach-hang`.
 
 ---
 
